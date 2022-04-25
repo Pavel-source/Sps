@@ -1,6 +1,6 @@
 WITH productList AS
 (
-SELECT p.ID, pt.entity_key, pt.Attributes, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey
+SELECT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey
 FROM productgift pg 
 	JOIN product p ON pg.productid = p.id
 	JOIN productgiftprice pgp ON pgp.productgiftid = p.id
@@ -32,6 +32,7 @@ FROM productList pl
 		  ON cc.id = ci.contentcategoryid
 	 JOIN contentcategorytranslation ct
 		  ON ct.contentcategoryid = cc.id
+			AND ct.locale = 'en_EN'
 	 JOIN contentcategorytype c
 	      ON cc.categorytypeid = c.id
 WHERE c.INTERNALNAME != 'Keywords'   		  
@@ -99,7 +100,7 @@ grouped_products AS
 ),
 grouped_product_types_0 AS
 (
-	SELECT pge.productGroupId, pl.entity_key, pl.Attributes, pl.MPTypeCode, pl.DefaultCategoryKey, 
+	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.DefaultCategoryKey, 
 		   ROW_NUMBER() OVER(PARTITION BY pge.productGroupId ORDER BY pge.productStandardGift) AS RN
 	FROM grouped_products pge
 		 JOIN productList pl ON pl.ID = pge.productStandardGift
@@ -188,9 +189,9 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							 FROM productgiftprice pgp2
 							 WHERE pgp2.productgiftid = p.id),
 			'attributes', case 
-							when atr.LargeAtr > 0 then replace(pt.Attributes, '"attributeValue": "standard"', '"attributeValue": "large"')
-							when atr.LetterboxAtr > 0 then replace(pt.Attributes, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
-						    else pt.Attributes
+							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
+							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
+						    else  pt.AttributesTemplate
 						  end
 						  )
 							 
@@ -213,7 +214,7 @@ FROM product p
          LEFT JOIN contentcategory cc
               ON cc.id = ci.contentcategoryid
          LEFT JOIN contentcategorytranslation ct
-              ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
+              ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
          LEFT JOIN contentcategorytype c
               ON cc.categorytypeid = c.id
          LEFT JOIN contentinformationfield cif_en_title
@@ -228,7 +229,7 @@ FROM product p
 						 end
          LEFT JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = cc.id
-				 AND mc.IsFlower = CASE WHEN pt.MPTypeCode = 'flower' THEN 1 ELSE 0 END
+				 AND mc.MPTypeCode = pt.MPTypeCode
 		 LEFT JOIN productList_withAttributes atr
 			ON p.ID = atr.ID
 WHERE (p.channelid = '2'
@@ -305,12 +306,12 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			 JOIN contentcategory cc
 					   ON cc.id = ci.contentcategoryid
 			 JOIN contentcategorytranslation ct
-					   ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
+					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
 			 JOIN contentcategorytype c
 					   ON cc.categorytypeid = c.id
 			 JOIN greetz_to_mnpq_categories_view mc 
 						ON mc.GreetzCategoryID = cc.id
-						   AND mc.IsFlower = CASE WHEN pt.MPTypeCode = 'flower' THEN 1 ELSE 0 END
+						   AND mc.MPTypeCode = pt.MPTypeCode
 		 WHERE p.contentinformationid = ci.contentinformationid
 				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
 	  )  AS keywords,
@@ -322,14 +323,10 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			 SELECT group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey )) separator ', ')
 			 FROM contentinformation_category ci
 				 JOIN contentcategory cc
-						   ON cc.id = ci.contentcategoryid
-				 JOIN contentcategorytranslation ct
-						   ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
-				 JOIN contentcategorytype c
-						   ON cc.categorytypeid = c.id
+					ON cc.id = ci.contentcategoryid
 				 JOIN greetz_to_mnpq_categories_view mc 
 					ON mc.GreetzCategoryID = cc.id 
-					   AND mc.IsFlower = CASE WHEN pt.MPTypeCode = 'flower' THEN 1 ELSE 0 END
+					   AND mc.MPTypeCode = pt.MPTypeCode
 			 WHERE p.contentinformationid = ci.contentinformationid
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
@@ -357,12 +354,11 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							 FROM productgiftprice pgp2
 							 WHERE pgp2.productgiftid = p.id),
 							 
-			'attributes', 
-						case 
-							when atr.LargeAtr > 0 then replace(pt.Attributes, '"attributeValue": "standard"', '"attributeValue": "large"')
-							when atr.LetterboxAtr > 0 then replace(pt.Attributes, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
-						    else pt.Attributes
-						end
+			'attributes', case 
+							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
+							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
+						    else  pt.AttributesTemplate
+						  end
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}') AS product_variants
 

@@ -27,12 +27,48 @@ with parent_category as (
                     end as                                                     attribute_key,*/
 				
 				case 
-					when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"}]'			
-				end  as Attributes,
+					when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"}]'
+					when MPTypeCode = 'gift-card' then '[{"attributeName": "delivery-type", "attributeValue": "physical", "attributeType": "lenum"}, 
+						{"attributeName": "upc", "attributeValue": "SKUNumber", "attributeType": "text"}]'
+					when MPTypeCode = 'personalised-mug' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
+						{"attributeName": "product-range", "attributeValue": "e46039c3-3d6d-45ea-82ee-7f66ead30613", "attributeType": "reference"},
+						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
+						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
+						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
+						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
+						]'		
+					when MPTypeCode = 'postcard' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
+						{"attributeName": "product-range", "attributeValue": "e46039c3-3d6d-45ea-82ee-7f66ead30613", "attributeType": "reference"},
+						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
+						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
+						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
+						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
+						]'		
+					when MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+						 AND MPTypeCode = 'Letterbox' 
+					then '[{"attributeName": "letterbox-friendly", "attributeValue": "true", "attributeType": "boolean"}]'
+					
+					when MPTypeCode = 'chocolate' AND lower(GreetzTypeName) LIKE '%telegram%' 
+					then '[{"attributeName": "letterbox-friendly", "attributeValue": "true", "attributeType": "boolean"}]'
+						
+				end  as AttributesTemplate,
 				
 				case 
 					when MPTypeCode = 'flower' then 'flowers-plants'	
 					when MPTypeCode = 'alcohol' then 'alcohol'
+					when MPTypeCode = 'home-gift' then 'home-garden'
+					when MPTypeCode = 'chocolate' then 'chocolate'
+					when MPTypeCode = 'cake' then 'biscuits'
+					when MPTypeCode = 'balloon' then 'newia-balloons'
+					when MPTypeCode = 'beauty' then 'beauty-face-body'
+					when MPTypeCode = 'toy-game' then 'toys-kids-baby'
+					when MPTypeCode = 'book' then 'books-stationery'
+					when MPTypeCode = 'gift-card' then 'gift-cards'
+					when MPTypeCode = 'sweet' then 'sweets'
+					when MPTypeCode = 'personalised-mug' then 'mugs'
+					when MPTypeCode = 'postcard' then 'newia-gift-sets-hampers-letterbox'
 				end  as DefaultCategoryKey,				
 				
 				GreetzTypeID,
@@ -165,5 +201,5 @@ with parent_category as (
               ) a
      )
 
-select entity_key, GreetzTypeID, GreetzTypeName, GreetzSubTypeName, MPTypeCode, Attributes, DefaultCategoryKey				
+select entity_key, GreetzTypeID, GreetzTypeName, GreetzSubTypeName, MPTypeCode, AttributesTemplate, DefaultCategoryKey				
 from product_type
