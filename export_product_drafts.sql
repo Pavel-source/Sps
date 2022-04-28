@@ -47,11 +47,13 @@ grouped_products AS
 			pge_s.productGroupId,
 			pge_s.showonstore,
 			ppd.giftdefinition as designId,
+			l.contentinformationid,
+			ppd.contentinformationid_design,
 			NULL AS nl_product_name, NULL AS en_product_name, NULL AS product_nl_description, NULL AS product_en_description  			
 	FROM productgroupentry AS pge_s
 		LEFT JOIN 
 			(
-				SELECT ppd_s.*
+				SELECT ppd_s.*, cd.contentinformationid AS contentinformationid_design
 				FROM productpersonalizedgiftdesign AS ppd_s						
 					 JOIN carddefinition AS cd		
 						ON ppd_s.giftdefinition = cd.ID
@@ -60,14 +62,14 @@ grouped_products AS
 			 ON pge_s.personalizedgiftdesign = ppd.ID	
 	 	JOIN productList l ON l.ID = IFNULL(pge_s.productStandardGift, ppd.PRODUCT)
 	UNION ALL
-	SELECT DISTINCT productStandardGift, productGroupId, showonstore, designId,	
+	SELECT DISTINCT productStandardGift, productGroupId, showonstore, designId,	z2.contentinformationid, contentinformationid_design,
 		   cif_nl_title.text AS nl_product_name, 
 		   cif_en_title.text AS en_product_name, 
 		   cif_nl_descr.text AS product_nl_description, 
 		   cif_en_descr.text AS product_en_description
 	FROM
 		(
-			SELECT  productStandardGift, productGroupId, showonstore, designId, contentinformationid
+			SELECT  productStandardGift, productGroupId, showonstore, designId, z.contentinformationid, contentinformationid_design
 			FROM
 			(
 			SELECT ppd_s.PRODUCT AS productStandardGift, 
@@ -75,6 +77,7 @@ grouped_products AS
 				   cd.showonstore,
 				   ppd_s.GIFTDEFINITION AS designId,
 				   l.contentinformationid,
+				   cd.contentinformationid AS contentinformationid_design,
 				   COUNT(*) OVER(PARTITION BY ppd_s.PRODUCT) AS cnt
 			FROM productpersonalizedgiftdesign ppd_s 
 				JOIN productList l ON l.ID = ppd_s.PRODUCT
@@ -322,7 +325,8 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			 JOIN greetz_to_mnpq_categories_view mc 
 						ON mc.GreetzCategoryID = cc.id
 						   AND mc.MPTypeCode = pt.MPTypeCode
-		 WHERE p.contentinformationid = ci.contentinformationid
+		 WHERE ci.contentinformationid = p.contentinformationid  
+			   OR ci.contentinformationid = pge.contentinformationid_design
 				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
 	  )  AS keywords,
 
@@ -337,7 +341,8 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 				 JOIN greetz_to_mnpq_categories_view mc 
 					ON mc.GreetzCategoryID = cc.id 
 					   AND mc.MPTypeCode = pt.MPTypeCode
-			 WHERE p.contentinformationid = ci.contentinformationid
+			 WHERE ci.contentinformationid = p.contentinformationid  
+				   OR ci.contentinformationid = pge.contentinformationid_design
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
