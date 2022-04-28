@@ -299,7 +299,7 @@ UNION ALL
 
 SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
 								concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', '')) AS entity_key,
-       IFNULL(ppg.title, pge.nl_product_name)                                  AS nl_product_name,
+       COALESCE(ppg.title, pge.nl_product_name, replace(ppg.productGroupCode, '_', ' '))            AS nl_product_name,
        pge.en_product_name                                                     AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
     --   pt.attribute_key														   AS product_type_attribute_key,
