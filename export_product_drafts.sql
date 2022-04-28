@@ -18,13 +18,16 @@ WHERE  p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
 	   AND pgp.AVAILABLETILL > '2022-04-15'
-	   AND pt.entity_key IN ('flower', 'alcohol')
+	 --  AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 ),
 productList_withAttributes AS
 (
 SELECT  pl.ID, 
-		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,
-		SUM(case when lower(ct.text) IN ('letterbox gifts', 'bloompost', 'brievenbuscadeau') then 1 else 0 end) as LetterboxAtr
+		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
+		-- 'letterbox gifts', 'bloompost', 'brievenbuscadeau', 'Cardboxes L2', 'Cardboxes L3', 'Chocoladeletters', 'Chocolate telegram', 'Telegram'
+		SUM(case when ci.contentcategoryid 
+			in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
+			then 1 else 0 end) as LetterboxAtr
 FROM productList pl
 	 JOIN contentinformation_category ci
 		  ON pl.contentinformationid = ci.contentinformationid
@@ -160,14 +163,14 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 		 ORDER BY pmd.name ASC
 		 LIMIT 1) 																			AS meta_description_nl,
 	   
-	   group_concat(ct.text separator ', ') 	AS keywords,
+	   group_concat(IFNULL(ct.text, ct2.text) separator ', ') 	AS keywords,
 	   
 	   IFNULL(
 			group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey)) separator ', ')   
 	   , pt.DefaultCategoryKey) 	AS category_keys,
 
 
-	   replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
+	   replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
 		   'skuId', Concat(p.id, '-', 'STANDARD'),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
@@ -190,12 +193,15 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							 WHERE pgp2.productgiftid = p.id),
 			'attributes', case 
 							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
-							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
+							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
+							when atr.LetterboxAtr > 0 AND pt.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+								then replace(pt.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
+							when pt.MPTypeCode = 'gift-card' then replace(pt.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD'))
 						    else  pt.AttributesTemplate
 						  end
 						  )
-							 
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}') AS product_variants
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]') 
+		AS product_variants
 FROM product p
          JOIN productgift pg
               ON pg.productid = p.id
@@ -215,6 +221,8 @@ FROM product p
               ON cc.id = ci.contentcategoryid
          LEFT JOIN contentcategorytranslation ct
               ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
+		 LEFT JOIN contentcategorytranslation ct2
+              ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
          LEFT JOIN contentcategorytype c
               ON cc.categorytypeid = c.id
          LEFT JOIN contentinformationfield cif_en_title
@@ -243,7 +251,7 @@ WHERE (p.channelid = '2'
 							 FROM productpersonalizedgiftdesign
 							 )
     AND pgp.AVAILABLETILL > '2022-04-15'
-	AND pt.entity_key IN ('flower', 'alcohol')
+--	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 	AND (
                (
                    :synchronization = FALSE
@@ -301,12 +309,14 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
        null                                                                    AS meta_description,
 	 --  group_concat(case when c.internalname = 'Keywords' then ct.text end separator ', ') AS keywords, -- !!! note, there are duplication. (intentional). To be removed before uploaded to commercetools. 
 
-  	  (  SELECT group_concat(ct.text separator ', ')
+  	  (  SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
 	     FROM contentinformation_category ci
 			 JOIN contentcategory cc
 					   ON cc.id = ci.contentcategoryid
-			 JOIN contentcategorytranslation ct
+			 LEFT JOIN contentcategorytranslation ct
 					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
+			 LEFT JOIN contentcategorytranslation ct2
+					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 			 JOIN contentcategorytype c
 					   ON cc.categorytypeid = c.id
 			 JOIN greetz_to_mnpq_categories_view mc 
@@ -331,7 +341,7 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-	   replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
 		 --  'skuId', Concat(pge.productgroupid, '_', IFNULL(concat('D', pge.designId), pge.productStandardGift)),
 		   'skuId', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
 		   'masterVariant', CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END,
@@ -357,10 +367,14 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			'attributes', case 
 							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
 							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
+							when atr.LetterboxAtr > 0 AND pt.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+								then replace(pt.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
+							when pt.MPTypeCode = 'gift-card' then replace(pt.AttributesTemplate, 'SKUNumber', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')))
 						    else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}') AS product_variants
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
+	   AS product_variants
 
 FROM product p
          JOIN productgift pg ON pg.productid = p.id
