@@ -14,10 +14,15 @@ FROM productgift pg
 	  ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
 					  when cif_nl_title.contentinformationid is not null or cif_en_title.contentinformationid is not null then pg.productgifttypeid
 				 end
+	LEFT JOIN productavailability pa 
+		ON pa.productid = p.ID
+	LEFT JOIN productavailabilityrange r 
+	  	ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
 WHERE  p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
 	   AND pgp.AVAILABLETILL > '2022-04-15'
+	   AND r.productavailabilityid IS NULL
 	 --  AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 ),
 productList_withAttributes AS
@@ -65,11 +70,22 @@ grouped_products AS
 	SELECT DISTINCT productStandardGift, productGroupId, showonstore, designId,	z2.contentinformationid, contentinformationid_design,
 		   cif_nl_title.text AS nl_product_name, 
 		   cif_en_title.text AS en_product_name, 
-		   cif_nl_descr.text AS product_nl_description, 
-		   cif_en_descr.text AS product_en_description
+
+		   case 
+				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+				then concat(cif_nl_descr.text, '\n\n', cif_nl_descr_2.text) 
+				else cif_nl_descr.text												           
+		   end								AS product_nl_description,
+		   
+		   case 
+				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+				then concat(cif_en_descr.text, '\n\n', cif_en_descr_2.text) 
+				else cif_en_descr.text												           
+		   end								AS product_en_description
+		   
 	FROM
 		(
-			SELECT  productStandardGift, productGroupId, showonstore, designId, z.contentinformationid, contentinformationid_design
+			SELECT  productStandardGift, productGroupId, showonstore, designId, z.contentinformationid, contentinformationid_design, MPTypeCode
 			FROM
 			(
 			SELECT ppd_s.PRODUCT AS productStandardGift, 
@@ -78,6 +94,7 @@ grouped_products AS
 				   ppd_s.GIFTDEFINITION AS designId,
 				   l.contentinformationid,
 				   cd.contentinformationid AS contentinformationid_design,
+				   l.MPTypeCode,
 				   COUNT(*) OVER(PARTITION BY ppd_s.PRODUCT) AS cnt
 			FROM productpersonalizedgiftdesign ppd_s 
 				JOIN productList l ON l.ID = ppd_s.PRODUCT
@@ -96,12 +113,18 @@ grouped_products AS
 		LEFT JOIN contentinformationfield cif_nl_descr
 			  ON cif_nl_descr.contentinformationid = z2.contentinformationid
 				 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
+		LEFT JOIN contentinformationfield cif_nl_descr_2
+			  ON cif_nl_descr_2.contentinformationid = z2.contentinformationid
+				 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
 		LEFT JOIN contentinformationfield cif_en_title
 			  ON cif_en_title.contentinformationid = z2.contentinformationid
 				 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
 		LEFT JOIN contentinformationfield cif_en_descr
 			  ON cif_en_descr.contentinformationid = z2.contentinformationid
 				 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'
+        LEFT JOIN contentinformationfield cif_en_descr_2
+			  ON cif_en_descr_2.contentinformationid = z2.contentinformationid
+				 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
 			
 ),
 grouped_product_types_0 AS
@@ -130,10 +153,10 @@ cte_productimage_0
 AS
 (
 SELECT pi.PRODUCTID, pi.CODE, pi.WIDTH, pi.HEIGHT, pi.db_updated, pi.EXTENSION, pi.giftdefinition as designId,
-	   ROW_NUMBER() OVER(PARTITION BY pi.PRODUCTID, pi.CODE ORDER BY pi.WIDTH DESC) AS RN
+	   ROW_NUMBER() OVER(PARTITION BY pi.PRODUCTID, pi.CODE, pi.giftdefinition ORDER BY pi.WIDTH DESC) AS RN
 FROM productimage pi
 	 JOIN productList pl ON pi.productid = pl.ID
-WHERE pi.WIDTH <= 2000 AND pi.HEIGHT <= 2000	 
+WHERE pi.WIDTH <= 2000 AND pi.HEIGHT <= 2000 AND EXTENSION IN ('.png', '.jpeg', '.jpg', '.gif')
 ),
 cte_productimage
 AS
@@ -147,8 +170,19 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
        pt.MPTypeCode                                                                       AS product_type_key,
        -- pt.attribute_key																	   AS product_type_attribute_key,
        concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', p.id)                           AS slug,
-       cif_nl_descr.text                                                                   AS product_nl_description,
-       cif_en_descr.text                                                                   AS product_en_description,
+       
+	   case 
+			when pt.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+			then concat(cif_nl_descr.text, '\n\n', cif_nl_descr_2.text) 
+			else cif_nl_descr.text												           
+	   end																				   AS product_nl_description,
+	   
+	   case 
+			when pt.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+			then concat(cif_en_descr.text, '\n\n', cif_en_descr_2.text) 
+			else cif_en_descr.text												           
+	   end																				   AS product_en_description,
+	   
        concat('vat', v.vatcode)                                                            AS tax_category_key, -- todo: can we re-use Moonpiq tax categories?
        pg.showonstore																	   AS show_on_store,
 	   
@@ -166,7 +200,8 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 		 ORDER BY pmd.name ASC
 		 LIMIT 1) 																			AS meta_description_nl,
 	   
-	   group_concat(IFNULL(ct.text, ct2.text) separator ', ') 	AS keywords,
+	   group_concat(IFNULL(ct.text, ct2.text) separator ', ') 								AS keywords_nl,
+	   group_concat(ct2.text separator ', ') 												AS keywords_en,
 	   
 	   IFNULL(
 			group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey)) separator ', ')   
@@ -218,6 +253,9 @@ FROM product p
          LEFT JOIN contentinformationfield cif_nl_descr
 			  ON cif_nl_descr.contentinformationid = p.contentinformationid
 				 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
+		 LEFT JOIN contentinformationfield cif_nl_descr_2
+			  ON cif_nl_descr_2.contentinformationid = p.contentinformationid
+				 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
          LEFT JOIN contentinformation_category ci
               ON p.contentinformationid = ci.contentinformationid
          LEFT JOIN contentcategory cc
@@ -233,7 +271,10 @@ FROM product p
 				 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
          LEFT JOIN contentinformationfield cif_en_descr
 			  ON cif_en_descr.contentinformationid = p.contentinformationid
-				 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'			
+				 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'	
+         LEFT JOIN contentinformationfield cif_en_descr_2
+			  ON cif_en_descr_2.contentinformationid = p.contentinformationid
+				 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
          JOIN greetz_to_mnpg_product_types_view pt
               ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
 							  when cif_nl_title.contentinformationid is not null or cif_en_title.contentinformationid is not null then pg.productgifttypeid
@@ -243,6 +284,10 @@ FROM product p
 				 AND mc.MPTypeCode = pt.MPTypeCode
 		 LEFT JOIN productList_withAttributes atr
 			ON p.ID = atr.ID
+		 LEFT JOIN productavailability pa 
+			ON pa.productid = p.ID
+		 LEFT JOIN productavailabilityrange r 
+	  		ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
 WHERE (p.channelid = '2'
     AND p.removed IS NULL
     AND p.endoflife != 'Y'
@@ -254,6 +299,7 @@ WHERE (p.channelid = '2'
 							 FROM productpersonalizedgiftdesign
 							 )
     AND pgp.AVAILABLETILL > '2022-04-15'
+	AND r.productavailabilityid IS NULL
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 	AND (
                (
@@ -322,13 +368,23 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 			 JOIN contentcategorytype c
 					   ON cc.categorytypeid = c.id
-			 JOIN greetz_to_mnpq_categories_view mc 
-						ON mc.GreetzCategoryID = cc.id
-						   AND mc.MPTypeCode = pt.MPTypeCode
 		 WHERE ci.contentinformationid = p.contentinformationid  
 			   OR ci.contentinformationid = pge.contentinformationid_design
 				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
-	  )  AS keywords,
+	  )  AS keywords_nl,
+
+  	  (  SELECT group_concat(ct2.text separator ', ')
+	     FROM contentinformation_category ci
+			 JOIN contentcategory cc
+					   ON cc.id = ci.contentcategoryid
+			 LEFT JOIN contentcategorytranslation ct2
+					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
+			 JOIN contentcategorytype c
+					   ON cc.categorytypeid = c.id
+		 WHERE ci.contentinformationid = p.contentinformationid  
+			   OR ci.contentinformationid = pge.contentinformationid_design
+	  )  AS keywords_en,
+
 
      --  group_concat(mc.entity_key separator ', ')                              AS category_keys, -- !!! note, there are duplication. (intentional). To be removed before uploaded to commercetools.
 	 
@@ -354,13 +410,12 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 		   'images', (SELECT concat('[', group_concat(
 						JSON_OBJECT('imageCode', pim.CODE,
 									'extension', LOWER(REPLACE(pim.EXTENSION,'.', '')),
-								--	'designId', pim.designId,
 									'designId', pge.designId,
 									'width', pim.WIDTH,
 									'height', pim.HEIGHT)
 						), ']')
 						FROM cte_productimage pim
-						WHERE pim.PRODUCTID = p.ID
+						WHERE pim.PRODUCTID = p.ID and (pge.designId is null or pge.designId = pim.designId)
 						ORDER BY pim.CODE),
 
 		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
@@ -393,11 +448,16 @@ FROM product p
 			   AND pge.productStandardGift = mv.productStandardGift
 			   AND IFNULL(pge.designId, 0) = IFNULL(mv.designId, 0)	   
 		 LEFT JOIN productList_withAttributes atr ON p.ID = atr.ID
+		 LEFT JOIN productavailability pa 
+			ON pa.productid = p.ID
+		 LEFT JOIN productavailabilityrange r 
+			ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
      -- Note - only standard gift TODO: What about personalised ones?
 WHERE (p.channelid = '2'
     AND p.removed IS NULL
     AND p.endoflife != 'Y'
 	AND pgp.AVAILABLETILL > '2022-04-15'
+	AND r.productavailabilityid IS NULL
 	AND (
                (
                    :synchronization = FALSE
