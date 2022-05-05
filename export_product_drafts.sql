@@ -1,6 +1,7 @@
 WITH productList AS
 (
-SELECT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey
+SELECT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
+		pgp.vatid, p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore
 FROM productgift pg 
 	JOIN product p ON pg.productid = p.id
 	JOIN productgiftprice pgp ON pgp.productgiftid = p.id
@@ -167,24 +168,23 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 			concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', '')) AS entity_key,
        IFNULL(cif_nl_title.text, replace(p.INTERNALNAME, '_', ' '))                        AS nl_product_name,
        cif_en_title.text                                                                   AS en_product_name,
-       pt.MPTypeCode                                                                       AS product_type_key,
-       -- pt.attribute_key																	   AS product_type_attribute_key,
-       concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', p.id)                           AS slug,
+       p.MPTypeCode                                                                       AS product_type_key,
+       concat(SUBSTRING_INDEX(p.entity_key, '-', 1), '_', p.id)                           AS slug,
        
 	   case 
-			when pt.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+			when p.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
 			then concat(cif_nl_descr.text, '\n\n', cif_nl_descr_2.text) 
 			else cif_nl_descr.text												           
 	   end																				   AS product_nl_description,
 	   
 	   case 
-			when pt.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
+			when p.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
 			then concat(cif_en_descr.text, '\n\n', cif_en_descr_2.text) 
 			else cif_en_descr.text												           
 	   end																				   AS product_en_description,
 	   
        concat('vat', v.vatcode)                                                            AS tax_category_key, -- todo: can we re-use Moonpiq tax categories?
-       pg.showonstore																	   AS show_on_store,
+       p.showonstore																	   AS show_on_store,
 	   
 	   	(SELECT Value 
 		 FROM productmetadata pmd 
@@ -204,8 +204,8 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 	   group_concat(ct2.text separator ', ') 												AS keywords_en,
 	   
 	   IFNULL(
-			group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey)) separator ', ')   
-	   , pt.DefaultCategoryKey) 	AS category_keys,
+			group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
+	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
 	   replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
@@ -230,23 +230,20 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							 FROM productgiftprice pgp2
 							 WHERE pgp2.productgiftid = p.id),
 			'attributes', case 
-							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
-							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
-							when atr.LetterboxAtr > 0 AND pt.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
-								then replace(pt.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
-							when pt.MPTypeCode = 'gift-card' then replace(pt.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD'))
-						    else  pt.AttributesTemplate
+							when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
+							when p.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
+							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+								then replace(p.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
+							when p.MPTypeCode = 'gift-card' then replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD'))
+						    else  p.AttributesTemplate
 						  end
 						  )
 		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]') 
 		AS product_variants
-FROM product p
-         JOIN productgift pg
-              ON pg.productid = p.id
-         JOIN productgiftprice pgp
-              ON pgp.productgiftid = p.id
+FROM 
+         productList p
          LEFT JOIN vat v
-              ON pgp.vatid = v.id AND v.countrycode = 'NL'
+              ON p.vatid = v.id AND v.countrycode = 'NL'
          LEFT JOIN contentinformationfield cif_nl_title
 			  ON cif_nl_title.contentinformationid = p.contentinformationid
 				 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
@@ -264,8 +261,6 @@ FROM product p
               ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
 		 LEFT JOIN contentcategorytranslation ct2
               ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
-         LEFT JOIN contentcategorytype c
-              ON cc.categorytypeid = c.id
          LEFT JOIN contentinformationfield cif_en_title
 			  ON cif_en_title.contentinformationid = p.contentinformationid
 				 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
@@ -275,31 +270,19 @@ FROM product p
          LEFT JOIN contentinformationfield cif_en_descr_2
 			  ON cif_en_descr_2.contentinformationid = p.contentinformationid
 				 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
-         JOIN greetz_to_mnpg_product_types_view pt
-              ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
-							  when cif_nl_title.contentinformationid is not null or cif_en_title.contentinformationid is not null then pg.productgifttypeid
-						 end
          LEFT JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = cc.id
-				 AND mc.MPTypeCode = pt.MPTypeCode
+				 AND mc.MPTypeCode = p.MPTypeCode
 		 LEFT JOIN productList_withAttributes atr
 			ON p.ID = atr.ID
-		 LEFT JOIN productavailability pa 
-			ON pa.productid = p.ID
-		 LEFT JOIN productavailabilityrange r 
-	  		ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
-WHERE (p.channelid = '2'
-    AND p.removed IS NULL
-    AND p.endoflife != 'Y'
-    AND pg.productid NOT IN (SELECT productstandardgift
-                             FROM productgroupentry
-                             WHERE productstandardgift IS NOT NULL -- Only products that do not belong to grouped sku (logic for grouped sku's in second select)
-							 UNION
-							 SELECT PRODUCT
-							 FROM productpersonalizedgiftdesign
-							 )
-    AND pgp.AVAILABLETILL > '2022-04-15'
-	AND r.productavailabilityid IS NULL
+			
+WHERE (p.id NOT IN 	(SELECT productstandardgift
+					 FROM productgroupentry
+					 WHERE productstandardgift IS NOT NULL -- Only products that do not belong to grouped sku (logic for grouped sku's in second select)
+					 UNION
+					 SELECT PRODUCT
+					 FROM productpersonalizedgiftdesign
+					 )   
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 	AND (
                (
@@ -348,7 +331,6 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
        COALESCE(ppg.title, pge.nl_product_name, replace(ppg.productGroupCode, '_', ' '))            AS nl_product_name,
        pge.en_product_name                                                     AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
-    --   pt.attribute_key														   AS product_type_attribute_key,
        concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', pge.productGroupId) AS slug,
        product_nl_description                                                  AS product_nl_description,
        product_en_description                                                  AS product_en_description,
@@ -356,7 +338,6 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 	   pge.showOnStore 													   	   AS show_on_store,
        null                                                                    AS meta_title,
        null                                                                    AS meta_description,
-	 --  group_concat(case when c.internalname = 'Keywords' then ct.text end separator ', ') AS keywords, -- !!! note, there are duplication. (intentional). To be removed before uploaded to commercetools. 
 
   	  (  SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
 	     FROM contentinformation_category ci
@@ -366,8 +347,6 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
 			 LEFT JOIN contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
-			 JOIN contentcategorytype c
-					   ON cc.categorytypeid = c.id
 		 WHERE ci.contentinformationid = p.contentinformationid  
 			   OR ci.contentinformationid = pge.contentinformationid_design
 				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
@@ -379,14 +358,9 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 					   ON cc.id = ci.contentcategoryid
 			 LEFT JOIN contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
-			 JOIN contentcategorytype c
-					   ON cc.categorytypeid = c.id
 		 WHERE ci.contentinformationid = p.contentinformationid  
 			   OR ci.contentinformationid = pge.contentinformationid_design
 	  )  AS keywords_en,
-
-
-     --  group_concat(mc.entity_key separator ', ')                              AS category_keys, -- !!! note, there are duplication. (intentional). To be removed before uploaded to commercetools.
 	 
 	 IFNULL(
 			(
@@ -436,11 +410,10 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
 	   AS product_variants
 
-FROM product p
-         JOIN productgift pg ON pg.productid = p.id
-         JOIN productgiftprice pgp ON pgp.productgiftid = p.id
-         LEFT JOIN vat v ON pgp.vatid = v.id AND v.countrycode = 'NL'
-         JOIN grouped_products pge ON pge.productStandardGift = pg.productId
+FROM 
+         productList p
+         LEFT JOIN vat v ON p.vatid = v.id AND v.countrycode = 'NL'
+         JOIN grouped_products pge ON pge.productStandardGift = p.Id
          LEFT JOIN productgroup ppg ON pge.productGroupId = ppg.id
 		 JOIN grouped_product_types pt ON pt.productGroupId = pge.productGroupId   -- todo: what with these with no category assigned?
 	     LEFT JOIN MasterVariant_productStandardGift mv 
@@ -448,17 +421,8 @@ FROM product p
 			   AND pge.productStandardGift = mv.productStandardGift
 			   AND IFNULL(pge.designId, 0) = IFNULL(mv.designId, 0)	   
 		 LEFT JOIN productList_withAttributes atr ON p.ID = atr.ID
-		 LEFT JOIN productavailability pa 
-			ON pa.productid = p.ID
-		 LEFT JOIN productavailabilityrange r 
-			ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
-     -- Note - only standard gift TODO: What about personalised ones?
-WHERE (p.channelid = '2'
-    AND p.removed IS NULL
-    AND p.endoflife != 'Y'
-	AND pgp.AVAILABLETILL > '2022-04-15'
-	AND r.productavailabilityid IS NULL
-	AND (
+WHERE (
+		(
                (
                    :synchronization = FALSE
 				   AND ((lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
