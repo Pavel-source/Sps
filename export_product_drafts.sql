@@ -74,13 +74,15 @@ grouped_products AS
 
 		   case 
 				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-				then concat(cif_nl_descr.text, '\n\n', cif_nl_descr_2.text) 
+					 AND (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
+				then concat(IFNULL(concat(cif_nl_descr.text, '\n\n'), ''), IFNULL(cif_nl_descr_2.text, '')) 
 				else cif_nl_descr.text												           
 		   end								AS product_nl_description,
 		   
 		   case 
 				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-				then concat(cif_en_descr.text, '\n\n', cif_en_descr_2.text) 
+					  AND (cif_en_descr.text IS NOT NULL  OR  cif_en_descr_2.text IS NOT NULL)
+				then concat(IFNULL(concat(cif_en_descr.text, '\n\n'), ''), IFNULL(cif_en_descr_2.text, '')) 
 				else cif_en_descr.text												           
 		   end								AS product_en_description
 		   
@@ -172,14 +174,16 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
        concat(SUBSTRING_INDEX(p.entity_key, '-', 1), '_', p.id)                           AS slug,
        
 	   case 
-			when p.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-			then concat(cif_nl_descr.text, '\n\n', cif_nl_descr_2.text) 
+			when p.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet')  
+				 AND (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
+			then concat(IFNULL(concat(cif_nl_descr.text, '\n\n'), ''), IFNULL(cif_nl_descr_2.text, '')) 
 			else cif_nl_descr.text												           
 	   end																				   AS product_nl_description,
 	   
 	   case 
 			when p.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-			then concat(cif_en_descr.text, '\n\n', cif_en_descr_2.text) 
+				 AND (cif_en_descr.text IS NOT NULL  OR  cif_en_descr_2.text IS NOT NULL)
+			then concat(IFNULL(concat(cif_en_descr.text, '\n\n'), ''), IFNULL(cif_en_descr_2.text, '')) 
 			else cif_en_descr.text												           
 	   end																				   AS product_en_description,
 	   
@@ -284,38 +288,15 @@ WHERE (p.id NOT IN 	(SELECT productstandardgift
 					 FROM productpersonalizedgiftdesign
 					 )   
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
-	AND (
-               (
-                   :synchronization = FALSE
-				   AND ((lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
-								concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
-						 > :migrateFromId OR :migrateFromId IS NULL) 
-						 AND 
-						 (lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
-								concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
-						 <= :migrateToId OR :migrateToId IS NULL))
-                )
-               OR
-               (
-                           :synchronization = TRUE
-                       AND
-                           (
-                                   (p.db_updated > :syncFrom AND p.db_updated <= :syncTo)
-                                   OR (pg.db_updated > :syncFrom AND pg.db_updated <= :syncTo)
-                                   OR (cif_nl_title.db_updated > :syncFrom AND cif_nl_title.db_updated <= :syncTo)
-                                   OR (cif_nl_descr.db_updated > :syncFrom AND cif_nl_descr.db_updated <= :syncTo)
-                                   OR (cif_en_title.db_updated > :syncFrom AND cif_en_title.db_updated <= :syncTo)
-                                   OR (cif_en_descr.db_updated > :syncFrom AND cif_en_descr.db_updated <= :syncTo)
-                                   OR (ci.db_updated > :syncFrom AND ci.db_updated <= :syncTo)
-                                   OR (cc.db_updated > :syncFrom AND cc.db_updated <= :syncTo)
-                                   OR (ct.db_updated > :syncFrom AND ct.db_updated <= :syncTo)
-                                   OR (c.db_updated > :syncFrom AND c.db_updated <= :syncTo)
-                                   OR (pgp.db_updated > :syncFrom AND pgp.db_updated <= :syncTo)
-                                   OR (v.db_updated > :syncFrom AND v.db_updated <= :syncTo)
-								   OR EXISTS (SELECT 1 FROM productimage pim2 WHERE pim2.productID = p.ID AND pim2.db_updated > :syncFrom AND pim2.db_updated <= :syncTo)
-                            )
-                )
-        )
+	AND 
+		(lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
+				concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+		 > :migrateFromId OR :migrateFromId IS NULL) 
+	 AND 
+		 (lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
+				concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+		 <= :migrateToId OR :migrateToId IS NULL)
+        
     AND concat(:keys) IS NULL)
 	
     OR lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
@@ -421,51 +402,16 @@ FROM
 			   AND pge.productStandardGift = mv.productStandardGift
 			   AND IFNULL(pge.designId, 0) = IFNULL(mv.designId, 0)	   
 		 LEFT JOIN productList_withAttributes atr ON p.ID = atr.ID
-WHERE (
-		(
-               (
-                   :synchronization = FALSE
-				   AND ((lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
-								concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
-						 > :migrateFromId OR :migrateFromId IS NULL) 
-						 AND 
-						 (lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
-								concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
-						 <= :migrateToId OR :migrateToId IS NULL))
-                )
-               OR
-               (
-                           :synchronization = TRUE
-                       AND
-                           (
-								   EXISTS
-								     (SELECT 1
-									  FROM product p2
-										 JOIN productgift pg2
-											  ON pg2.productid = p2.id
-										 LEFT JOIN productgiftprice pgp2
-												   ON pgp2.productgiftid = p2.id
-										 LEFT JOIN vat v2 ON pgp2.vatid = v2.id AND v2.countrycode = 'NL'
-										 JOIN productgroupentry pge2 ON pge2.productStandardGift = pg2.productId
-										 JOIN productgroup ppg2 ON pge2.productGroupId = ppg2.id
-										 LEFT JOIN productimage pim2 ON pim2.productID = p2.id
-									  WHERE pge2.productGroupId = pge.productGroupId
-									 		AND
-									 		(
-												  (p2.db_updated > :syncFrom AND p2.db_updated <= :syncTo)
-											   OR (pg2.db_updated > :syncFrom AND pg2.db_updated <= :syncTo)
-											   OR (pgp2.db_updated > :syncFrom AND pgp2.db_updated <= :syncTo)
-											   OR (v2.db_updated > :syncFrom AND v2.db_updated <= :syncTo)
-											   OR (pge2.db_updated > :syncFrom AND pge2.db_updated <= :syncTo)
-											   OR (ppg2.db_updated > :syncFrom AND ppg2.db_updated <= :syncTo)
-											   OR (pim2.db_updated > :syncFrom AND pim2.db_updated <= :syncTo)
-									 		)
-									 )
-                            )
-                )
-        )
-    AND concat(:keys) IS NULL)
-	
+WHERE              
+	(lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
+			concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+	 > :migrateFromId OR :migrateFromId IS NULL) 
+	 AND 
+	 (lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
+			concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+	 <= :migrateToId OR :migrateToId IS NULL)
+        
+    AND concat(:keys) IS NULL
     OR lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(ppg.productGroupCode, p.PRODUCTCODE) else 
 								concat(IFNULL(ppg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
 		in (:keys)
