@@ -1,0 +1,34 @@
+SELECT COUNT(*) FROM customerregistered WHERE LASTACTIVITYDATE > CURRENT_DATE() - INTERVAL 25 MONTH
+
+SELECT o.CUSTOMERID, o.created 
+FROM orders o 
+WHERE o.created < '2022-04-16' 
+ORDER BY created DESC LIMIT 100;
+
+SELECT b.CUSTOMERID, i.db_updated 
+FROM shoppingbasket b
+     JOIN productiteminbasket i ON b.UUID = i.SHOPPINGBASKETUUID
+WHERE i.db_updated < '2022-04-16'
+--	AND b.CUSTOMERID = 945085288
+ORDER BY i.db_updated DESC LIMIT 100;
+
+SELECT ci.CUSTOMERID, ci.CREATED 
+FROM calendaritem ci 
+WHERE ci.CREATED < '2022-04-16'
+ORDER BY ci.CREATED DESC LIMIT 100;
+
+SELECT id, LASTLOGINDATE 
+FROM customerregistered 
+WHERE -- db_updated < '2022-04-16'
+	 LASTLOGINDATE < '2022-04-16'
+ORDER BY LASTLOGINDATE DESC LIMIT 100;
+
+-- 2022-04-15 23:59:05.401000
+
+SELECT cr.LASTACTIVITYDATE 
+FROM customerregistered cr 
+WHERE cr.ID = 1497610460
+
+
+               
+                    
