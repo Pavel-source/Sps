@@ -1,56 +1,50 @@
 WITH ProductList_0
 AS
 (
-SELECT DISTINCT cd.ID as carddefinitionid, cd.contentinformationid, pc.productid, 
-				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, 
+SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid, 
+				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid,
 				
 				case pc.cardratio
 					when 'STANDARD' then 'rectangular'
 					when 'SQUARE'   then 'square'
-				end  AS Attribute_Shape,
-				
-				case 
-					when pc.CARDSIZE = 'MEDIUM' then 'standard'
-					when pc.CARDSIZE = 'SUPERSIZE' then 'giant'
-					when pc.CARDSIZE IN ('LARGE', 'XL', 'XXL') then 'large'
-					when pc.CARDSIZE IN ('SMALL', 'XS', 'MINI') then 'small'
-					else ''
-				end AS Attribute_Size,
+				end  									AS  Attribute_Shape,
 				
 				case pc.CARDSIZE 
 					when 'MEDIUM' then 1
-					when 'LARGE' then 2
-					when 'XXL' then 3
-					when 'XL' then 4
+					when 'XXL' then 2
+					when 'XL' then 3
+					when 'LARGE' then 4
 					when 'SUPERSIZE' then 5
-					when 'SMALL' then 6
-					when 'MINI' then 7
-				end  AS NumberForSorting
+					when 'XS' then 6		-- not used
+					when 'SMALL' then 7 	-- not used
+					when 'MINI' then 8
+				end  									AS  NumberForSorting
+				
 FROM productcard pc
-     join product p 
-		on pc.PRODUCTID = p.ID 
-			and TYPE = 'productCardSingle' 
-			and CHANNELID = 2 
-			and p.onlyAvailableForFlow is null 
-			and pc.enabled = 'Y' 
-			and p.removed is null
-			and p.endoflife != 'Y'
-     join productphysicalproperty ppp 
-		on p.PRODUCTPHYSICALPROPERTIESID = ppp.ID 
-			and ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
-     join productcardprice pcp 
-		on PRODUCTCARDID = p.ID 
-			and now() between pcp.availableFrom and pcp.availableTill 
-			and pcp.amountFrom = 1
-     join carddefinition cd 
-		on cd.CARDRATIO = pc.CARDRATIO 
-			and cd.OBLONG = pc.OBLONG 
-			and cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS
-     join carddefinition_limitedcardsize cdl 
-		on cdl.CARDDEFINITIONID = cd.ID 
-			and pc.CARDSIZE = cdl.CARDSIZE
-	 left JOIN productavailability pa on p.ID = pa.productid
-     left JOIN productavailabilityrange r on pa.id = r.productavailabilityid
+     JOIN product p 
+		ON pc.PRODUCTID = p.ID 
+			AND p.TYPE = 'productCardSingle' 
+			AND p.CHANNELID = 2 
+			AND p.onlyAvailableForFlow is null 
+			AND pc.enabled = 'Y' 
+			AND p.removed is null
+			AND p.endoflife != 'Y'
+   --  join productphysicalproperty ppp 
+	--	ON p.PRODUCTPHYSICALPROPERTIESID = ppp.ID 
+	--		AND ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
+     JOIN productcardprice pcp 
+		ON PRODUCTCARDID = p.ID 
+			AND '2022-05-21' between pcp.availableFrom AND pcp.availableTill 
+			AND pcp.amountFrom = 1
+     JOIN carddefinition cd 
+		ON cd.CARDRATIO = pc.CARDRATIO 
+			AND cd.OBLONG = pc.OBLONG 
+			AND cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS
+     JOIN carddefinition_limitedcardsize cdl 
+		ON cdl.CARDDEFINITIONID = cd.ID 
+			AND pc.CARDSIZE = cdl.CARDSIZE
+	 LEFT JOIN productavailability pa ON p.ID = pa.productid
+     LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
 	 LEFT JOIN contentinformationfield cif_nl_title
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
@@ -58,12 +52,31 @@ WHERE
 	  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
-	  AND (r.id is null OR (r.orderablefrom <= CURRENT_DATE() and CURRENT_DATE() < r.shippableto))	 
+	  AND (r.id is null OR (r.orderablefrom <= '2022-05-21' AND '2022-05-21' < r.shippableto))	 
 ),
 ProductList
 AS
 (
-SELECT *, ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY NumberForSorting) AS RN
+SELECT *, 
+		case 
+			when CARDSIZE = 'MEDIUM' then 'standard'
+			when CARDSIZE = 'SUPERSIZE' then 'giant'
+			when CARDSIZE IN ('LARGE', 'XL', 'XXL') then 'large'
+			when CARDSIZE IN ('SMALL', 'XS', 'MINI') then 'small'
+		end  AS Attribute_Size,
+		
+		ROW_NUMBER() OVER(PARTITION BY  
+							carddefinitionid, 
+							case 
+								when CARDSIZE = 'MEDIUM' then 'standard'
+								when CARDSIZE = 'SUPERSIZE' then 'giant'
+								when CARDSIZE IN ('LARGE', 'XL', 'XXL') then 'large'
+								when CARDSIZE IN ('SMALL', 'XS', 'MINI') then 'small'
+							end
+						  ORDER BY CARDSIZE DESC)  AS RN_Attribute_Size, 
+
+		ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY NumberForSorting)  AS RN_MasterVariant
+	
 FROM ProductList_0
 )
 SELECT 
@@ -114,19 +127,32 @@ SELECT
 		group_concat(JSON_OBJECT(
 			'variantKey', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
 		   'skuId', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
-		   'masterVariant', CASE WHEN pl.RN = 1 THEN 1 ELSE 0 END,
-           'productCode', pl.carddefinitionid,
+		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
+           'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
 		   'images', CASE 
-						WHEN pl.RN = 1 THEN concat('[', 
+						WHEN pl.RN_MasterVariant = 1 THEN concat('[', 
 							JSON_OBJECT('Link', CONCAT('https://st.greetz.nl/service/api/cards/', pl.carddefinitionid, '/2/preview/FRONT'))
 							, ']')
 						ELSE ''
 					 END,
-		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
-									'priceWithVat', pgp2.pricewithvatloggedin, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
+		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', cp.id, 'currency', cp.currency,
+									'priceWithVat', cp.pricewithvatloggedin + IFNULL(pcp.pricewithvat, 0), 
+									'validFrom', cp.availablefrom, 'validTo', cp.availabletill)
 									 separator ','), ']')
-							 FROM productcardprice pgp2
-							 WHERE pgp2.productcardid = pl.productid),
+							 FROM productcardprice cp
+								  LEFT JOIN carddefinition_productcontent dpc
+									ON dpc.CARDDEFINITIONID = pl.carddefinitionid 
+										AND dpc.CHANNELID = 2
+								  LEFT JOIN productcontentprice pcp
+									ON pcp.PRODUCTCONTENTID = dpc.PRODUCTCONTENTID
+									   AND pcp.amountfrom = 1
+									   AND '2022-05-21' BETWEEN pcp.availablefrom AND pcp.availabletill
+									   AND pcp.cardsize = pl.cardsize
+									   AND cp.currency = pcp.currency
+							 WHERE cp.productcardid = pl.productid
+									AND '2022-05-21' between cp.availableFrom AND cp.availableTill 
+									AND cp.amountFrom = 1
+							 ),
 							 
 			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
@@ -165,7 +191,12 @@ FROM ProductList pl
 	/* LEFT JOIN greetz_to_mnpq_categories_view mc 
 		  ON mc.GreetzCategoryID = cc.id
 			 AND mc.MPTypeCode = p.MPTypeCode*/
-
+WHERE
+		pl.RN_Attribute_Size = 1
+		AND (pl.carddefinitionid > :migrateFromId OR :migrateFromId IS NULL)
+		AND	(pl.carddefinitionid <= :migrateToId OR :migrateToId IS NULL)
+		AND (concat(:keys) IS NULL  OR  pl.carddefinitionid IN (:keys))
 GROUP BY 
 		pl.carddefinitionid
+LIMIT :limit		
 
