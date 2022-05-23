@@ -137,7 +137,7 @@ SELECT
 					 END,
 		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', cp.id, 'currency', cp.currency,
 									'priceWithVat', cp.pricewithvatloggedin + IFNULL(pcp.pricewithvat, 0), 
-									'validFrom', cp.availablefrom, 'validTo', cp.availabletill)
+									'validFrom', CAST(cp.availablefrom AS datetime(6)), 'validTo', CAST(cp.availabletill AS datetime(6)))
 									 separator ','), ']')
 							 FROM productcardprice cp
 								  LEFT JOIN carddefinition_productcontent dpc
@@ -156,7 +156,7 @@ SELECT
 							 
 			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
-				'"}, {"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},',
+				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},',
 				'{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
 				'{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},',
