@@ -131,7 +131,7 @@ SELECT
            'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
 		   'images', CASE 
 						WHEN pl.RN_MasterVariant = 1 THEN concat('[', 
-							JSON_OBJECT('Link', CONCAT('https://st.greetz.nl/service/api/cards/', pl.carddefinitionid, '/2/preview/FRONT'))
+							JSON_OBJECT('Link', CONCAT('https://greetz.nl/service/api/cards/', pl.carddefinitionid, '/2/preview/FRONT'))
 							, ']')
 						ELSE ''
 					 END,
@@ -156,13 +156,12 @@ SELECT
 							 
 			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
-				'"}, {"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},
-				{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-				{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-				{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-				{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-				{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
-				]')
+				'"}, {"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},',
+				'{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},',
+				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
+				'{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},',
+				'{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},',
+				'{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
 	    AS product_variants	
