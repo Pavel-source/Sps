@@ -2,14 +2,14 @@ WITH ProductList_0
 AS
 (
 SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid, 
-				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid,
-				
+				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION,
+
 				case pc.cardratio
 					when 'STANDARD' then 'rectangular'
 					when 'SQUARE'   then 'square'
 				end  									AS  Attribute_Shape,
-				
-				case pc.CARDSIZE 
+
+				case pc.CARDSIZE
 					when 'MEDIUM' then 1
 					when 'XXL' then 2
 					when 'XL' then 3
@@ -18,7 +18,8 @@ SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid
 					when 'XS' then 6		-- not used
 					when 'SMALL' then 7 	-- not used
 					when 'MINI' then 8
-				end  									AS  NumberForSorting
+				end  									AS  NumberForSorting,
+                cd.NUMBEROFPANELS                       AS  NumberOfPanels
 				
 FROM productcard pc
      JOIN product p 
@@ -78,6 +79,16 @@ SELECT *,
 		ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY NumberForSorting)  AS RN_MasterVariant
 	
 FROM ProductList_0
+),
+Image_BackSize
+AS
+(
+SELECT carddefinitionid, MAX(i.WIDTH) AS WIDTH, MAX(i.HEIGHT) AS HEIGHT
+FROM ProductList pl
+	JOIN imagepreviewsetting i 
+		ON i.CARDRATIOCODE = pl.cardratio AND i.ORIENTATION = pl.ORIENTATION
+WHERE i.TYPE = 'DESIGN_DEFINITION' AND i.side = 'BACKSIDE' 
+GROUP BY carddefinitionid
 )
 SELECT 
 		pl.carddefinitionid  	AS entity_key,
@@ -100,8 +111,8 @@ SELECT
 			
 		concat('vat', v.vatcode)       AS tax_category_key,
 		pl.showonstore				   AS show_on_store,
-		''  						   AS meta_title_nl,
-		''  						   AS meta_description_nl,
+		null  						   AS meta_title_nl,
+        null  						   AS meta_description_nl,
 		
 		 (SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
 	     FROM contentinformation_category ci
@@ -123,17 +134,20 @@ SELECT
 		
 		'greeting-cards' 															  AS category_keys,
 
-		replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
 			'variantKey', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
 		   'skuId', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
            'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
-		   'images', CASE 
-						WHEN pl.RN_MasterVariant = 1 THEN concat('[', 
-							JSON_OBJECT('Link', CONCAT('https://greetz.nl/service/api/cards/', pl.carddefinitionid, '/2/preview/FRONT'))
+		   'images', CASE
+						WHEN pl.RN_MasterVariant = 1 THEN concat('[',
+                        concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'front.jpg'), ',' ,
+                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'inside_left.jpg'), ',' ,
+                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'inside_right.jpg'), ',' ,
+                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'Width', IFNULL(i.WIDTH, 0), 'Height', IFNULL(i.HEIGHT, 0), 'imageCode', 'backside.jpg'))
 							, ']')
-						ELSE ''
+						ELSE '[]'
 					 END,
 		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', cp.id, 'currency', cp.currency,
 									'priceWithVat', cp.pricewithvatloggedin + IFNULL(pcp.pricewithvat, 0), 
@@ -163,7 +177,7 @@ SELECT
 				'{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},',
 				'{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}]')
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	
 	   
 FROM ProductList pl	
@@ -190,6 +204,8 @@ FROM ProductList pl
 	/* LEFT JOIN greetz_to_mnpq_categories_view mc 
 		  ON mc.GreetzCategoryID = cc.id
 			 AND mc.MPTypeCode = p.MPTypeCode*/
+	 LEFT JOIN Image_BackSize i
+		  ON i.carddefinitionid = pl.carddefinitionid
 WHERE
 		pl.RN_Attribute_Size = 1
 		AND (pl.carddefinitionid > :migrateFromId OR :migrateFromId IS NULL)
