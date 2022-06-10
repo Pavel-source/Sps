@@ -2,7 +2,8 @@ WITH ProductList_0
 AS
 (
 SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid, 
-				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, cd.CONTENTCOLLECTIONID,
+				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, 
+				cd.CONTENTCOLLECTIONID, numberofphotos,
 
 				case pc.cardratio
 					when 'STANDARD' then 'rectangular'
@@ -35,7 +36,7 @@ FROM productcard pc
 	--		AND ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
      JOIN productcardprice pcp 
 		ON PRODUCTCARDID = p.ID 
-			AND '2022-05-21' between pcp.availableFrom AND pcp.availableTill 
+			AND '2022-06-04' between pcp.availableFrom AND pcp.availableTill 
 			AND pcp.amountFrom = 1
      JOIN carddefinition cd 
 		ON cd.CARDRATIO = pc.CARDRATIO 
@@ -53,21 +54,24 @@ WHERE
 	  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
-	  AND (r.id is null OR (r.orderablefrom <= '2022-05-21' AND '2022-05-21' < r.shippableto))	 
+	  AND (r.id is null OR (r.orderablefrom <= '2022-06-04' AND '2022-06-04' <= r.shippableto))	 
 ),
+
 Carddefinition_Grouped AS
 (
 SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
 ),
+
 Carddefinition_With_AttributesByContent AS
 (
 SELECT cd.*, av.AttrCode, av.AttrValue
 FROM Carddefinition_Grouped cd
 	LEFT JOIN contentcollection ccn ON ccn.ID = cd.CONTENTCOLLECTIONID 
-	LEFT JOIN greetz_to_mnpq_attrs_by_content_view av ON ccn.NAME = av.ContentValue
+	LEFT JOIN greetz_to_mnpq_attr_range_by_content_view av ON ccn.NAME = av.ContentValue
 ),
-AttributesByCategories AS
+
+attr_range_0 AS
 (
 SELECT cd.carddefinitionid, 
 	   av.AttributeCode,
@@ -77,21 +81,83 @@ FROM Carddefinition_With_AttributesByContent cd
 	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
 	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
 	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
-	 JOIN greetz_to_mnpq_attrs_by_category_view av  ON av.CategoryID = ci.contentcategoryid
+	 JOIN greetz_to_mnpq_attr_range_by_category_view av  ON av.CategoryID = ci.contentcategoryid
 WHERE cd.AttrCode IS NULL
 	  AND c.INTERNALNAME != 'Keywords'
 GROUP BY carddefinitionid	  
 ),
-Attributes AS
+
+attr_range AS
 (
 SELECT cd.carddefinitionid, 
-	   COALESCE(cd.AttrCode, abc.AttributeCode, 'tangled')   AS AttributeCode,
-	   COALESCE(cd.AttrValue, abc.AttributeValue, 'Tangled') AS AttributeValue
+	   COALESCE(cd.AttrCode, ar.AttributeCode, 'tangled')   AS AttributeCode,
+	   COALESCE(cd.AttrValue, ar.AttributeValue, 'Tangled') AS AttributeValue
 FROM Carddefinition_With_AttributesByContent cd
-	 LEFT JOIN AttributesByCategories abc 
-		ON cd.carddefinitionid = abc.carddefinitionid
+	 LEFT JOIN attr_range_0 ar 
+		ON cd.carddefinitionid = ar.carddefinitionid
 			AND RN_AttributeByCategory = 1	 
 ),
+
+attr_range_occasion_0 AS
+(
+SELECT cd.carddefinitionid, 
+	   av.AttributeCode,
+	   av.AttributeValue,
+	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
+FROM Carddefinition_Grouped cd
+	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
+	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
+	 JOIN greetz_to_mnpq_attr_occasion_view av  ON av.CategoryID = ci.contentcategoryid
+WHERE c.INTERNALNAME != 'Keywords'
+GROUP BY carddefinitionid
+),
+
+attr_range_occasion AS
+(
+SELECT * FROM attr_range_occasion_0 WHERE RN_AttributeByCategory = 1
+),
+
+attr_range_style_0 AS
+(
+SELECT cd.carddefinitionid, 
+	   av.AttributeCode,
+	   av.AttributeValue,
+	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
+FROM Carddefinition_Grouped cd
+	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
+	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
+	 JOIN greetz_to_mnpq_attr_style_view av  ON av.CategoryID = ci.contentcategoryid
+WHERE c.INTERNALNAME != 'Keywords'
+GROUP BY carddefinitionid
+),
+
+attr_range_style AS
+(
+SELECT * FROM attr_range_style_0 WHERE RN_AttributeByCategory = 1
+),
+
+attr_range_relation_0 AS
+(
+SELECT cd.carddefinitionid, 
+	   av.AttributeCode,
+	   av.AttributeValue,
+	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
+FROM Carddefinition_Grouped cd
+	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
+	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
+	 JOIN greetz_to_mnpq_attr_relation_view av  ON av.CategoryID = ci.contentcategoryid
+WHERE c.INTERNALNAME != 'Keywords'
+GROUP BY carddefinitionid
+),
+
+attr_range_relation AS
+(
+SELECT * FROM attr_range_relation_0 WHERE RN_AttributeByCategory = 1
+),
+
 ProductList
 AS
 (
@@ -117,7 +183,8 @@ SELECT *,
 	
 FROM ProductList_0
 ),
-Image_BackSise
+
+Image_BackSize
 AS
 (
 SELECT carddefinitionid, MAX(i.WIDTH) AS WIDTH, MAX(i.HEIGHT) AS HEIGHT
@@ -127,6 +194,7 @@ FROM ProductList pl
 WHERE i.TYPE = 'DESIGN_DEFINITION' AND i.side = 'BACKSIDE' 
 GROUP BY carddefinitionid
 )
+
 SELECT 
 		pl.carddefinitionid  	AS entity_key,
 		cif_nl_title.text  		AS nl_product_name,
@@ -169,12 +237,29 @@ SELECT
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = pl.contentinformationid)  					  AS keywords_en,
 		
-		'greeting-cards' 															  AS category_keys,
-
+		 IFNULL(
+		(
+			 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
+			 FROM contentinformation_category ci
+				 JOIN contentcategory cc
+					ON cc.id = ci.contentcategoryid
+				 JOIN greetz_to_mnpq_categories_cards_view mc 
+					ON mc.GreetzCategoryID = cc.id 
+			 WHERE ci.contentinformationid = pl.contentinformationid  
+					AND mc.MPCategoryKey IS NOT NULL
+		)  
+	   , 'greeting-cards')	 AS category_keys,
+		
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
-			'variantKey', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
-		   'skuId', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
+		--	'variantKey', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
+		   'skuId', concat('GRTZ', 
+						   pl.carddefinitionid, 
+						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
+						   '-', 
+						   upper(pl.Attribute_Size), 
+						   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
+						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
            'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
 		   'images', CASE
@@ -197,23 +282,24 @@ SELECT
 								  LEFT JOIN productcontentprice pcp
 									ON pcp.PRODUCTCONTENTID = dpc.PRODUCTCONTENTID
 									   AND pcp.amountfrom = 1
-									   AND '2022-05-21' BETWEEN pcp.availablefrom AND pcp.availabletill
+									   AND '2022-06-04' BETWEEN pcp.availablefrom AND pcp.availabletill
 									   AND pcp.cardsize = pl.cardsize
 									   AND cp.currency = pcp.currency
 							 WHERE cp.productcardid = pl.productid
-									AND '2022-05-21' between cp.availableFrom AND cp.availableTill 
+									AND '2022-06-04' between cp.availableFrom AND cp.availableTill 
 									AND cp.amountFrom = 1
 							 ),
 							 
 			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
-				'", "attributeType": "enum"}, {"attributeName": "range", "attributeValue": "', a.AttributeCode,				
-				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},',
-				'{"attributeName": "product-range-text", "attributeValue": "', a.AttributeValue, '", "attributeType": "text"},',
+				'", "attributeType": "enum"}, {"attributeName": "range", "attributeValue": "', a_r.AttributeCode,						
+				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', pr.RangeReferenceCode, '", "attributeType": "reference"},',
+				'{"attributeName": "product-range-text", "attributeValue": "', a_r.AttributeValue, '", "attributeType": "text"},',
+				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},',
-				'{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},',
-				'{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}]')
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , case when a_oc.carddefinitionid IS NOT NULL then a_oc.AttributeCode else "general>general" end, '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-relation", "attributeValue": "' , case when a_rl.carddefinitionid IS NOT NULL then a_rl.AttributeCode else "nonrelations" end, '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-style", "attributeValue": "' , case when a_s.carddefinitionid IS NOT NULL then a_s.AttributeCode else "design>general" end, '", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	
@@ -239,13 +325,18 @@ FROM ProductList pl
 	 LEFT JOIN contentinformationfield cif_en_descr_2
 		  ON cif_en_descr_2.contentinformationid = pl.contentinformationid
 			 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
-	/* LEFT JOIN greetz_to_mnpq_categories_view mc 
-		  ON mc.GreetzCategoryID = cc.id
-			 AND mc.MPTypeCode = p.MPTypeCode*/
-	 LEFT JOIN Image_BackSise i
-		  ON i.carddefinitionid = pl.carddefinitionid
-	 LEFT JOIN Attributes a
-		  ON a.carddefinitionid = pl.carddefinitionid
+	 LEFT JOIN Image_BackSize i
+		  ON i.carddefinitionid = pl.carddefinitionid	
+	 LEFT JOIN attr_range a_r
+		  ON a_r.carddefinitionid = pl.carddefinitionid
+	 LEFT JOIN greetz_to_mnpq_attr_productrange_view pr
+		  ON pr.RangeCode = a_r.AttributeCode
+	 LEFT JOIN attr_range_occasion a_oc
+	 	  ON a_oc.carddefinitionid = pl.carddefinitionid
+	 LEFT JOIN attr_range_style a_s
+	 	  ON a_s.carddefinitionid = pl.carddefinitionid	  
+	 LEFT JOIN attr_range_relation a_rl
+	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	 	  
 WHERE
 		pl.RN_Attribute_Size = 1
 		AND (pl.carddefinitionid > :migrateFromId OR :migrateFromId IS NULL)

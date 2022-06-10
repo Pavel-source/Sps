@@ -19,11 +19,12 @@ FROM productgift pg
 		ON pa.productid = p.ID
 	LEFT JOIN productavailabilityrange r 
 	  	ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
-WHERE  p.channelid = '2'
+WHERE  p.id IN (:productId)
+	  /*p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
 	   AND pgp.AVAILABLETILL > '2022-04-15'
-	   AND r.productavailabilityid IS NULL
+	   AND r.productavailabilityid IS NULL*/
 	 --  AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 ),
 productList_withAttributes AS
@@ -46,6 +47,23 @@ FROM productList pl
 	      ON cc.categorytypeid = c.id
 WHERE c.INTERNALNAME != 'Keywords'   		  
 GROUP BY pl.ID		  
+),
+productList_withAttributes_2 AS
+(
+SELECT  pl.ID,
+		ct.text as BrandAttr
+FROM productList pl
+	 JOIN contentinformation_category ci
+		  ON pl.contentinformationid = ci.contentinformationid
+	 JOIN contentcategory cc
+		  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytranslation ct
+		  ON ct.contentcategoryid = cc.id
+			AND ct.locale = 'en_EN'
+	 JOIN contentcategorytype c
+	      ON cc.categorytypeid = c.id
+WHERE pl.MPTypeCode = 'gift-card'
+	  AND c.INTERNALNAME = 'Brand/Designer'   		  	  
 ),
 grouped_products AS
 ( 
@@ -237,11 +255,15 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							when p.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
 							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
 								then replace(p.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
-							when p.MPTypeCode = 'gift-card' then replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD'))
+							when p.MPTypeCode = 'gift-card' then replace(
+																	replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD')),
+																	'unspecified',
+																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
+																	)
 						    else  p.AttributesTemplate
 						  end
 						  )
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]') 
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]') 
 		AS product_variants
 FROM 
          productList p
@@ -382,11 +404,15 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							when pt.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')							
 							when atr.LetterboxAtr > 0 AND pt.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
 								then replace(pt.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
-							when pt.MPTypeCode = 'gift-card' then replace(pt.AttributesTemplate, 'SKUNumber', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')))
-						    else  pt.AttributesTemplate
+							when p.MPTypeCode = 'gift-card' then replace(
+																	replace(pt.AttributesTemplate, 'SKUNumber', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), ''))),
+																	'unspecified',
+																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
+																  )							
+							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
 	   AS product_variants
 
 FROM 
