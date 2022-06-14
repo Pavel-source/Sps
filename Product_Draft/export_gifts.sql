@@ -1,10 +1,10 @@
 WITH productList AS
 (
-SELECT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
+SELECT DISTINCT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
 		pgp.vatid, p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore
 FROM productgift pg 
 	JOIN product p ON pg.productid = p.id
-	JOIN productgiftprice pgp ON pgp.productgiftid = p.id
+	LEFT JOIN productgiftprice pgp ON pgp.productgiftid = p.id
 	LEFT JOIN contentinformationfield cif_en_title
 	  ON cif_en_title.contentinformationid = p.contentinformationid
 		 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
@@ -19,7 +19,7 @@ FROM productgift pg
 		ON pa.productid = p.ID
 	LEFT JOIN productavailabilityrange r 
 	  	ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
-WHERE  p.id IN (:productId)
+WHERE  p.id IN (:productIds)
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
@@ -85,6 +85,8 @@ grouped_products AS
 			 ) AS ppd
 			 ON pge_s.personalizedgiftdesign = ppd.ID	
 	 	JOIN productList l ON l.ID = IFNULL(pge_s.productStandardGift, ppd.PRODUCT)
+		JOIN productgroup ppg ON pge_s.productGroupId = ppg.id 
+	WHERE ppg.approvalStatus != 'DEACTIVATED'
 	UNION ALL
 	SELECT DISTINCT productStandardGift, productGroupId, showonstore, designId,	z2.contentinformationid, contentinformationid_design,
 		   cif_nl_title.text AS nl_product_name, 
@@ -170,6 +172,42 @@ MasterVariant_productStandardGift AS
 (
 SELECT * FROM MasterVariant_productStandardGift_0 WHERE RN = 1
 ),
+
+Categories_for_grouped AS
+(
+ SELECT DISTINCT 
+		ci.contentinformationid, 
+		IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey) AS category
+ FROM grouped_products pge
+	 JOIN contentinformation_category ci
+		 ON ci.contentinformationid = pge.contentinformationid  
+			OR ci.contentinformationid = pge.contentinformationid_design	
+	 JOIN contentcategory cc
+		ON cc.id = ci.contentcategoryid
+	 JOIN grouped_product_types pt 
+		ON pt.productGroupId = pge.productGroupId
+	 JOIN greetz_to_mnpq_categories_view mc 
+		ON mc.GreetzCategoryID = cc.id 
+		   AND mc.MPTypeCode = pt.MPTypeCode			
+),
+
+Keywords_for_grouped AS
+(  
+   SELECT ci.contentinformationid, 
+		  IFNULL(ct.text, ct2.text) AS keyword_nl, 
+		  ct2.text AS keyword_en
+   FROM grouped_products pge
+	 JOIN contentinformation_category ci 
+		ON ci.contentinformationid = pge.contentinformationid  
+		   OR ci.contentinformationid = pge.contentinformationid_design	
+	 JOIN contentcategory cc
+			   ON cc.id = ci.contentcategoryid
+	 LEFT JOIN contentcategorytranslation ct
+			   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
+	 LEFT JOIN contentcategorytranslation ct2
+			   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
+),
+
 cte_productimage_0
 AS
 (
@@ -230,7 +268,7 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
 		   'skuId', Concat(p.id, '-', 'STANDARD'),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
@@ -245,11 +283,11 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 						FROM cte_productimage pim
 						WHERE pim.PRODUCTID = p.ID
 						ORDER BY pim.CODE),
-		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
-									'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
-									 separator ','), ']')
-							 FROM productgiftprice pgp2
-							 WHERE pgp2.productgiftid = p.id),
+		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
+											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
+											 separator ','), ']')
+									FROM productgiftprice pgp2
+									WHERE pgp2.productgiftid = p.id), '[]'),
 			'attributes', case 
 							when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
 							when p.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
@@ -263,7 +301,7 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 						    else  p.AttributesTemplate
 						  end
 						  )
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]') 
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]') 
 		AS product_variants
 FROM 
          productList p
@@ -301,9 +339,11 @@ FROM
 		 LEFT JOIN productList_withAttributes atr
 			ON p.ID = atr.ID
 			
-WHERE (p.id NOT IN 	(SELECT productstandardgift
-					 FROM productgroupentry
-					 WHERE productstandardgift IS NOT NULL -- Only products that do not belong to grouped sku (logic for grouped sku's in second select)
+WHERE (p.id NOT IN 	(SELECT pge.productstandardgift
+					 FROM productgroupentry pge
+						  JOIN productgroup ppg ON pge.productGroupId = ppg.id 
+					 WHERE ppg.approvalStatus != 'DEACTIVATED'
+						   AND pge.productstandardgift IS NOT NULL -- Only products that do not belong to grouped sku (logic for grouped sku's in second select)
 					 UNION
 					 SELECT PRODUCT
 					 FROM productpersonalizedgiftdesign
@@ -341,44 +381,28 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
        null                                                                    AS meta_title,
        null                                                                    AS meta_description,
 
-  	  (  SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
-	     FROM contentinformation_category ci
-			 JOIN contentcategory cc
-					   ON cc.id = ci.contentcategoryid
-			 LEFT JOIN contentcategorytranslation ct
-					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
-			 LEFT JOIN contentcategorytranslation ct2
-					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
-		 WHERE ci.contentinformationid = p.contentinformationid  
-			   OR ci.contentinformationid = pge.contentinformationid_design
-				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
+  	  (  SELECT group_concat(keyword_nl separator ', ')
+	     FROM Keywords_for_grouped k
+		 WHERE k.contentinformationid = p.contentinformationid  
+			   OR k.contentinformationid = pge.contentinformationid_design
 	  )  AS keywords_nl,
-
-  	  (  SELECT group_concat(ct2.text separator ', ')
-	     FROM contentinformation_category ci
-			 JOIN contentcategory cc
-					   ON cc.id = ci.contentcategoryid
-			 LEFT JOIN contentcategorytranslation ct2
-					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
-		 WHERE ci.contentinformationid = p.contentinformationid  
-			   OR ci.contentinformationid = pge.contentinformationid_design
+	  
+	  (  SELECT group_concat(keyword_en separator ', ')
+	     FROM Keywords_for_grouped k
+		 WHERE k.contentinformationid = p.contentinformationid  
+			   OR k.contentinformationid = pge.contentinformationid_design
 	  )  AS keywords_en,
 	 
 	 IFNULL(
 			(
-			 SELECT group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey )) separator ', ')
-			 FROM contentinformation_category ci
-				 JOIN contentcategory cc
-					ON cc.id = ci.contentcategoryid
-				 JOIN greetz_to_mnpq_categories_view mc 
-					ON mc.GreetzCategoryID = cc.id 
-					   AND mc.MPTypeCode = pt.MPTypeCode
-			 WHERE ci.contentinformationid = p.contentinformationid  
-				   OR ci.contentinformationid = pge.contentinformationid_design
+			 SELECT group_concat(DISTINCT(category) separator ', ')
+			 FROM Categories_for_grouped 
+			 WHERE contentinformationid = p.contentinformationid  
+				   OR contentinformationid = pge.contentinformationid_design
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
 		 --  'skuId', Concat(pge.productgroupid, '_', IFNULL(concat('D', pge.designId), pge.productStandardGift)),
 		   'skuId', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
 		   'masterVariant', CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END,
@@ -393,11 +417,11 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 						WHERE pim.PRODUCTID = p.ID and (pge.designId is null or pge.designId = pim.designId)
 						ORDER BY pim.CODE),
 
-		   'productPrices', (SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
-									'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
-									 separator ','), ']')
-							 FROM productgiftprice pgp2
-							 WHERE pgp2.productgiftid = p.id),
+		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
+											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
+											 separator ','), ']')
+									FROM productgiftprice pgp2
+									WHERE pgp2.productgiftid = p.id), '[]'),
 							 
 			'attributes', case 
 							when pt.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(pt.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
@@ -412,7 +436,7 @@ SELECT lower(replace(replace(replace(replace(replace(replace(replace(replace(rep
 							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]')
 	   AS product_variants
 
 FROM 

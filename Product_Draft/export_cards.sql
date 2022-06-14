@@ -45,6 +45,9 @@ FROM productcard pc
      JOIN carddefinition_limitedcardsize cdl 
 		ON cdl.CARDDEFINITIONID = cd.ID 
 			AND pc.CARDSIZE = cdl.CARDSIZE
+	 JOIN carddefinition_channel cdc
+			ON cdc.CARDDEFINITIONID = cd.ID
+				AND pc.CARDSIZE = cdl.CARDSIZE
 	 LEFT JOIN productavailability pa ON p.ID = pa.productid
      LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
 	 LEFT JOIN contentinformationfield cif_nl_title
@@ -55,6 +58,7 @@ WHERE
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-04' AND '2022-06-04' <= r.shippableto))	 
+	  AND cdc.channelID = '2'
 ),
 
 Carddefinition_Grouped AS
@@ -252,13 +256,19 @@ SELECT
 		
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
-		--	'variantKey', concat(pl.carddefinitionid, '-', upper(pl.Attribute_Size), 'CARD'),
+		   'variantKey', concat('GRTZ', 
+						   pl.carddefinitionid, 
+						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
+						   '-', 
+						   upper(pl.Attribute_Size), 
+						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
+						   'CARD'),
 		   'skuId', concat('GRTZ', 
 						   pl.carddefinitionid, 
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
-						   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
+						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
            'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
@@ -297,9 +307,9 @@ SELECT
 				'{"attributeName": "product-range-text", "attributeValue": "', a_r.AttributeValue, '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "' , case when a_oc.carddefinitionid IS NOT NULL then a_oc.AttributeCode else "general>general" end, '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-relation", "attributeValue": "' , case when a_rl.carddefinitionid IS NOT NULL then a_rl.AttributeCode else "nonrelations" end, '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-style", "attributeValue": "' , case when a_s.carddefinitionid IS NOT NULL then a_s.AttributeCode else "design>general" end, '", "attributeType": "enum"}]')
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.AttributeCode, "general>general"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl.AttributeCode, "nonrelations"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_s.AttributeCode, "design>general"), '", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	
