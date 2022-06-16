@@ -54,11 +54,12 @@ FROM productcard pc
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 WHERE
-	  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
+	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-04' AND '2022-06-04' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
+	  and concat(:designIds) IS NULL) OR cd.ID IN (:designIds)
 ),
 
 Carddefinition_Grouped AS
