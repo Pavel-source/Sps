@@ -1,29 +1,38 @@
 WITH productList_0 AS
 (
 SELECT DISTINCT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
-		pgp.vatid, p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore,
+		pgp.vatid, p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, cd.ID AS designId,
 		
 		lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
 		concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
 		AS entityProduct_key
 
 FROM productgift pg 
-	JOIN product p ON pg.productid = p.id
-	LEFT JOIN productgiftprice pgp ON pgp.productgiftid = p.id
+	JOIN product p 
+		ON pg.productid = p.id
+	LEFT JOIN productgiftprice pgp 
+		ON pgp.productgiftid = p.id
 	LEFT JOIN contentinformationfield cif_en_title
-	  ON cif_en_title.contentinformationid = p.contentinformationid
+		ON cif_en_title.contentinformationid = p.contentinformationid
 		 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
 	LEFT JOIN contentinformationfield cif_nl_title
-	  ON cif_nl_title.contentinformationid = p.contentinformationid
-		 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
+		ON cif_nl_title.contentinformationid = p.contentinformationid
+			AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 	JOIN greetz_to_mnpg_product_types_view pt
-	  ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
+		ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
 					  when cif_nl_title.contentinformationid is not null or cif_en_title.contentinformationid is not null then pg.productgifttypeid
 				 end
 	LEFT JOIN productavailability pa 
 		ON pa.productid = p.ID
 	LEFT JOIN productavailabilityrange r 
 	  	ON pa.id = r.productavailabilityid AND r.removed IS NULL AND r.shippableto <= CURRENT_DATE()
+	LEFT JOIN productpersonalizedgiftdesign ppd 
+		ON ppd.product = p.ID
+	LEFT JOIN carddefinition cd 
+		ON cd.ID = ppd.GIFTDEFINITION
+			AND cd.ENABLED = 'Y'
+			AND cd.APPROVALSTATUS = 'APPROVED'
+			AND cd.CONTENTTYPE = 'STOCK'
 WHERE  p.id IN (:productIds) OR concat(:productIds) IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
@@ -42,24 +51,19 @@ WHERE
 	 OR (entityProduct_key in (:keys) 
 		 OR ID IN 
 		   (
-			  SELECT IFNULL(pge.productstandardgift, ppd.product) AS productId
+			  SELECT pge.productstandardgift
 			  FROM productgroup pg
 				   JOIN productgroupentry pge ON pg.id = pge.productGroupId
-				   LEFT JOIN productpersonalizedgiftdesign ppd ON pge.personalizedgiftdesign = ppd.ID
-				   JOIN product p ON p.ID = IFNULL(pge.productstandardgift, ppd.product)
+				   JOIN product p ON p.ID = pge.productstandardgift
+				   JOIN productList_0 pl 
+						ON pl.ID = p.ID
+							AND pl.MPCategoryKey = 'flower'
 			  WHERE lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(pg.productGroupCode, p.PRODUCTCODE) else 
 					concat(IFNULL(pg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
 					 IN (:keys) 
 					AND pg.approvalStatus != 'DEACTIVATED'
-			  UNION ALL 
-			  SELECT product
-			  FROM productpersonalizedgiftdesign ppd
-			  	   JOIN product p ON ppd.product = p.ID
-			  WHERE	lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(p.PRODUCTCODE  
-					, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
-				     IN (:keys) 
 		   )
-		 )
+		)
 ),
 
 productList_withAttributes AS
@@ -102,95 +106,17 @@ WHERE pl.MPTypeCode = 'gift-card'
 ),
 grouped_products_0 AS
 ( 
-	SELECT  IFNULL(pge_s.productStandardGift, ppd.PRODUCT) AS productStandardGift, 
+	SELECT  pge_s.productStandardGift, 
 			pge_s.productGroupId,
 			pge_s.showonstore,
-			ppd.giftdefinition as designId,
-			l.contentinformationid,
-			ppd.contentinformationid_design,
-			NULL AS nl_product_name, NULL AS en_product_name, NULL AS product_nl_description, NULL AS product_en_description,
-			l.productCode,
-			l.channelid
+			pl.contentinformationid,
+			pl.productCode,
+			pl.channelid
 	FROM productgroupentry AS pge_s
-		LEFT JOIN 
-			(
-				SELECT ppd_s.*, cd.contentinformationid AS contentinformationid_design
-				FROM productpersonalizedgiftdesign AS ppd_s						
-					 JOIN carddefinition AS cd		
-						ON ppd_s.giftdefinition = cd.ID
-				WHERE cd.ENABLED = 'Y'
-			 ) AS ppd
-			 ON pge_s.personalizedgiftdesign = ppd.ID	
-	 	JOIN productList l ON l.ID = IFNULL(pge_s.productStandardGift, ppd.PRODUCT)
 		JOIN productgroup ppg ON pge_s.productGroupId = ppg.id 
-	WHERE ppg.approvalStatus != 'DEACTIVATED'
-	UNION ALL
-	SELECT DISTINCT productStandardGift, productGroupId, showonstore, designId,	z2.contentinformationid, contentinformationid_design,
-		   cif_nl_title.text AS nl_product_name, 
-		   cif_en_title.text AS en_product_name, 
-
-		   case 
-				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-					 AND (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
-				then concat(IFNULL(concat(cif_nl_descr.text, '\n\n'), ''), IFNULL(cif_nl_descr_2.text, '')) 
-				else cif_nl_descr.text												           
-		   end								AS product_nl_description,
-		   
-		   case 
-				when z2.MPTypeCode in ('alcohol','biscuit','cake','chocolate','personalised-alcohol','sweet') 
-					  AND (cif_en_descr.text IS NOT NULL  OR  cif_en_descr_2.text IS NOT NULL)
-				then concat(IFNULL(concat(cif_en_descr.text, '\n\n'), ''), IFNULL(cif_en_descr_2.text, '')) 
-				else cif_en_descr.text												           
-		   end								AS product_en_description,
-		   
-		   productCode, channelid
-		   
-	FROM
-		(
-			SELECT  productStandardGift, productGroupId, showonstore, designId, z.contentinformationid, contentinformationid_design, MPTypeCode,
-					productCode, channelid
-			FROM
-			(
-			SELECT ppd_s.PRODUCT AS productStandardGift, 
-				   ppd_s.PRODUCT AS productGroupId,
-				   cd.showonstore,
-				   ppd_s.GIFTDEFINITION AS designId,
-				   l.contentinformationid,
-				   cd.contentinformationid AS contentinformationid_design,
-				   l.MPTypeCode,
-				   l.productCode,
-				   l.channelid,
-				   COUNT(*) OVER(PARTITION BY ppd_s.PRODUCT) AS cnt
-			FROM productpersonalizedgiftdesign ppd_s 
-				JOIN productList l ON l.ID = ppd_s.PRODUCT
-				JOIN carddefinition cd ON cd.ID = ppd_s.GIFTDEFINITION
-
-			WHERE ppd_s.ID NOT IN (SELECT personalizedgiftdesign FROM productgroupentry WHERE personalizedgiftdesign IS NOT NULL)
-				  AND cd.ENABLED = 'Y'
-				  AND cd.APPROVALSTATUS = 'APPROVED'
-				  AND cd.CONTENTTYPE = 'STOCK'
-			) z
-			WHERE cnt < 35
-		) z2
-		LEFT JOIN contentinformationfield cif_nl_title
-			  ON cif_nl_title.contentinformationid = z2.contentinformationid
-				 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
-		LEFT JOIN contentinformationfield cif_nl_descr
-			  ON cif_nl_descr.contentinformationid = z2.contentinformationid
-				 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
-		LEFT JOIN contentinformationfield cif_nl_descr_2
-			  ON cif_nl_descr_2.contentinformationid = z2.contentinformationid
-				 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
-		LEFT JOIN contentinformationfield cif_en_title
-			  ON cif_en_title.contentinformationid = z2.contentinformationid
-				 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
-		LEFT JOIN contentinformationfield cif_en_descr
-			  ON cif_en_descr.contentinformationid = z2.contentinformationid
-				 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'
-        LEFT JOIN contentinformationfield cif_en_descr_2
-			  ON cif_en_descr_2.contentinformationid = z2.contentinformationid
-				 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
-			
+	 	JOIN productList pl ON pl.ID = pge_s.productStandardGift		
+	WHERE pl.MPTypeCode = 'flower' 
+		  AND ppg.approvalStatus != 'DEACTIVATED'			
 ),
 
 grouped_products_0_withKey AS
@@ -224,10 +150,15 @@ SELECT * FROM grouped_product_types_0 WHERE RN = 1
 ),
 MasterVariant_productStandardGift_0 AS
 (
-	SELECT pge.productGroupId, pge.productStandardGift, designId,
-			 ROW_NUMBER() OVER(PARTITION BY pge.productGroupId ORDER BY pge.showonstore DESC, pge.productStandardGift ASC, designId ASC) AS RN
+	SELECT pge.productGroupId, pge.productStandardGift,
+			 ROW_NUMBER() OVER(
+					PARTITION BY pge.productGroupId 
+					ORDER BY case when a.LargeAtr > 0 then 2 when a.LetterboxAtr > 0  then 3 else 1 end,  -- flowers: priority for master: 1.Standart, 2.Large, 3.Letterbox
+							 pge.productStandardGift) 
+			 AS RN
 	FROM grouped_products pge
 		 JOIN productList pl ON pl.ID = pge.productStandardGift
+		 LEFT JOIN productList_withAttributes a ON pl.ID = a.ID
 ),
 MasterVariant_productStandardGift AS
 (
@@ -292,20 +223,19 @@ SELECT p.entityProduct_key  AS entity_key,
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, '-', 'STANDARD'),
-		   'skuId', Concat(p.id, '-', 'STANDARD'),
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT('variantKey', Concat(p.id, IFNULL(concat('_', p.designId), ''), '-STANDARD'),
+		   'skuId', Concat(p.id, IFNULL(concat('_', p.designId), ''), '-STANDARD'),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
 		   'images',   (SELECT concat('[', group_concat(
 							JSON_OBJECT(
 									'imageCode', pim.CODE,
-								--	'designId', pim.designId,
-									'designId', null,
+									'designId', p.designId,
 									'width', pim.WIDTH,
 									'height', pim.HEIGHT)
 						), ']')
 						FROM cte_productimage pim
-						WHERE pim.PRODUCTID = p.ID
+						WHERE pim.PRODUCTID = p.ID and (p.designId is null or p.designId = pim.designId)
 						ORDER BY pim.CODE),
 		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
 											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
@@ -318,7 +248,7 @@ SELECT p.entityProduct_key  AS entity_key,
 							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
 								then replace(p.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
 							when p.MPTypeCode = 'gift-card' then replace(
-																	replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, '-', 'STANDARD')),
+																	replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, IFNULL(concat('_', p.designId), ''), '-STANDARD')),
 																	'unspecified',
 																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
 																	)
@@ -366,12 +296,10 @@ FROM
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM productgroupentry pge
 						  JOIN productgroup ppg ON pge.productGroupId = ppg.id 
-					 WHERE ppg.approvalStatus != 'DEACTIVATED'
-						   AND pge.productstandardgift IS NOT NULL -- Only products that do not belong to grouped sku (logic for grouped sku's in second select)
-					 UNION
-					 SELECT PRODUCT
-					 FROM productpersonalizedgiftdesign
-					 )   
+						  JOIN productList pl ON pge.productstandardgift = pl.ID
+					 WHERE pl.MPTypeCode = 'flower' 
+						   AND ppg.approvalStatus != 'DEACTIVATED')  
+						   
 	  AND (concat(:keys) IS NULL  OR  entityProduct_key in (:keys))
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 GROUP BY p.entityProduct_key
@@ -379,12 +307,12 @@ GROUP BY p.entityProduct_key
 UNION ALL
 
 SELECT pge.entityProduct_key AS entity_key,
-       COALESCE(ppg.title, pge.nl_product_name, replace(ppg.productGroupCode, '_', ' '))            AS nl_product_name,
-       pge.en_product_name                                                     AS en_product_name,
+       COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS nl_product_name,
+       COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
        concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', pge.productGroupId) AS slug,
-       product_nl_description                                                  AS product_nl_description,
-       product_en_description                                                  AS product_en_description,
+       cif_nl_descr.text                                                  	   AS product_nl_description,
+       cif_nl_descr.text                                                  	   AS product_en_description,
        concat('vat', v.vatcode)                                                AS tax_category_key,
 	   pge.showOnStore 													   	   AS show_on_store,
        null                                                                    AS meta_title,
@@ -399,8 +327,6 @@ SELECT pge.entityProduct_key AS entity_key,
 			 LEFT JOIN contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = p.contentinformationid  
-			   OR ci.contentinformationid = pge.contentinformationid_design
-				-- AND (c.internalname = 'Keywords' OR lower(mc.MPParentName) = 'newia' OR mc.MPParentName IS NULL)		  
 	  )  AS keywords_nl,
 
   	  (  SELECT group_concat(ct2.text separator ', ')
@@ -410,7 +336,6 @@ SELECT pge.entityProduct_key AS entity_key,
 			 LEFT JOIN contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = p.contentinformationid  
-			   OR ci.contentinformationid = pge.contentinformationid_design
 	  )  AS keywords_en,
 	 
 	 IFNULL(
@@ -423,23 +348,21 @@ SELECT pge.entityProduct_key AS entity_key,
 					ON mc.GreetzCategoryID = cc.id 
 					   AND mc.MPTypeCode = pt.MPTypeCode
 			 WHERE ci.contentinformationid = p.contentinformationid  
-				   OR ci.contentinformationid = pge.contentinformationid_design
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
-		 --  'skuId', Concat(pge.productgroupid, '_', IFNULL(concat('D', pge.designId), pge.productStandardGift)),
-		   'skuId', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), '')),
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT('variantKey', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), '')),
+		   'skuId', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), '')),
 		   'masterVariant', CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END,
            'productCode', p.PRODUCTCODE,
 		   'images', (SELECT concat('[', group_concat(
 						JSON_OBJECT('imageCode', pim.CODE,
-									'designId', pge.designId,
+									'designId', null,
 									'width', pim.WIDTH,
 									'height', pim.HEIGHT)
 						), ']')
 						FROM cte_productimage pim
-						WHERE pim.PRODUCTID = p.ID and (pge.designId is null or pge.designId = pim.designId)
+						WHERE pim.PRODUCTID = p.ID
 						ORDER BY pim.CODE),
 
 		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
@@ -454,7 +377,7 @@ SELECT pge.entityProduct_key AS entity_key,
 							when atr.LetterboxAtr > 0 AND pt.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
 								then replace(pt.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
 							when p.MPTypeCode = 'gift-card' then replace(
-																	replace(pt.AttributesTemplate, 'SKUNumber', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''), IFNULL(concat('_', pge.designId), ''))),
+																	replace(pt.AttributesTemplate, 'SKUNumber', Concat(pge.productgroupid, IFNULL(concat('_', pge.productStandardGift), ''))),
 																	'unspecified',
 																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
 																  )							
@@ -466,15 +389,29 @@ SELECT pge.entityProduct_key AS entity_key,
 
 FROM 
          productList p
-         LEFT JOIN vat v ON p.vatid = v.id AND v.countrycode = 'NL'
-         JOIN grouped_products pge ON pge.productStandardGift = p.Id
-         LEFT JOIN productgroup ppg ON pge.productGroupId = ppg.id
-		 JOIN grouped_product_types pt ON pt.productGroupId = pge.productGroupId   -- todo: what with these with no category assigned?
+         LEFT JOIN vat v 
+			ON p.vatid = v.id 
+				AND v.countrycode = 'NL'
+         JOIN grouped_products pge 
+			ON pge.productStandardGift = p.Id
+         LEFT JOIN productgroup ppg 
+			ON pge.productGroupId = ppg.id
+		 JOIN grouped_product_types pt 
+			ON pt.productGroupId = pge.productGroupId 
 	     LEFT JOIN MasterVariant_productStandardGift mv 
 			ON pge.productGroupId = mv.productGroupId 
 			   AND pge.productStandardGift = mv.productStandardGift
-			   AND IFNULL(pge.designId, 0) = IFNULL(mv.designId, 0)	   
-		 LEFT JOIN productList_withAttributes atr ON p.ID = atr.ID
+		 LEFT JOIN productList_withAttributes atr 
+			ON p.ID = atr.ID
+         LEFT JOIN contentinformationfield cif_nl_descr
+			ON cif_nl_descr.contentinformationid = p.contentinformationid
+				 AND cif_nl_descr.type = 'DESCRIPTION' 
+				 AND cif_nl_descr.locale = 'nl_NL'
+         LEFT JOIN contentinformationfield cif_en_descr
+			ON cif_en_descr.contentinformationid = p.contentinformationid
+				 AND cif_en_descr.type = 'DESCRIPTION' 
+				 AND cif_en_descr.locale = 'en_EN'	
+				 
 GROUP BY pge.entityProduct_key
 ORDER BY entity_key
 LIMIT :limit
