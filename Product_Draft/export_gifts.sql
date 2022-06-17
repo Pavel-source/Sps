@@ -38,11 +38,28 @@ productList AS
 SELECT * 
 FROM productList_0
 WHERE 
-	(entityProduct_key > :migrateFromId OR :migrateFromId IS NULL) 
-	 AND 
-	(entityProduct_key <= :migrateToId OR :migrateToId IS NULL)
-	 AND concat(:keys) IS NULL
-	 OR productList_0.entityProduct_key in (:keys)
+	 concat(:keys) IS NULL
+	 OR (entityProduct_key in (:keys) 
+		 OR ID IN 
+		   (
+			  SELECT IFNULL(pge.productstandardgift, ppd.product) AS productId
+			  FROM productgroup pg
+				   JOIN productgroupentry pge ON pg.id = pge.productGroupId
+				   LEFT JOIN productpersonalizedgiftdesign ppd ON pge.personalizedgiftdesign = ppd.ID
+				   JOIN product p ON p.ID = IFNULL(pge.productstandardgift, ppd.product)
+			  WHERE lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then IFNULL(pg.productGroupCode, p.PRODUCTCODE) else 
+					concat(IFNULL(pg.productGroupCode, p.PRODUCTCODE), '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+					 IN (:keys) 
+					AND pg.approvalStatus != 'DEACTIVATED'
+			  UNION ALL 
+			  SELECT product
+			  FROM productpersonalizedgiftdesign ppd
+			  	   JOIN product p ON ppd.product = p.ID
+			  WHERE	lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(p.PRODUCTCODE  
+					, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+				     IN (:keys) 
+		   )
+		 )
 ),
 
 productList_withAttributes AS
@@ -190,12 +207,8 @@ grouped_products AS
 ( 
 SELECT *
 FROM grouped_products_0_withKey	
-WHERE              
-	(entityProduct_key > :migrateFromId OR :migrateFromId IS NULL) 
-	 AND 
-	 (entityProduct_key <= :migrateToId OR :migrateToId IS NULL)       
-    AND concat(:keys) IS NULL
-    OR entityProduct_key in (:keys)
+WHERE concat(:keys) IS NULL
+	  OR entityProduct_key in (:keys)
 ),
 
 grouped_product_types_0 AS
@@ -359,6 +372,7 @@ WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 SELECT PRODUCT
 					 FROM productpersonalizedgiftdesign
 					 )   
+	  AND (concat(:keys) IS NULL  OR  entityProduct_key in (:keys))
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 GROUP BY p.entityProduct_key
 
