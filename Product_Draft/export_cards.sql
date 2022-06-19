@@ -205,6 +205,9 @@ SELECT
 		cif_nl_title.text  		AS nl_product_name,
 		cif_en_title.text  		AS en_product_name,
 		'greetingcard'	   		AS product_type_key,
+		pl.carddefinitionid 	AS designId,
+		pl.Attribute_Shape		AS shape,
+		a_r.AttributeCode		AS 'range',
 		concat(pl.PRODUCTCODE, '_', pl.carddefinitionid, '_', pl.CARDSIZE)  AS slug,
 
 		case 
