@@ -1,9 +1,14 @@
 WITH ProductList_0
 AS
 (
-SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid, 
+SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-single') end 
+				AS entity_key, 
+				cd.ID AS carddefinitionid,
+				cd.contentinformationid, pc.productid, 
 				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, 
 				cd.CONTENTCOLLECTIONID, numberofphotos,
+				cif_nl_title.text  		AS nl_product_name,
+				cif_en_title.text  		AS en_product_name,
 
 				case pc.cardratio
 					when 'STANDARD' then 'rectangular'
@@ -20,7 +25,7 @@ SELECT DISTINCT cd.ID AS carddefinitionid, cd.contentinformationid, pc.productid
 					when 'SMALL' then 7 	-- not used
 					when 'MINI' then 8
 				end  									AS  NumberForSorting,
-                cd.NUMBEROFPANELS                       AS  NumberOfPanels
+                pc.AMOUNTOFPANELS                     
 				
 FROM productcard pc
      JOIN product p 
@@ -41,7 +46,8 @@ FROM productcard pc
      JOIN carddefinition cd 
 		ON cd.CARDRATIO = pc.CARDRATIO 
 			AND cd.OBLONG = pc.OBLONG 
-			AND cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS
+			AND (cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS 
+				 OR (pc.AMOUNTOFPANELS = 1 AND cd.NUMBEROFPANELS = 2 AND cd.allowsinglepanel = 'Y'))
      JOIN carddefinition_limitedcardsize cdl 
 		ON cdl.CARDDEFINITIONID = cd.ID 
 			AND pc.CARDSIZE = cdl.CARDSIZE
@@ -53,13 +59,18 @@ FROM productcard pc
 	 LEFT JOIN contentinformationfield cif_nl_title
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
+	 LEFT JOIN contentinformationfield cif_en_title
+		  ON cif_en_title.contentinformationid = cd.contentinformationid
+			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
 WHERE
 	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-04' AND '2022-06-04' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
-	  and concat(:designIds) IS NULL) OR cd.ID IN (:designIds)
+	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
+	  AND concat(:designIds) IS NULL) 
+	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '_single') end  IN (:designIds)
 ),
 
 Carddefinition_Grouped AS
@@ -175,7 +186,7 @@ SELECT *,
 		end  AS Attribute_Size,
 		
 		ROW_NUMBER() OVER(PARTITION BY  
-							carddefinitionid, 
+							entity_key, 
 							case 
 								when CARDSIZE = 'MEDIUM' then 'standard'
 								when CARDSIZE = 'SUPERSIZE' then 'giant'
@@ -184,7 +195,7 @@ SELECT *,
 							end
 						  ORDER BY CARDSIZE DESC)  AS RN_Attribute_Size, 
 
-		ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY NumberForSorting)  AS RN_MasterVariant
+		ROW_NUMBER() OVER(PARTITION BY entity_key ORDER BY NumberForSorting)  AS RN_MasterVariant
 	
 FROM ProductList_0
 ),
@@ -201,14 +212,14 @@ GROUP BY carddefinitionid
 )
 
 SELECT 
-		pl.carddefinitionid  	AS entity_key,
-		cif_nl_title.text  		AS nl_product_name,
-		cif_en_title.text  		AS en_product_name,
+		pl.entity_key		  	AS entity_key,
+		nl_product_name,
+		en_product_name,
 		'greetingcard'	   		AS product_type_key,
 		pl.carddefinitionid 	AS designId,
 		pl.Attribute_Shape		AS shape,
 		a_r.AttributeCode		AS 'range',
-		concat(pl.PRODUCTCODE, '_', pl.carddefinitionid, '_', pl.CARDSIZE)  AS slug,
+		concat(pl.PRODUCTCODE, '_', pl.entity_key, '_', pl.CARDSIZE)  AS slug,
 
 		case 
 			when (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
@@ -261,27 +272,27 @@ SELECT
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
 		   'variantKey', concat('GRTZ', 
-						   pl.carddefinitionid, 
+						   pl.entity_key, 
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'skuId', concat('GRTZ', 
-						   pl.carddefinitionid, 
+						   pl.entity_key, 
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
-           'productCode', CAST(pl.carddefinitionid AS VARCHAR(100)),
+           'productCode', CAST(pl.entity_key AS VARCHAR(100)),
 		   'images', CASE
 						WHEN pl.RN_MasterVariant = 1 THEN concat('[',
-                        concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'front.jpg'), ',' ,
-                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'inside_left.jpg'), ',' ,
-                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'imageCode', 'inside_right.jpg'), ',' ,
-                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.NumberOfPanels, 'width', IFNULL(i.WIDTH, 0), 'height', IFNULL(i.HEIGHT, 0), 'imageCode', 'backside.jpg'))
+                        concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'imageCode', 'front.jpg'), ',' ,
+                                     case when pl.AMOUNTOFPANELS = 2 then concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'imageCode', 'inside_left.jpg'), ',') else '' end,
+                                     case when pl.AMOUNTOFPANELS = 2 then concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'imageCode', 'inside_right.jpg'), ',') else '' end,
+                                     JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'width', IFNULL(i.WIDTH, 0), 'height', IFNULL(i.HEIGHT, 0), 'imageCode', 'backside.jpg'))
 							, ']')
 						ELSE '[]'
 					 END,
@@ -321,18 +332,12 @@ SELECT
 FROM ProductList pl	
 	 LEFT JOIN vat v
 		  ON pl.vatid = v.id AND v.countrycode = 'NL'
-	 LEFT JOIN contentinformationfield cif_nl_title
-		  ON cif_nl_title.contentinformationid = pl.contentinformationid
-			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 	 LEFT JOIN contentinformationfield cif_nl_descr
 		  ON cif_nl_descr.contentinformationid = pl.contentinformationid
 			 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
 	 LEFT JOIN contentinformationfield cif_nl_descr_2
 		  ON cif_nl_descr_2.contentinformationid = pl.contentinformationid
 			 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
-	 LEFT JOIN contentinformationfield cif_en_title
-		  ON cif_en_title.contentinformationid = pl.contentinformationid
-			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
 	 LEFT JOIN contentinformationfield cif_en_descr
 		  ON cif_en_descr.contentinformationid = pl.contentinformationid
 			 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'	
@@ -353,10 +358,10 @@ FROM ProductList pl
 	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	 	  
 WHERE
 		pl.RN_Attribute_Size = 1
-		AND (pl.carddefinitionid > :migrateFromId OR :migrateFromId IS NULL)
-		AND	(pl.carddefinitionid <= :migrateToId OR :migrateToId IS NULL)
-		AND (concat(:keys) IS NULL  OR  pl.carddefinitionid IN (:keys))
+		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
+		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
+		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
 GROUP BY 
-		pl.carddefinitionid
+		pl.entity_key
 LIMIT :limit		
 
