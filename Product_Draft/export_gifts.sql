@@ -1,15 +1,18 @@
 WITH productList_0 AS
 (
 SELECT DISTINCT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, cd.ID AS designId,
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.ID AS designId, pgp.vatid,
 		
-		lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
-		concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+		lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
+		concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'))
 		AS entityProduct_key
 
 FROM product p  
 	JOIN productgift pg 
 		ON pg.productid = p.id
+	LEFT JOIN productgiftprice pgp 
+		ON pgp.productgiftid = p.id
+		   AND pgp.AVAILABLETILL > '2022-06-03'
 	LEFT JOIN contentinformationfield cif_en_title
 		ON cif_en_title.contentinformationid = p.contentinformationid
 		 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
@@ -20,13 +23,18 @@ FROM product p
 		ON pt.GreetzTypeID = case when pg.productgiftcategoryid is not null then pg.productgiftcategoryid
 					  when cif_nl_title.contentinformationid is not null or cif_en_title.contentinformationid is not null then pg.productgifttypeid
 				 end
-	LEFT JOIN productpersonalizedgiftdesign ppd 
-		ON ppd.product = p.ID
-	LEFT JOIN carddefinition cd 
-		ON cd.ID = ppd.GIFTDEFINITION
-			AND cd.ENABLED = 'Y'
-			AND cd.APPROVALSTATUS = 'APPROVED'
-			AND cd.CONTENTTYPE = 'STOCK'
+	LEFT JOIN 
+		(
+		 SELECT cd.ID, ppd.product
+		 FROM productpersonalizedgiftdesign ppd 				
+			 JOIN carddefinition cd 
+					ON cd.ID = ppd.GIFTDEFINITION
+						AND cd.ENABLED = 'Y'
+						AND cd.APPROVALSTATUS = 'APPROVED'
+						AND cd.CONTENTTYPE = 'STOCK'
+		) z
+			ON z.product = p.ID	
+			
 WHERE  p.id IN (:productIds) OR concat(:productIds) IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
@@ -52,7 +60,7 @@ WHERE
 				   JOIN productList_0 pl 
 						ON pl.ID = p.ID
 							AND pl.MPTypeCode = 'flower'
-			  WHERE lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(pg.productGroupCode, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+			  WHERE lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(pg.productGroupCode, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'))
 					IN (:keys) 
 					 AND pg.approvalStatus != 'DEACTIVATED'
 		   )
@@ -108,7 +116,7 @@ grouped_products_0 AS
 			pl.productCode,
 			pl.channelid,
 			
-			lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(ppg.productGroupCode, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''))
+			lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(ppg.productGroupCode, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'))
 			AS entityProduct_key
 			
 	FROM productgroupentry AS pge
@@ -298,7 +306,8 @@ WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 						   
 	  AND (concat(:keys) IS NULL  OR  entityProduct_key in (:keys))
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
-GROUP BY p.entityProduct_key
+GROUP BY p.entityProduct_key, 
+		 p.designId
 
 UNION ALL
 
