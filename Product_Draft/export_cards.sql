@@ -1,7 +1,7 @@
 WITH ProductList_0
 AS
 (
-SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-single') end 
+SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end 
 				AS entity_key, 
 				cd.ID AS carddefinitionid,
 				cd.contentinformationid, pc.productid, 
@@ -70,7 +70,7 @@ WHERE
 	  AND cdc.channelID = '2'
 	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 	  AND concat(:designIds) IS NULL) 
-	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '_single') end  IN (:designIds)
+	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
 ),
 
 Carddefinition_Grouped AS
@@ -215,10 +215,10 @@ SELECT
 		pl.entity_key		  	AS entity_key,
 		nl_product_name,
 		en_product_name,
-		'greetingcard'	   		AS product_type_key,
-		pl.carddefinitionid 	AS designId,
+		case when pl.AMOUNTOFPANELS = 2 then 'greetingcard' else 'postcard' end 		AS product_type_key,
+		pl.carddefinitionid 	AS design_id,
 		pl.Attribute_Shape		AS shape,
-		a_r.AttributeCode		AS 'range',
+        pr.RangeReferenceCode	AS 'range',
 		concat(pl.PRODUCTCODE, '_', pl.entity_key, '_', pl.CARDSIZE)  AS slug,
 
 		case 

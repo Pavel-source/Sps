@@ -69,14 +69,8 @@ UNION ALL SELECT 1143751154, 'senior-over-65-years-old', 'Age'
 UNION ALL SELECT 1143751262, 'adult-25-64-years-old', 'Age'
 -- Age, Baby (cards missions only) --> Age, Baby (0-18m)
 UNION ALL SELECT 1143751247, 'baby-0-1-years-old', 'Age'
--- Age, Child (cards missions only) --> Age, All Kids
-UNION ALL SELECT 1143751253, 'all-kids', 'Age'
 -- Age, Child (cards missions only) --> Age, Baby (0-18m)
 UNION ALL SELECT 1143751253, 'baby-0-1-years-old', 'Age'
--- Age, Child (cards missions only) --> Age, Kids (2-5) years old
-UNION ALL SELECT 1143751253, 'kids-2-5-years-old', 'Age'
--- Age, Child (cards missions only) --> Age, Kids (6-9) years old
-UNION ALL SELECT 1143751253, 'kids-6-9-years-old', 'Age'
 -- Age, Senior (cards missions only) --> Age, Senior (over 65)
 UNION ALL SELECT 1143751268, 'senior-over-65-years-old', 'Age'
 -- Age, Teenager (cards missions only) --> Age, Teen (13-17) years old
@@ -1393,14 +1387,6 @@ UNION ALL SELECT 1143751220, NULL, NULL
 UNION ALL SELECT 1143751229, NULL, NULL
 -- Theme, Artistic (cards missions) --> Sentiment & Style, Artistic
 UNION ALL SELECT 1143754265, 'artistic', 'Sentiment & Style'
--- Theme, Cartoon characters (cards missions) --> Age, All Kids
-UNION ALL SELECT 1143751196, 'all-kids', 'Age'
--- Theme, Cartoon characters (cards missions) --> Age, Kids (2-5) years old
-UNION ALL SELECT 1143751196, 'kids-2-5-years-old', 'Age'
--- Theme, Cartoon characters (cards missions) --> Age, Kids (6-9) years old
-UNION ALL SELECT 1143751196, 'kids-6-9-years-old', 'Age'
--- Theme, Cartoon characters (cards missions) --> Who's It for?, For Kids
-UNION ALL SELECT 1143751196, 'whos-it-for-for-kids', 'Whos It for?'
 -- Theme, Charities (cards missions) --> NULL, NULL
 UNION ALL SELECT 1143731189, NULL, NULL
 -- Theme, Cheerful and colorful (cards missions) --> NULL, NULL

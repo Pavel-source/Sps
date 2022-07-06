@@ -31,6 +31,7 @@ FROM product p
 			ON z.product = p.ID	
 			
 WHERE  p.id IN (:productIds) OR concat(:productIds) IS NULL
+	   AND p.removed IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
@@ -44,6 +45,8 @@ productList AS
 SELECT * 
 FROM productList_0
 WHERE 
+	 EXISTS(SELECT 1 FROM productimage WHERE productid = productList_0.ID)
+	 AND	 
 	 concat(:keys) IS NULL
 	 OR (entityProduct_key in (:keys) 
 		 OR ID IN 
@@ -61,6 +64,73 @@ WHERE
 		   )
 		)
 ),
+
+productTemplate
+AS
+(
+SELECT p.id    AS productId,
+       case when group_concat(skup.productid) IS NULL then 672808 else group_concat(DISTINCT(skup.productid)) end as productTemplateId
+FROM productList p
+         left join productstockkeepingunit pskp on p.ID = pskp.PRODUCTID
+         left join stockkeepingunitexternalproperties skup on pskp.STOCKKEEPINGUNITID = skup.STOCKKEEPINGUNITID
+GROUP BY productId
+),
+
+-- --------------------------  SKUs -------------------------------------------------
+
+sku_by_code as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, stockkeepingunit.CODE as SKU
+                     from productList dr
+                              join stockkeepingunit
+                                   on dr.PRODUCTCODE = stockkeepingunit.CODE),
+     sku_without_addons as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, sku.CODE as SKU
+                            from productList dr
+                                     join productstockkeepingunit pskp
+                                          on dr.ID = pskp.PRODUCTID
+                                     join stockkeepingunit sku on sku.ID = pskp.STOCKKEEPINGUNITID
+                            where sku.COSTCATEGORY = 'PURCHASE_PRICE'
+                              and dr.CHANNELID = 2
+                              and pskp.IGNOREOUTOFSTOCK = 'N'
+                              and sku.includeInFulfillmentOrder = 'Y'
+                              and sku.CODE != 'giftcard_OTS_envelope'
+                              and sku.ID NOT IN (SELECT pskp_addon.STOCKKEEPINGUNITID
+                                                 from productList innerproduct
+                                                          join productgift_addonsolution pga on innerproduct.ID = pga.productgiftid
+                                                          join giftaddonsolution gas on gas.id = pga.giftaddonsolutionid
+                                                          join product addonproduct on addonproduct.PRODUCTCODE = gas.code
+                                                          join productstockkeepingunit pskp_addon
+                                                               on addonproduct.ID = pskp_addon.PRODUCTID
+                                                 where innerproduct.CHANNELID = 2
+                                                   and innerproduct.PRODUCTCODE = dr.PRODUCTCODE)
+                              and dr.ID NOT IN (SELECT skubycode.productId
+                                                from sku_by_code skubycode)),
+     filtered_products as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, sku.CODE as SKU
+                           from productList dr
+                                    join productstockkeepingunit pskp
+                                         on dr.ID = pskp.PRODUCTID
+                                    join stockkeepingunit sku on sku.ID = pskp.STOCKKEEPINGUNITID
+                           where dr.CHANNELID = 2
+                             and dr.id IN (select pfm.id
+                                           from productList pfm
+                                           where pfm.id NOT IN (SELECT productId
+                                                                from sku_by_code
+                                                                UNION ALL
+                                                                select swa.productId AS productId
+                                                                from sku_without_addons swa
+                                                                group by swa.productId))),
+SKUs AS
+(
+select sbc.productId,  concat('[',concat('"', SKU, '"'), ']') as SKUs
+from sku_by_code sbc
+UNION ALL
+select swa.productId, concat('[',group_concat(concat('"', SKU, '"')), ']') as SKUs
+from sku_without_addons swa
+group by swa.productId
+UNION ALL
+select fp.productId,  concat('[',group_concat(concat('"', SKU, '"')), ']') as SKUs
+from filtered_products fp
+group by fp.productId), 
+
+-- ---------------------------------------------------------------------------------------
 
 productList_withAttributes AS
 (
@@ -178,6 +248,26 @@ AS
 SELECT * FROM cte_productimage_0 WHERE RN = 1
 ),
 
+cte_ProductsWithImages
+AS
+(
+SELECT pim.PRODUCTID, 
+	   pim.designId, 
+	   concat('[', group_concat(
+							JSON_OBJECT(
+									'imageCode', pim.CODE,
+									'designId', p.designId,
+									'width', pim.WIDTH,
+									'height', pim.HEIGHT)
+						), ']')  AS ImageJSON
+FROM 
+	productList p   
+	JOIN cte_productimage pim 
+		ON pim.PRODUCTID = p.ID AND (p.designId is null or p.designId = pim.designId)	      
+GROUP BY p.entityProduct_key, 
+		 p.designId
+),
+
 cte_DescrForDesigns
 AS
 (
@@ -219,7 +309,7 @@ SELECT p.entityProduct_key  AS entity_key,
        IFNULL(cif_nl_title.text, replace(p.INTERNALNAME, '_', ' '))                        AS nl_product_name,
        cif_en_title.text                                                                   AS en_product_name,
        p.MPTypeCode                                                                        AS product_type_key,
-	   p.designId,
+	   p.designId                                                                          AS design_id,
        concat(SUBSTRING_INDEX(p.entity_key, '-', 1), '_', p.entityProduct_key)             AS slug,
        
 	   case when design_contentinformationid IS NULL then
@@ -283,12 +373,15 @@ SELECT p.entityProduct_key  AS entity_key,
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(
+	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(
 		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
-		   'images',   (SELECT concat('[', group_concat(
+		   'productTemplateId', ptp.productTemplateId,
+           'greetzSkus', IFNULL(SKUs.SKUs, '[]'),
+		   'images', pwi.ImageJSON,
+						/*(SELECT concat('[', group_concat(
 							JSON_OBJECT(
 									'imageCode', pim.CODE,
 									'designId', p.designId,
@@ -297,7 +390,7 @@ SELECT p.entityProduct_key  AS entity_key,
 						), ']')
 						FROM cte_productimage pim
 						WHERE pim.PRODUCTID = p.ID and (p.designId is null or p.designId = pim.designId)
-						ORDER BY pim.CODE),
+						ORDER BY pim.CODE),*/
 		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
 											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
 											 separator ','), ']')
@@ -316,9 +409,10 @@ SELECT p.entityProduct_key  AS entity_key,
 						    else  p.AttributesTemplate
 						  end
 						  )
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]') 
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']')
 		AS product_variants,
-		p.ID AS productId
+		p.ID AS productId,
+		case when pwi.productId IS NULL then 1 ELSE 0 END  AS NoImages
 FROM 
          productList p
          LEFT JOIN vat v
@@ -360,6 +454,12 @@ FROM
 				 AND mc.MPTypeCode = p.MPTypeCode
 		 LEFT JOIN productList_withAttributes atr
 			  ON p.ID = atr.ID
+		 LEFT JOIN cte_ProductsWithImages pwi
+			ON pwi.productId = p.ID AND IFNULL(pwi.designId, 0) = IFNULL(p.designId, 0)
+		 LEFT JOIN productTemplate ptp
+			ON ptp.productId = p.ID
+		 LEFT JOIN SKUs 
+			ON SKUs.productId = p.ID
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM productgroupentry pge
@@ -379,7 +479,7 @@ SELECT pge.entityProduct_key AS entity_key,
        COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS nl_product_name,
        COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
-	   NULL 																   AS designId,
+	   NULL 																   AS design_id,
        concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', pge.entityProduct_key) 	AS slug,
        cif_nl_descr.text                                                  	   AS product_nl_description,
        cif_nl_descr.text                                                  	   AS product_en_description,
@@ -421,13 +521,15 @@ SELECT pge.entityProduct_key AS entity_key,
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
+       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
 		  -- 'variantKey', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
 		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   -- 'skuId', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
 		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END,
            'productCode', p.PRODUCTCODE,
+		   'productTemplateId', ptp.productTemplateId,
+		   'greetzSkus', IFNULL(SKUs.SKUs, '[]'),
 		   'images', (SELECT concat('[', group_concat(
 						JSON_OBJECT('imageCode', pim.CODE,
 									'designId', null,
@@ -457,9 +559,10 @@ SELECT pge.entityProduct_key AS entity_key,
 							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']')
 	   AS product_variants,
-	   NULL AS productId
+	   NULL AS productId,
+	   0 AS NoImages
 
 FROM 
          productList p
@@ -485,6 +588,10 @@ FROM
 			ON cif_en_descr.contentinformationid = p.contentinformationid
 				 AND cif_en_descr.type = 'DESCRIPTION' 
 				 AND cif_en_descr.locale = 'en_EN'	
+		 LEFT JOIN productTemplate ptp
+			ON ptp.productId = p.ID
+		 LEFT JOIN SKUs 
+			ON SKUs.productId = p.ID
 				 
 GROUP BY pge.entityProduct_key
 ORDER BY entity_key
