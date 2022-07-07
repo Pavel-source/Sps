@@ -41,7 +41,7 @@ FROM productcard pc
 	--		AND ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
      JOIN productcardprice pcp 
 		ON PRODUCTCARDID = p.ID 
-			AND '2022-06-04' between pcp.availableFrom AND pcp.availableTill 
+			AND '2022-06-22' between pcp.availableFrom AND pcp.availableTill 
 			AND pcp.amountFrom = 1
      JOIN carddefinition cd 
 		ON cd.CARDRATIO = pc.CARDRATIO 
@@ -66,7 +66,7 @@ WHERE
 	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
-	  AND (r.id is null OR (r.orderablefrom <= '2022-06-04' AND '2022-06-04' <= r.shippableto))	 
+	  AND (r.id is null OR (r.orderablefrom <= '2022-06-22' AND '2022-06-22' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
 	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 	  AND concat(:designIds) IS NULL) 
@@ -78,6 +78,77 @@ Carddefinition_Grouped AS
 SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
 ),
+
+-- -------------- attribute Occasion   ---------------------------
+attr_Occasions_0 AS
+(
+SELECT DISTINCT cd.carddefinitionid, cd.contentinformationid, ct.TEXT AS Occasion, ci.CONTENTCATEGORYID AS catID, cc.parentcategoryid
+FROM Carddefinition_Grouped cd
+	JOIN contentinformation_category ci ON ci.CONTENTINFORMATIONID = cd.CONTENTINFORMATIONID
+	JOIN contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
+	JOIN contentcategorytype cct ON cct.ID = cc.categorytypeid 
+	JOIN contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
+WHERE cct.INTERNALNAME = 'Occasion'
+),
+
+attr_Single_Occasion AS
+(
+SELECT carddefinitionid, Occasion
+FROM attr_Occasions_0
+WHERE carddefinitionid NOT IN (SELECT design_id FROM greetz_to_mnpg_multioccasions_view)
+GROUP BY carddefinitionid
+HAVING COUNT(*) = 1
+),
+
+attr_Occasion_2 AS 
+(
+SELECT DISTINCT carddefinitionid 
+FROM attr_Occasions_0 AS cte
+WHERE EXISTS (SELECT 1 FROM attr_Occasions_0 AS c2 WHERE cte.carddefinitionid = c2.carddefinitionid AND cte.parentcategoryid = c2.catID)
+	  AND carddefinitionid NOT IN (SELECT design_id FROM greetz_to_mnpg_multioccasions_view)
+),
+
+attr_Occasion_3 AS 
+(
+SELECT cte.carddefinitionid, 
+	GROUP_CONCAT(Occasion ORDER BY parentcategoryid SEPARATOR ' - ') AS Occasion_1, 
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Occasion END SEPARATOR '') AS Occasion_2, 
+	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,
+	COUNT(*) AS cnt
+FROM attr_Occasions_0 AS cte 
+	JOIN attr_Occasion_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid
+GROUP BY cte.carddefinitionid 
+),
+
+attr_Occasion_4 AS 
+(
+SELECT 	carddefinitionid,	Occasion_1, cnt, parents_cnt,
+		case when cnt > 2 AND lower(Occasion_2) LIKE '%newyearscards%'  then 'Newyears' ELSE Occasion_2 END  AS Occasion_2
+FROM attr_Occasion_3
+),
+
+attr_Occasion_5 AS
+(
+SELECT carddefinitionid, 
+	   case when parents_cnt = 1 then Occasion_1 else 'Newyears' end  AS Occasion
+FROM attr_Occasion_4 
+WHERE parents_cnt = 1 OR Occasion_2 = 'Newyears'
+UNION ALL
+SELECT carddefinitionid, Occasion
+FROM attr_Single_Occasion
+UNION ALL
+SELECT design_id, occasion_code
+FROM greetz_to_mnpg_multioccasions_view
+),
+
+attr_Occasion AS
+(
+SELECT carddefinitionid,
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Occasion, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''))	AS Occasion_Code
+FROM attr_Occasion_5
+),
+
+-- ----------------------------------------------------------
 
 Carddefinition_With_AttributesByContent AS
 (
@@ -112,26 +183,6 @@ FROM Carddefinition_With_AttributesByContent cd
 	 LEFT JOIN attr_range_0 ar 
 		ON cd.carddefinitionid = ar.carddefinitionid
 			AND RN_AttributeByCategory = 1	 
-),
-
-attr_range_occasion_0 AS
-(
-SELECT cd.carddefinitionid, 
-	   av.AttributeCode,
-	   av.AttributeValue,
-	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
-FROM Carddefinition_Grouped cd
-	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
-	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
-	 JOIN greetz_to_mnpq_attr_occasion_view av  ON av.CategoryID = ci.contentcategoryid
-WHERE c.INTERNALNAME != 'Keywords'
-GROUP BY carddefinitionid
-),
-
-attr_range_occasion AS
-(
-SELECT * FROM attr_range_occasion_0 WHERE RN_AttributeByCategory = 1
 ),
 
 attr_range_style_0 AS
@@ -307,11 +358,11 @@ SELECT
 								  LEFT JOIN productcontentprice pcp
 									ON pcp.PRODUCTCONTENTID = dpc.PRODUCTCONTENTID
 									   AND pcp.amountfrom = 1
-									   AND '2022-06-04' BETWEEN pcp.availablefrom AND pcp.availabletill
+									   AND '2022-06-22' BETWEEN pcp.availablefrom AND pcp.availabletill
 									   AND pcp.cardsize = pl.cardsize
 									   AND cp.currency = pcp.currency
 							 WHERE cp.productcardid = pl.productid
-									AND '2022-06-04' between cp.availableFrom AND cp.availableTill 
+									AND '2022-06-22' between cp.availableFrom AND cp.availableTill 
 									AND cp.amountFrom = 1
 							 ),
 							 
@@ -322,7 +373,7 @@ SELECT
 				'{"attributeName": "product-range-text", "attributeValue": "', a_r.AttributeValue, '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.AttributeCode, "general>general"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.Occasion_Code, "general>general"), '", "attributeType": "enum"},',
 				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl.AttributeCode, "nonrelations"), '", "attributeType": "enum"},',
 				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_s.AttributeCode, "design>general"), '", "attributeType": "enum"}]')
 			
@@ -350,12 +401,12 @@ FROM ProductList pl
 		  ON a_r.carddefinitionid = pl.carddefinitionid
 	 LEFT JOIN greetz_to_mnpq_attr_productrange_view pr
 		  ON pr.RangeCode = a_r.AttributeCode
-	 LEFT JOIN attr_range_occasion a_oc
-	 	  ON a_oc.carddefinitionid = pl.carddefinitionid
 	 LEFT JOIN attr_range_style a_s
 	 	  ON a_s.carddefinitionid = pl.carddefinitionid	  
 	 LEFT JOIN attr_range_relation a_rl
-	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	 	  
+	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	
+	 LEFT JOIN attr_Occasion a_oc	
+		  ON a_oc.carddefinitionid = pl.carddefinitionid
 WHERE
 		pl.RN_Attribute_Size = 1
 		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
