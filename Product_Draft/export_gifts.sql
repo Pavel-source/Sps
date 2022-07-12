@@ -92,6 +92,8 @@ sku_by_code as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, stockk
                               and pskp.IGNOREOUTOFSTOCK = 'N'
                               and sku.includeInFulfillmentOrder = 'Y'
                               and sku.CODE != 'giftcard_OTS_envelope'
+                              and sku.CODE != 'beveragelabel_100x130'
+                              and sku.CODE != 'gift_wrapping_bluepaper'
                               and sku.ID NOT IN (SELECT pskp_addon.STOCKKEEPINGUNITID
                                                  from productList innerproduct
                                                           join productgift_addonsolution pga on innerproduct.ID = pga.productgiftid
@@ -103,32 +105,29 @@ sku_by_code as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, stockk
                                                    and innerproduct.PRODUCTCODE = dr.PRODUCTCODE)
                               and dr.ID NOT IN (SELECT skubycode.productId
                                                 from sku_by_code skubycode)),
-     filtered_products as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, sku.CODE as SKU
-                           from productList dr
-                                    join productstockkeepingunit pskp
-                                         on dr.ID = pskp.PRODUCTID
-                                    join stockkeepingunit sku on sku.ID = pskp.STOCKKEEPINGUNITID
-                           where dr.CHANNELID = 2
-                             and dr.id IN (select pfm.id
-                                           from productList pfm
-                                           where pfm.id NOT IN (SELECT productId
-                                                                from sku_by_code
-                                                                UNION ALL
-                                                                select swa.productId AS productId
-                                                                from sku_without_addons swa
-                                                                group by swa.productId))),
+     special_skus as (SELECT 1142812199                                    AS productId,
+                             'gift_chocolate_merci_400gram_kerst2020'      AS productCode,
+                             'gift_chocolate_merci_400gram_valentijn_2020' AS SKU
+                      UNION ALL
+                      SELECT 1142813258,
+                             'gift_wine_il_miogusto_limonsecco_amarenissima',
+                             'gift_wine_il_miogusto_Limonsecco'
+                      UNION ALL
+                      SELECT 1142813258,
+                             'gift_wine_il_miogusto_limonsecco_amarenissima',
+                             'gift_wine_il_miogusto_amarenissima'),
 SKUs AS
 (
-select sbc.productId,  concat('[',concat('"', SKU, '"'), ']') as SKUs
+select sbc.productId,  concat('[',concat('"', sbc.SKU, '"'), ']') as SKUs
 from sku_by_code sbc
 UNION ALL
-select swa.productId, concat('[',group_concat(concat('"', SKU, '"')), ']') as SKUs
+select swa.productId, concat('[',group_concat(concat('"', swa.SKU, '"')), ']') as SKUs
 from sku_without_addons swa
 group by swa.productId
 UNION ALL
-select fp.productId,  concat('[',group_concat(concat('"', SKU, '"')), ']') as SKUs
-from filtered_products fp
-group by fp.productId), 
+select ss.productId,  concat('[',group_concat(concat('"', ss.SKU, '"')), ']') as SKUs
+from special_skus ss
+group by ss.productId),
 
 -- ---------------------------------------------------------------------------------------
 
@@ -373,8 +372,7 @@ SELECT p.entityProduct_key  AS entity_key,
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-	   replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(
-		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
@@ -397,6 +395,7 @@ SELECT p.entityProduct_key  AS entity_key,
 									FROM productgiftprice pgp2
 									WHERE pgp2.productgiftid = p.id), '[]'),
 			'attributes', case 
+							when p.ID IN (1142811967,1142812400,1142812682,1142812917,1142815693,1142816513) then replace(p.AttributesTemplate, '"oddsize", "attributeValue": "false"', '"oddsize", "attributeValue": "true"')
 							when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
 							when p.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
 							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
@@ -406,11 +405,11 @@ SELECT p.entityProduct_key  AS entity_key,
 																	'unspecified',
 																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
 																	)
-						    else  p.AttributesTemplate
+						    when ptp.productTemplateId = 672671 then replace(p.AttributesTemplate, '"refrigerated", "attributeValue": "false"', '"refrigerated", "attributeValue": "true"')	
+							else  p.AttributesTemplate
 						  end
 						  )
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']')
-		AS product_variants,
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')		AS product_variants,
 		p.ID AS productId,
 		case when pwi.productId IS NULL then 1 ELSE 0 END  AS NoImages
 FROM 
@@ -521,7 +520,7 @@ SELECT pge.entityProduct_key AS entity_key,
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
+       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
 		  -- 'variantKey', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
 		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   -- 'skuId', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
@@ -559,7 +558,7 @@ SELECT pge.entityProduct_key AS entity_key,
 							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')
 	   AS product_variants,
 	   NULL AS productId,
 	   0 AS NoImages

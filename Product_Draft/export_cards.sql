@@ -103,17 +103,17 @@ HAVING COUNT(*) = 1
 attr_Occasion_2 AS 
 (
 SELECT DISTINCT carddefinitionid 
-FROM attr_Occasions_0 AS cte
-WHERE EXISTS (SELECT 1 FROM attr_Occasions_0 AS c2 WHERE cte.carddefinitionid = c2.carddefinitionid AND cte.parentcategoryid = c2.catID)
+FROM attr_Occasions_0 AS cte1
+WHERE EXISTS (SELECT 1 FROM attr_Occasions_0 AS cte2 WHERE cte1.carddefinitionid = cte2.carddefinitionid AND cte1.parentcategoryid = cte2.catID)
 	  AND carddefinitionid NOT IN (SELECT design_id FROM greetz_to_mnpg_multioccasions_view)
 ),
 
 attr_Occasion_3 AS 
 (
 SELECT cte.carddefinitionid, 
-	GROUP_CONCAT(Occasion ORDER BY parentcategoryid SEPARATOR ' - ') AS Occasion_1, 
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Occasion END SEPARATOR '') AS Occasion_2, 
-	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,
+	GROUP_CONCAT(Occasion ORDER BY case when Occasion like '%years%' then 1 else 0 end,  parentcategoryid SEPARATOR ' - ') AS Occasion_1, 		-- just concatination	
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Occasion END SEPARATOR '') AS Occasion_2,  -- parents only
+	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs
 	COUNT(*) AS cnt
 FROM attr_Occasions_0 AS cte 
 	JOIN attr_Occasion_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid
@@ -137,19 +137,19 @@ UNION ALL
 SELECT carddefinitionid, Occasion
 FROM attr_Single_Occasion
 UNION ALL
-SELECT design_id, occasion_code
-FROM greetz_to_mnpg_multioccasions_view
+SELECT design_id, occasion_name
+FROM greetz_to_mnpg_multioccasions_view 
 ),
 
 attr_Occasion AS
 (
 SELECT carddefinitionid,
-	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Occasion, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''))	AS Occasion_Code
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Occasion, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Occasion_Code
 FROM attr_Occasion_5
 ),
 
 -- ----------------------------------------------------------
-
+/*
 Carddefinition_With_AttributesByContent AS
 (
 SELECT cd.*, av.AttrCode, av.AttrValue
@@ -183,7 +183,7 @@ FROM Carddefinition_With_AttributesByContent cd
 	 LEFT JOIN attr_range_0 ar 
 		ON cd.carddefinitionid = ar.carddefinitionid
 			AND RN_AttributeByCategory = 1	 
-),
+),*/
 
 attr_range_style_0 AS
 (
@@ -269,7 +269,7 @@ SELECT
 		case when pl.AMOUNTOFPANELS = 2 then 'greetingcard' else 'postcard' end 		AS product_type_key,
 		pl.carddefinitionid 	AS design_id,
 		pl.Attribute_Shape		AS shape,
-        pr.RangeReferenceCode	AS 'range',
+        IFNULL(pr.product_range_key,'tangled')	AS 'range',
 		concat(pl.PRODUCTCODE, '_', pl.entity_key, '_', pl.CARDSIZE)  AS slug,
 
 		case 
@@ -368,9 +368,9 @@ SELECT
 							 
 			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
-				'", "attributeType": "enum"}, {"attributeName": "range", "attributeValue": "', a_r.AttributeCode,						
-				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', pr.RangeReferenceCode, '", "attributeType": "reference"},',
-				'{"attributeName": "product-range-text", "attributeValue": "', a_r.AttributeValue, '", "attributeType": "text"},',
+				'", "attributeType": "enum"}, {"attributeName": "range", "attributeValue": "', IFNULL(replace(pr.product_range_key, 'range-', ''),'tangled'),						
+				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', IFNULL(pr.product_range_key,'tangled'), '", "attributeType": "reference"},',
+				'{"attributeName": "product-range-text", "attributeValue": "', IFNULL(pr.product_range_text,'Tangled'), '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
 				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.Occasion_Code, "general>general"), '", "attributeType": "enum"},',
@@ -397,16 +397,14 @@ FROM ProductList pl
 			 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
 	 LEFT JOIN Image_BackSize i
 		  ON i.carddefinitionid = pl.carddefinitionid	
-	 LEFT JOIN attr_range a_r
-		  ON a_r.carddefinitionid = pl.carddefinitionid
-	 LEFT JOIN greetz_to_mnpq_attr_productrange_view pr
-		  ON pr.RangeCode = a_r.AttributeCode
 	 LEFT JOIN attr_range_style a_s
 	 	  ON a_s.carddefinitionid = pl.carddefinitionid	  
 	 LEFT JOIN attr_range_relation a_rl
 	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN attr_Occasion a_oc	
 		  ON a_oc.carddefinitionid = pl.carddefinitionid
+	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
+		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID		 
 WHERE
 		pl.RN_Attribute_Size = 1
 		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)

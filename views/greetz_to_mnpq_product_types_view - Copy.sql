@@ -27,12 +27,11 @@ with parent_category as (
                     end as                                                     attribute_key,*/
 				
 				case 
-					when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"},
-						{"attributeName": "oddsize", "attributeValue": "false", "attributeType": "boolean"}]'
+					when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"}]'
 					when MPTypeCode = 'gift-card' then '[{"attributeName": "delivery-type", "attributeValue": "physical", "attributeType": "lenum"}, 
 						{"attributeName": "upc", "attributeValue": "SKUNumber", "attributeType": "text"},
 						{"attributeName": "brand", "attributeValue": "unspecified", "attributeType": "lenum"}]'
-					when MPTypeCode LIKE '%personalised%' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
+					when MPTypeCode = 'personalised-mug' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
 						{"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "reference"},
 						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
@@ -52,8 +51,6 @@ with parent_category as (
 					then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'
 					-- Chocolate Telegram, Chocolate Letter
 					when GreetzTypeID IN (398498540, 398498539) then '[{"attributeName": "letterbox-friendly", "attributeValue": "true", "attributeType": "boolean"}]'
-					when MPTypeCode = 'cake' then '[{"attributeName": "refrigerated", "attributeValue": "false", "attributeType": "boolean"}]'
-
 						
 				end  as AttributesTemplate,
 				
@@ -78,12 +75,6 @@ with parent_category as (
 				GreetzSubTypeName
          from (
                   select distinct case
-									  when lower(pgc2.name) = 'personalised chocolate' or lower(pgc2.name) LIKE 'personalised_tonys%' or lower(pgc2.child_name) = 'personalised chocolate'
-                                          then 'personalised-chocolate'
-									  when lower(pgc2.name) IN ('personalised beer','personalised beverage','personalised spirits','personalised wine','personalised_flavours_pack','personalised_uv_printing_parcel_beverage','personalised_winetubes')
-                                          then 'personalised-alcohol'		
-									  when lower(pgc2.name) IN ('personalisedmerci','personalised_australian','personalised_candy','personalised_leonidas','personalised_magic_cake','personalised_merci_675')
-                                          then 'personalised-sweets'		
                                       when lower(pgc2.name) IN ('accessories', 'photogifts') and lower(pgc2.child_name) = 'personalised mugs'
                                           then 'personalised-mug'										 										  
                                       when lower(pgc2.name) = 'accessories' and lower(pgc2.child_name) = 'gadgets'
