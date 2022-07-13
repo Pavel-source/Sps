@@ -79,73 +79,80 @@ SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
 ),
 
--- -------------- attribute Occasion   ---------------------------
-attr_Occasions_0 AS
+-- -------------- attributes Occasion, Style, Relation   ---------------------------
+attrs_0 AS
 (
-SELECT DISTINCT cd.carddefinitionid, cd.contentinformationid, ct.TEXT AS Occasion, ci.CONTENTCATEGORYID AS catID, cc.parentcategoryid
+SELECT DISTINCT cct.INTERNALNAME, cd.carddefinitionid, cd.contentinformationid, ct.TEXT AS Val, ci.CONTENTCATEGORYID AS catID, cc.parentcategoryid
 FROM Carddefinition_Grouped cd
 	JOIN contentinformation_category ci ON ci.CONTENTINFORMATIONID = cd.CONTENTINFORMATIONID
 	JOIN contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
 	JOIN contentcategorytype cct ON cct.ID = cc.categorytypeid 
 	JOIN contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
-WHERE cct.INTERNALNAME = 'Occasion'
+WHERE cct.INTERNALNAME IN ('Occasion', 'Design Style', 'Target Group')
+	 AND (cct.INTERNALNAME != 'Design Style' OR lower(ct.TEXT) NOT IN ('hip' ,'with flowers', 'cute', 'english cards', 'dutch cards'))
 ),
 
-attr_Single_Occasion AS
+attr_Single_Val AS
 (
-SELECT carddefinitionid, Occasion
-FROM attr_Occasions_0
-WHERE carddefinitionid NOT IN (SELECT design_id FROM greetz_to_mnpg_multioccasions_view)
-GROUP BY carddefinitionid
+SELECT INTERNALNAME, carddefinitionid, Val
+FROM attrs_0
+GROUP BY INTERNALNAME, carddefinitionid
 HAVING COUNT(*) = 1
 ),
 
-attr_Occasion_2 AS 
+attr_2 AS 
 (
-SELECT DISTINCT carddefinitionid 
-FROM attr_Occasions_0 AS cte1
-WHERE EXISTS (SELECT 1 FROM attr_Occasions_0 AS cte2 WHERE cte1.carddefinitionid = cte2.carddefinitionid AND cte1.parentcategoryid = cte2.catID)
-	  AND carddefinitionid NOT IN (SELECT design_id FROM greetz_to_mnpg_multioccasions_view)
+SELECT DISTINCT INTERNALNAME, carddefinitionid 
+FROM attrs_0 AS cte1
+WHERE EXISTS (SELECT 1 FROM attrs_0 AS cte2 WHERE cte1.INTERNALNAME = cte2.INTERNALNAME AND cte1.carddefinitionid = cte2.carddefinitionid AND cte1.parentcategoryid = cte2.catID)
 ),
 
-attr_Occasion_3 AS 
+attr_3 AS 
 (
-SELECT cte.carddefinitionid, 
-	GROUP_CONCAT(Occasion ORDER BY case when Occasion like '%years%' then 1 else 0 end,  parentcategoryid SEPARATOR ' - ') AS Occasion_1, 		-- just concatination	
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Occasion END SEPARATOR '') AS Occasion_2,  -- parents only
+SELECT cte.INTERNALNAME, 
+	cte.carddefinitionid, 
+	GROUP_CONCAT(Val ORDER BY case when Val like '%years%' then 1 else 0 end,  parentcategoryid SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END SEPARATOR '') AS Concat_2,  -- parents only
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END SEPARATOR '') AS Concat_3,  -- childs only 
 	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs
 	COUNT(*) AS cnt
-FROM attr_Occasions_0 AS cte 
-	JOIN attr_Occasion_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid
-GROUP BY cte.carddefinitionid 
+FROM attrs_0 AS cte 
+	JOIN attr_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid
+GROUP BY cte.INTERNALNAME,
+		 cte.carddefinitionid 
 ),
 
-attr_Occasion_4 AS 
+attr_4 AS 
 (
-SELECT 	carddefinitionid,	Occasion_1, cnt, parents_cnt,
-		case when cnt > 2 AND lower(Occasion_2) LIKE '%newyearscards%'  then 'Newyears' ELSE Occasion_2 END  AS Occasion_2
-FROM attr_Occasion_3
+SELECT 	INTERNALNAME, carddefinitionid,	Concat_1, cnt, parents_cnt,
+		case when cnt > 2 AND INTERNALNAME = 'Occasion' AND lower(Concat_2) LIKE '%newyearscards%'  then 'Newyears' ELSE Concat_2 END  AS Concat_2
+FROM attr_3
 ),
 
-attr_Occasion_5 AS
+attr_5 AS
 (
-SELECT carddefinitionid, 
-	   case when parents_cnt = 1 then Occasion_1 else 'Newyears' end  AS Occasion
-FROM attr_Occasion_4 
-WHERE parents_cnt = 1 OR Occasion_2 = 'Newyears'
+SELECT INTERNALNAME,
+	   carddefinitionid, 
+	   case 
+	   when parents_cnt = 1 AND INTERNALNAME != 'Design Style' then Concat_1 
+	   when parents_cnt = 1 AND INTERNALNAME = 'Design Style'  then Concat_3
+	   else 'Newyears' end  AS Val
+FROM attr_4 
+WHERE (parents_cnt = 1 AND cnt = 2) OR (INTERNALNAME = 'Occasion' AND Concat_2 = 'Newyears')
 UNION ALL
-SELECT carddefinitionid, Occasion
-FROM attr_Single_Occasion
+SELECT INTERNALNAME, carddefinitionid, Val
+FROM attr_Single_Val
 UNION ALL
-SELECT design_id, occasion_name
+SELECT 'Occasion', design_id, occasion_name
 FROM greetz_to_mnpg_multioccasions_view 
 ),
 
-attr_Occasion AS
+attr AS
 (
-SELECT carddefinitionid,
-	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Occasion, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Occasion_Code
-FROM attr_Occasion_5
+SELECT INTERNALNAME,
+	   carddefinitionid,
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Val_Code
+FROM attr_5
 ),
 
 -- ----------------------------------------------------------
@@ -373,7 +380,7 @@ SELECT
 				'{"attributeName": "product-range-text", "attributeValue": "', IFNULL(pr.product_range_text,'Tangled'), '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.Occasion_Code, "general>general"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.Val_Code, "general>general"), '", "attributeType": "enum"},',
 				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl.AttributeCode, "nonrelations"), '", "attributeType": "enum"},',
 				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_s.AttributeCode, "design>general"), '", "attributeType": "enum"}]')
 			
@@ -401,8 +408,9 @@ FROM ProductList pl
 	 	  ON a_s.carddefinitionid = pl.carddefinitionid	  
 	 LEFT JOIN attr_range_relation a_rl
 	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	
-	 LEFT JOIN attr_Occasion a_oc	
+	 LEFT JOIN attr a_oc	
 		  ON a_oc.carddefinitionid = pl.carddefinitionid
+			 AND a_oc.INTERNALNAME = 'Occasion'
 	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID		 
 WHERE
