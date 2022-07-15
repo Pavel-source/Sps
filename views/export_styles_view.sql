@@ -1,0 +1,15 @@
+CREATE VIEW export_styles_view 
+AS
+SELECT 'cards_3d_illustration' AS entity_key, 'Cards 3D illustration' AS 'name'
+UNION ALL SELECT 'cards_3d_typography', 'Cards 3D typography'
+UNION ALL SELECT 'cards_edited_photography', 'Cards edited photography'
+UNION ALL SELECT 'cards_illustration', 'Cards illustration'
+UNION ALL SELECT 'cards_minimalistic_illustration', 'Cards minimalistic illustration'
+UNION ALL SELECT 'cards_minimalistic_typography', 'Cards minimalistic typography'
+UNION ALL SELECT 'cards_photoframes', 'Cards photoframes'
+UNION ALL SELECT 'cards_regular_illustration', 'Cards regular illustration'
+UNION ALL SELECT 'cards_regular_photography', 'Cards regular photography'
+UNION ALL SELECT 'cards_regular_typography', 'Cards regular typography'
+UNION ALL SELECT 'cards_text_poems_quotes_typography', 'Cards text/poems/quotes typography'
+UNION ALL SELECT 'cards_typography', 'Cards typography'
+UNION ALL SELECT 'coloring_page_cards', 'Coloring page cards'

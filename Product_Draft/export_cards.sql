@@ -116,121 +116,49 @@ SELECT cte.INTERNALNAME,
 	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END SEPARATOR '') AS Concat_3,  -- childs only 
 	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs
 	COUNT(*) AS cnt
+	-- ,COUNT(DISTINCT CatID) AS cnt_for_check
 FROM attrs_0 AS cte 
-	JOIN attr_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid
+	JOIN attr_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid AND cte_2.INTERNALNAME = cte.INTERNALNAME
 GROUP BY cte.INTERNALNAME,
 		 cte.carddefinitionid 
 ),
 
-attr_4 AS 
+/* attr_4 AS 
 (
 SELECT 	INTERNALNAME, carddefinitionid,	Concat_1, cnt, parents_cnt,
-		case when cnt > 2 AND INTERNALNAME = 'Occasion' AND lower(Concat_2) LIKE '%newyearscards%'  then 'Newyears' ELSE Concat_2 END  AS Concat_2
+		case when cnt > 2 AND INTERNALNAME = 'Occasion' AND lower(Concat_2) LIKE '%newyearscards%'  then 'Newyears' ELSE Concat_2 END  AS Concat_2,
+		Concat_3
 FROM attr_3
-),
+),*/
 
 attr_5 AS
 (
 SELECT INTERNALNAME,
 	   carddefinitionid, 
 	   case 
-	   when parents_cnt = 1 AND INTERNALNAME != 'Design Style' then Concat_1 
-	   when parents_cnt = 1 AND INTERNALNAME = 'Design Style'  then Concat_3
-	   else 'Newyears' end  AS Val
-FROM attr_4 
-WHERE (parents_cnt = 1 AND cnt = 2) OR (INTERNALNAME = 'Occasion' AND Concat_2 = 'Newyears')
+			when INTERNALNAME = 'Occasion' then Concat_1 
+			else IFNULL(Concat_3, Concat_2)
+	   end  AS Val
+FROM attr_3 
+WHERE parents_cnt = 1 AND cnt = 2 -- OR (INTERNALNAME = 'Occasion' AND Concat_2 = 'Newyears')
 UNION ALL
 SELECT INTERNALNAME, carddefinitionid, Val
 FROM attr_Single_Val
-UNION ALL
+/*UNION ALL
 SELECT 'Occasion', design_id, occasion_name
-FROM greetz_to_mnpg_multioccasions_view 
+FROM greetz_to_mnpg_multioccasions_view */
 ),
 
 attr AS
 (
 SELECT INTERNALNAME,
 	   carddefinitionid,
-	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Val_Code
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Val_Code,
+	   Val AS Val_Name
 FROM attr_5
 ),
 
 -- ----------------------------------------------------------
-/*
-Carddefinition_With_AttributesByContent AS
-(
-SELECT cd.*, av.AttrCode, av.AttrValue
-FROM Carddefinition_Grouped cd
-	LEFT JOIN contentcollection ccn ON ccn.ID = cd.CONTENTCOLLECTIONID 
-	LEFT JOIN greetz_to_mnpq_attr_range_by_content_view av ON ccn.NAME = av.ContentValue
-),
-
-attr_range_0 AS
-(
-SELECT cd.carddefinitionid, 
-	   av.AttributeCode,
-	   av.AttributeValue,
-	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
-FROM Carddefinition_With_AttributesByContent cd
-	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
-	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
-	 JOIN greetz_to_mnpq_attr_range_by_category_view av  ON av.CategoryID = ci.contentcategoryid
-WHERE cd.AttrCode IS NULL
-	  AND c.INTERNALNAME != 'Keywords'
-GROUP BY carddefinitionid	  
-),
-
-attr_range AS
-(
-SELECT cd.carddefinitionid, 
-	   COALESCE(cd.AttrCode, ar.AttributeCode, 'tangled')   AS AttributeCode,
-	   COALESCE(cd.AttrValue, ar.AttributeValue, 'Tangled') AS AttributeValue
-FROM Carddefinition_With_AttributesByContent cd
-	 LEFT JOIN attr_range_0 ar 
-		ON cd.carddefinitionid = ar.carddefinitionid
-			AND RN_AttributeByCategory = 1	 
-),*/
-
-attr_range_style_0 AS
-(
-SELECT cd.carddefinitionid, 
-	   av.AttributeCode,
-	   av.AttributeValue,
-	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
-FROM Carddefinition_Grouped cd
-	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
-	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
-	 JOIN greetz_to_mnpq_attr_style_view av  ON av.CategoryID = ci.contentcategoryid
-WHERE c.INTERNALNAME != 'Keywords'
-GROUP BY carddefinitionid
-),
-
-attr_range_style AS
-(
-SELECT * FROM attr_range_style_0 WHERE RN_AttributeByCategory = 1
-),
-
-attr_range_relation_0 AS
-(
-SELECT cd.carddefinitionid, 
-	   av.AttributeCode,
-	   av.AttributeValue,
-	   ROW_NUMBER() OVER(PARTITION BY carddefinitionid ORDER BY av.Priority, av.CategoryID) AS RN_AttributeByCategory
-FROM Carddefinition_Grouped cd
-	 JOIN contentinformation_category ci  ON ci.contentinformationid = cd.contentinformationid
-	 JOIN contentcategory cc  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytype c  ON cc.categorytypeid = c.id
-	 JOIN greetz_to_mnpq_attr_relation_view av  ON av.CategoryID = ci.contentcategoryid
-WHERE c.INTERNALNAME != 'Keywords'
-GROUP BY carddefinitionid
-),
-
-attr_range_relation AS
-(
-SELECT * FROM attr_range_relation_0 WHERE RN_AttributeByCategory = 1
-),
 
 ProductList
 AS
@@ -380,9 +308,9 @@ SELECT
 				'{"attributeName": "product-range-text", "attributeValue": "', IFNULL(pr.product_range_text,'Tangled'), '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "' , IFNULL(a_oc.Val_Code, "general>general"), '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl.AttributeCode, "nonrelations"), '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_s.AttributeCode, "design>general"), '", "attributeType": "enum"}]')
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , COALESCE(a_oc.Val_Code, a_oc_2.occasion_code, "general>general"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl_2.MP_Code, "nonrelations"), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_des.Val_Code, "design>general"), '", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	
@@ -404,15 +332,18 @@ FROM ProductList pl
 			 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
 	 LEFT JOIN Image_BackSize i
 		  ON i.carddefinitionid = pl.carddefinitionid	
-	 LEFT JOIN attr_range_style a_s
-	 	  ON a_s.carddefinitionid = pl.carddefinitionid	  
-	 LEFT JOIN attr_range_relation a_rl
-	 	  ON a_rl.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN attr a_oc	
-		  ON a_oc.carddefinitionid = pl.carddefinitionid
-			 AND a_oc.INTERNALNAME = 'Occasion'
+		  ON a_oc.carddefinitionid = pl.carddefinitionid AND a_oc.INTERNALNAME = 'Occasion'
+	 LEFT JOIN attr a_des	
+		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'		
+	 LEFT JOIN attr a_tgt	
+		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'	
+	 LEFT JOIN greetz_to_mnpg_relations_view a_rl_2
+		  ON a_rl_2.Greetz_Name = a_tgt.Val_Name		  
 	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
-		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID		 
+		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
+	 LEFT JOIN greetz_to_mnpg_multioccasions_view a_oc_2
+		  ON a_oc_2.design_id = pl.carddefinitionid		  
 WHERE
 		pl.RN_Attribute_Size = 1
 		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
