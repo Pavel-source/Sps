@@ -4,7 +4,7 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 
 		case 
 			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
-			  when Addon_sq.AddonID IN (1142781710, 1142781707) then 'alcohol' 
+			  when Addon_sq.AddonID IN (1142781710, 1142781707) AND lower(pt.MPTypeCode) NOT LIKE '%alco%' then 'alcohol' 
 			  else pt.MPTypeCode 
 		end  
 		AS MPTypeCode, 	
