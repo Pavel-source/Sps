@@ -1,17 +1,29 @@
 WITH productList_0 AS
 (
-SELECT DISTINCT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, pgp.vatid,
+SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, 
+
+		case 
+			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
+			  when Addon_sq.AddonID IN (1142781710, 1142781707) then 'alcohol' 
+			  else pt.MPTypeCode 
+		end  
+		AS MPTypeCode, 	
+		
+		case 
+			  when Addon_sq.ID IS NOT NULL then REPLACE(pt.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
+			  else REPLACE(pt.AttributesTemplate, ',{"attributeName": "addon", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
+		end
+		AS AttributesTemplate,
+		
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, pgp.vatid,	
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
 		AS entityProduct_key
 		
-		/*lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
-		concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'))
-		AS entityProduct_key*/
+		-- ,case when Addon_sq.ID IS NOT NULL then concat('GRTZ', cast(Addon_sq.AddonID as varchar(50))) else NULL end  AS Addon
 
 FROM product p  
-	JOIN productgift pg 
+	LEFT JOIN productgift pg 
 		ON pg.productid = p.id
 	LEFT JOIN productgiftprice pgp 
 		ON pgp.productgiftid = p.id
@@ -30,7 +42,19 @@ FROM product p
 		) z
 			ON z.product = p.ID	
 			
-WHERE  p.id IN (:productIds) OR concat(:productIds) IS NULL
+	-- -----  Addons	--------------------
+	 LEFT JOIN 
+	 (
+	  SELECT pga.productgiftid AS ID, addonproduct.id AS AddonID
+	  FROM productgift_addonsolution pga 
+     	 JOIN giftaddonsolution gas on gas.id = pga.giftaddonsolutionid
+     	 JOIN giftaddonsolutiongiftaddon gasga on gasga.giftaddonsolutionid = gas.id
+     	 JOIN product addonproduct ON addonproduct.id = gasga.productgiftaddonid	
+	  WHERE addonproduct.id IN (1142785824, 1142802984, 1142781710, 1142781707) -- 'gift_addon_vase_special','gift_flowers_vase_new','gift_wine_woodbox_single','gift_wine_woodbox_double'
+	  ) Addon_sq
+	  ON p.ID = Addon_sq.ID
+
+WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL  OR  p.id IN (1142785824, 1142802984, 1142781710, 1142781707)) -- four Addons
 	   AND p.removed IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
@@ -372,7 +396,7 @@ SELECT p.entityProduct_key  AS entity_key,
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
@@ -409,7 +433,7 @@ SELECT p.entityProduct_key  AS entity_key,
 							else  p.AttributesTemplate
 						  end
 						  )
-		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')		AS product_variants,
+		    , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rnttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}'), 't{','{'), '}t','}')		AS product_variants,
 		p.ID AS productId,
 		case when pwi.productId IS NULL then 1 ELSE 0 END  AS NoImages
 FROM 
@@ -520,7 +544,7 @@ SELECT pge.entityProduct_key AS entity_key,
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
+       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
 		  -- 'variantKey', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
 		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   -- 'skuId', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
@@ -558,7 +582,7 @@ SELECT pge.entityProduct_key AS entity_key,
 							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rnttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}'), 't{','{'), '}t','}')
 	   AS product_variants,
 	   NULL AS productId,
 	   0 AS NoImages

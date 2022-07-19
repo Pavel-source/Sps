@@ -68,6 +68,7 @@ WHERE
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-22' AND '2022-06-22' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
+	  AND pc.CARDSIZE IN ('Medium', 'XXL', 'Supersize')
 	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 	  AND concat(:designIds) IS NULL) 
 	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
@@ -104,21 +105,25 @@ attr_2 AS
 (
 SELECT DISTINCT INTERNALNAME, carddefinitionid 
 FROM attrs_0 AS cte1
-WHERE EXISTS (SELECT 1 FROM attrs_0 AS cte2 WHERE cte1.INTERNALNAME = cte2.INTERNALNAME AND cte1.carddefinitionid = cte2.carddefinitionid AND cte1.parentcategoryid = cte2.catID)
+WHERE EXISTS (SELECT 1 
+			  FROM attrs_0 AS cte2 
+			  WHERE cte1.INTERNALNAME = cte2.INTERNALNAME 
+					AND cte1.carddefinitionid = cte2.carddefinitionid 
+					AND cte1.parentcategoryid = cte2.catID)
 ),
 
 attr_3 AS 
 (
 SELECT cte.INTERNALNAME, 
 	cte.carddefinitionid, 
-	GROUP_CONCAT(Val ORDER BY case when Val like '%years%' then 1 else 0 end,  parentcategoryid SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END SEPARATOR '') AS Concat_2,  -- parents only
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END SEPARATOR '') AS Concat_3,  -- childs only 
-	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs
+	GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_2,  -- parents only
+	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 
+	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs, amount
 	COUNT(*) AS cnt
 	-- ,COUNT(DISTINCT CatID) AS cnt_for_check
 FROM attrs_0 AS cte 
-	JOIN attr_2 AS cte_2 ON cte_2.carddefinitionid = cte.carddefinitionid AND cte_2.INTERNALNAME = cte.INTERNALNAME
+	JOIN attr_2 AS cte_2 ON cte_2.INTERNALNAME = cte.INTERNALNAME AND cte_2.carddefinitionid = cte.carddefinitionid  
 GROUP BY cte.INTERNALNAME,
 		 cte.carddefinitionid 
 ),
@@ -140,22 +145,22 @@ SELECT INTERNALNAME,
 			else IFNULL(Concat_3, Concat_2)
 	   end  AS Val
 FROM attr_3 
-WHERE parents_cnt = 1 AND cnt = 2 -- OR (INTERNALNAME = 'Occasion' AND Concat_2 = 'Newyears')
+WHERE parents_cnt = 1 AND (cnt = 2 OR INTERNALNAME = 'Occasion')
 UNION ALL
 SELECT INTERNALNAME, carddefinitionid, Val
 FROM attr_Single_Val
-/*UNION ALL
-SELECT 'Occasion', design_id, occasion_name
-FROM greetz_to_mnpg_multioccasions_view */
 ),
 
 attr AS
 (
 SELECT INTERNALNAME,
 	   carddefinitionid,
-	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'), '!', ''), '*', ''), '/', '_'))	AS Val_Code,
-	   Val AS Val_Name
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '-'), ' ' , '-'), '&' , '-and-'), '+' , 'plus'), '?' , ''),     '''' , '_'), '(' , ''), ')' , ''), '%', ''), '.', ''), '/', ''), '!', ''), 'ë', 'e'), '’', '_'), '*', ''))	AS Val_Code,
+	   concat(ucase(LEFT(Val, 1)), SUBSTRING(Val ,2))  AS Val_Name
 FROM attr_5
+GROUP BY INTERNALNAME,
+	   carddefinitionid,
+	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '-'), ' ' , '-'), '&' , '-and-'), '+' , 'plus'), '?' , ''),     '''' , '_'), '(' , ''), ')' , ''), '%', ''), '.', ''), '/', ''), '!', ''), 'ë', 'e'), '’', '_'), '*', ''))
 ),
 
 -- ----------------------------------------------------------
