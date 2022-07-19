@@ -11,7 +11,7 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 		
 		case 
 			  when Addon_sq.ID IS NOT NULL then REPLACE(pt.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
-			  else REPLACE(pt.AttributesTemplate, ',{"attributeName": "addon", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
+			  else REPLACE(pt.AttributesTemplate, ',{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
 		end
 		AS AttributesTemplate,
 		
