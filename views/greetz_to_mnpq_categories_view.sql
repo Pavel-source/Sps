@@ -3,7 +3,7 @@
 -- #
 -- ########################################################################################
 
-CREATE VIEW greetz_to_mnpq_categories_view AS
+CREATE OR REPLACE greetz_to_mnpq_categories_view AS
 -- Age, 18 years and older --> Age, Young Adult 18 24 years old
 SELECT 880438645 AS GreetzCategoryID, 'young-adult-18-24-years-old' AS MPCategoryKey, 'Age' AS MPParentName, 'alcohol' AS MPTypeCode
 -- Age, 18 years and older --> Age, Senior over 65 years old

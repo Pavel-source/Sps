@@ -1,4 +1,4 @@
-CREATE VIEW greetz_to_mnpg_ranges_map_view 
+CREATE OR REPLACE greetz_to_mnpg_ranges_map_view 
 AS
 SELECT 671962012 AS content_collection_ID, 'range-blond-amsterdam-regular' AS product_range_key, 'Blond Amsterdam - regular' AS product_range_text
 UNION ALL SELECT 1135856238, 'range-blond-amsterdam-regular', 'Blond Amsterdam - regular'

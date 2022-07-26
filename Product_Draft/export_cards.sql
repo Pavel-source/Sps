@@ -1,7 +1,7 @@
 WITH ProductList_0
 AS
 (
-SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end 
+SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then concat('GRTZ', cast(cd.ID as varchar(50))) else concat('GRTZ', cast(cd.ID as varchar(50)), '-P') end 
 				AS entity_key, 
 				cd.ID AS carddefinitionid,
 				cd.contentinformationid, pc.productid, 
@@ -68,7 +68,12 @@ WHERE
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-22' AND '2022-06-22' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
-	  AND pc.CARDSIZE IN ('Medium', 'XXL', 'Supersize')
+	  AND (
+			pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE') 
+			OR  
+			pc.AMOUNTOFPANELS = 1
+		  )	  
+	  AND cd.ID NOT IN (SELECT carddefinitionid FROM black_list_for_cards)
 	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 	  AND concat(:designIds) IS NULL) 
 	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
@@ -203,27 +208,27 @@ GROUP BY carddefinitionid
 )
 
 SELECT 
-		pl.entity_key		  	AS entity_key,
+		pl.entity_key,
 		nl_product_name,
 		en_product_name,
 		case when pl.AMOUNTOFPANELS = 2 then 'greetingcard' else 'postcard' end 		AS product_type_key,
 		pl.carddefinitionid 	AS design_id,
 		pl.Attribute_Shape		AS shape,
-        IFNULL(pr.product_range_key,'tangled')	AS 'range',
+        IFNULL(pr.product_range_key,'range-tangled')	AS 'range',
 		concat(pl.PRODUCTCODE, '_', pl.entity_key, '_', pl.CARDSIZE)  AS slug,
 
 		case 
 			when (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
-			then concat(IFNULL(concat(cif_nl_descr.text, '\n\n'), ''), IFNULL(cif_nl_descr_2.text, '')) 
+			then concat(IFNULL(concat(cif_nl_descr_2.text, '\n\n'), ''), IFNULL(cif_nl_descr.text, '')) 
 			else cif_nl_descr.text												           
 	    end				   AS product_nl_description,
 		
 	    case 
 			when (cif_en_descr.text IS NOT NULL  OR  cif_en_descr_2.text IS NOT NULL)
-			then concat(IFNULL(concat(cif_en_descr.text, '\n\n'), ''), IFNULL(cif_en_descr_2.text, '')) 
+			then concat(IFNULL(concat(cif_en_descr_2.text, '\n\n'), ''), IFNULL(cif_en_descr.text, '')) 
 			else cif_en_descr.text												           
 	    end				   AS product_en_description,
-			
+		
 		concat('vat', v.vatcode)       AS tax_category_key,
 		pl.showonstore				   AS show_on_store,
 		null  						   AS meta_title_nl,
@@ -262,22 +267,20 @@ SELECT
 		
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
-		   'variantKey', concat('GRTZ', 
-						   pl.entity_key, 
+		   'variantKey', concat(pl.entity_key, 
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
-		   'skuId', concat('GRTZ', 
-						   pl.entity_key, 
+		   'skuId', concat(pl.entity_key, 
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
-           'productCode', CAST(pl.entity_key AS VARCHAR(100)),
+           'productCode', replace(pl.entity_key, 'GRTZ', ''),
 		   'images', CASE
 						WHEN pl.RN_MasterVariant = 1 THEN concat('[',
                         concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'imageCode', 'front.jpg'), ',' ,
@@ -306,10 +309,12 @@ SELECT
 									AND cp.amountFrom = 1
 							 ),
 							 
-			'attributes', CONCAT('[{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
-				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape,
-				'", "attributeType": "enum"}, {"attributeName": "range", "attributeValue": "', IFNULL(replace(pr.product_range_key, 'range-', ''),'tangled'),						
-				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', IFNULL(pr.product_range_key,'tangled'), '", "attributeType": "reference"},',
+			'attributes', CONCAT('[', 
+				case when pl.AMOUNTOFPANELS = 2 then CONCAT('{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
+				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape, '", "attributeType": "enum"}, ') 
+				else '' end,
+				'{"attributeName": "range", "attributeValue": "', IFNULL(replace(pr.product_range_key, 'range-', ''),'tangled'),						
+				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', IFNULL(pr.product_range_key,'range-tangled'), '", "attributeType": "category-reference"},',
 				'{"attributeName": "product-range-text", "attributeValue": "', IFNULL(pr.product_range_text,'Tangled'), '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',

@@ -1,4 +1,4 @@
-CREATE VIEW greetz_to_mnpg_multioccasions_view 
+CREATE OR REPLACE greetz_to_mnpg_multioccasions_view 
 AS
 SELECT 1142726798 AS design_id, 'wedding-invitation-wedding' AS occasion_code, 'Wedding invitation (wedding)' AS occasion_name
 UNION ALL SELECT 1142736780, 'newyears', 'Newyears'

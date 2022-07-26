@@ -1,4 +1,4 @@
-CREATE VIEW greetz_to_mnpq_occasions_view 
+CREATE OR REPLACE greetz_to_mnpq_occasions_view 
 AS
 SELECT 'anniversary' AS entity_key, 'anniversary' AS name
 UNION ALL SELECT 'anniversary_anniversary_1_year_working_from_home_work_anniversary', 'anniversary_anniversary_1_year_working_from_home_work_anniversary'

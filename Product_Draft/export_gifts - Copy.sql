@@ -1,33 +1,23 @@
 WITH productList_0 AS
 (
-SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.AttributesTemplate,
-
-		case 
-			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
-			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
-			  when pgt.internalname like 'Personalised%Merci%' OR pgt.internalname like 'Personalised_Australian%'  
-					OR pgt.internalname like 'Personalised_Tonys%' OR pgt.internalname like 'Personalised_Leonidas%' then 'personalised-chocolate'
-			  when lower(pgt.internalname) like '%balloon%' then 'balloon'
-			  when lower(pgt.internalname) = 'mug' and z.designProductId IS NOT NULL then 'personalised-mug'
-			  else pt.MPTypeCode 
-		end  
-		AS MPTypeCode, 	
-				
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,	
+SELECT DISTINCT p.ID, pt.entity_key, pt.AttributesTemplate, pt.MPTypeCode, p.contentinformationid, pt.DefaultCategoryKey, 
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, pgp.vatid,
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
 		AS entityProduct_key
 		
-		-- ,case when Addon_sq.ID IS NOT NULL then concat('GRTZ', cast(Addon_sq.AddonID as varchar(50))) else NULL end  AS Addon
+		/*lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(case p.channelid when 2 then p.PRODUCTCODE else 
+		concat(p.PRODUCTCODE, '_', CAST(p.channelid AS VARCHAR(10))) end, ' - ' , '_'), ' ' , '_'), '&' , 'and'), '+' , 'plus'), '?' , ''), '''' , ''), '(' , ''), ')' , ''), '%', ''), 'ï', 'ii'))
+		AS entityProduct_key*/
 
 FROM product p  
-	LEFT JOIN productgift pg 
+	JOIN productgift pg 
 		ON pg.productid = p.id
 	LEFT JOIN productgiftprice pgp 
 		ON pgp.productgiftid = p.id
 		 --  AND pgp.AVAILABLETILL > '2022-06-03'
-	LEFT JOIN productgiftaddonprice pgp_a 
-		ON pgp_a.productgiftaddonid = p.id AND p.id IN (1142785824, 1142802984, 1142781710, 1142781707)
+	LEFT JOIN greetz_to_mnpg_product_types_view pt
+		ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid)
 	LEFT JOIN 
 		(
 		 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product, cd.contentinformationid AS design_contentinformationid
@@ -40,16 +30,7 @@ FROM product p
 		) z
 			ON z.product = p.ID	
 			
-
-	LEFT JOIN productgifttype pgt ON pgt.ID = pg.productgifttypeid
-	LEFT JOIN greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
-	/* LEFT JOIN greetz_to_mnpg_product_types_view pt
-		ON pt.GreetzTypeID = case 
-								when Addon_sq.AddonID IN (1142781710, 1142781707) AND lower(pt_0.MPTypeCode) NOT LIKE '%alco%' then 5  -- set "alcohol" type for some wrong cases
-								else pt_0.GreetzTypeID
-							 end*/
-
-WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL  OR  p.id IN (1142785824, 1142802984, 1142781710, 1142781707)) -- four Addons
+WHERE  p.id IN (:productIds) OR concat(:productIds) IS NULL
 	   AND p.removed IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
@@ -59,77 +40,16 @@ WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL  OR  p.id IN (11427
 	 --  AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 ),
 
-productList_CorrectedAttributesTemplate
-AS
-(
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, 
-	   case when MPTypeCode = 'personalised-alcohol' then 
-			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
-						]'		
-			when MPTypeCode = 'personalised-chocolate' then 			
-						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
-						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
-						]'		
-			when MPTypeCode = 'balloon' then  NULL		
-			when MPTypeCode = 'personalised-mug' then  
-						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
-						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
-						]'			
-			else AttributesTemplate
-	   end
-	   AS AttributesTemplate
-												
-FROM productList_0 p
-),
-
-productList_with_Addonds AS
-(
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, 
-		case 
-			  when Addon_sq.ID IS NOT NULL then REPLACE(p.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
-			  else REPLACE(p.AttributesTemplate, ',{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
-		end
-		AS AttributesTemplate
-
-FROM productList_CorrectedAttributesTemplate p
-	 LEFT JOIN 
-	 (
-	  SELECT pga.productgiftid AS ID, addonproduct.id AS AddonID
-	  FROM productgift_addonsolution pga 
-     	 JOIN giftaddonsolution gas on gas.id = pga.giftaddonsolutionid
-     	 JOIN giftaddonsolutiongiftaddon gasga on gasga.giftaddonsolutionid = gas.id
-     	 JOIN product addonproduct ON addonproduct.id = gasga.productgiftaddonid	
-	  WHERE addonproduct.id IN (1142785824, 1142802984, 1142781710, 1142781707) -- 'gift_addon_vase_special','gift_flowers_vase_new','gift_wine_woodbox_single','gift_wine_woodbox_double'
-	  ) Addon_sq
-	  ON p.ID = Addon_sq.ID
-),
-
 productList AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, AttributesTemplate
-FROM productList_with_Addonds p
-WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
-	 /*EXISTS(SELECT 1 FROM productimage WHERE productid = productList_0.ID)*/
-	 AND
+SELECT * 
+FROM productList_0
+WHERE 
+	 EXISTS(SELECT 1 FROM productimage WHERE productid = productList_0.ID)
+	 AND	 
 	 concat(:keys) IS NULL
 	 OR (entityProduct_key in (:keys) 
-		 OR p.ID IN 
+		 OR ID IN 
 		   (
 			  SELECT pge.productstandardgift
 			  FROM productgroup pg
@@ -189,10 +109,6 @@ sku_by_code as (SELECT dr.id AS productId, dr.PRODUCTCODE AS productCode, stockk
                              'gift_chocolate_merci_400gram_kerst2020'      AS productCode,
                              'gift_chocolate_merci_400gram_valentijn_2020' AS SKU
                       UNION ALL
-                      SELECT 1142785824                                    AS productId,
-                             'gift_addon_vase_special'                     AS productCode,
-                             'gift_flowers_vase_special'                   AS SKU
-                      UNION ALL
                       SELECT 1142813258,
                              'gift_wine_il_miogusto_limonsecco_amarenissima',
                              'gift_wine_il_miogusto_Limonsecco'
@@ -205,11 +121,11 @@ SKUs AS
 select sbc.productId,  concat('[',concat('"', sbc.SKU, '"'), ']') as SKUs
 from sku_by_code sbc
 UNION ALL
-select swa.productId, concat('[',group_concat(DISTINCT(concat('"', swa.SKU, '"'))), ']') as SKUs
+select swa.productId, concat('[',group_concat(concat('"', swa.SKU, '"')), ']') as SKUs
 from sku_without_addons swa
 group by swa.productId
 UNION ALL
-select ss.productId,  concat('[',group_concat(DISTINCT(concat('"', ss.SKU, '"'))), ']') as SKUs
+select ss.productId,  concat('[',group_concat(concat('"', ss.SKU, '"')), ']') as SKUs
 from special_skus ss
 group by ss.productId),
 
@@ -393,7 +309,7 @@ SELECT p.entityProduct_key  AS entity_key,
        cif_en_title.text                                                                   AS en_product_name,
        p.MPTypeCode                                                                        AS product_type_key,
 	   p.designId                                                                          AS design_id,
-       concat(SUBSTRING_INDEX(p.MPTypeCode, '-', 1), '_', p.entityProduct_key)             AS slug,
+       concat(SUBSTRING_INDEX(p.entity_key, '-', 1), '_', p.entityProduct_key)             AS slug,
        
 	   case when design_contentinformationid IS NULL then
 		   case 
@@ -456,9 +372,8 @@ SELECT p.entityProduct_key  AS entity_key,
 	   , p.DefaultCategoryKey) 	AS category_keys,
 
 
-		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
-		   'skuId', Concat(case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then p.entityProduct_key else p.PRODUCTCODE end
-						  ,case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then '-STANDARD' else '' end),
+		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
+		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', true,
            'productCode', p.PRODUCTCODE,
 		   'productTemplateId', ptp.productTemplateId,
@@ -474,20 +389,11 @@ SELECT p.entityProduct_key  AS entity_key,
 						FROM cte_productimage pim
 						WHERE pim.PRODUCTID = p.ID and (p.designId is null or p.designId = pim.designId)
 						ORDER BY pim.CODE),*/
-		   'productPrices', case when p.MPTypeCode = 'addon' then
-								IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
-											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
-											 separator ','), ']')
-									FROM productgiftaddonprice pgp2
-									WHERE pgp2.productgiftaddonid = p.id), '[]')
-							else
-								IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
+		   'productPrices', IFNULL((SELECT concat('[', group_concat(JSON_OBJECT('priceKey', pgp2.id, 'currency', pgp2.currency,
 											'priceWithVat', pgp2.pricewithvat, 'validFrom', pgp2.availablefrom, 'validTo', pgp2.availabletill)
 											 separator ','), ']')
 									FROM productgiftprice pgp2
-									WHERE pgp2.productgiftid = p.id), '[]')
-							end
-									,
+									WHERE pgp2.productgiftid = p.id), '[]'),
 			'attributes', case 
 							when p.ID IN (1142811967,1142812400,1142812682,1142812917,1142815693,1142816513) then replace(p.AttributesTemplate, '"oddsize", "attributeValue": "false"', '"oddsize", "attributeValue": "true"')
 							when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
@@ -503,9 +409,7 @@ SELECT p.entityProduct_key  AS entity_key,
 							else  p.AttributesTemplate
 						  end
 						  )
-		    , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rnttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}'), 't{','{'), '}t','}'), 'nttttt',''), '}t','}')		AS product_variants,
-			
-		case when p.MPTypeCode like '%personalised%' then true else false end AS personalized,
+		   , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')		AS product_variants,
 		p.ID AS productId,
 		case when pwi.productId IS NULL then 1 ELSE 0 END  AS NoImages
 FROM 
@@ -575,7 +479,7 @@ SELECT pge.entityProduct_key AS entity_key,
        COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
 	   NULL 																   AS design_id,
-       concat(SUBSTRING_INDEX(pt.MPTypeCode, '-', 1), '_', pge.entityProduct_key) 	AS slug,
+       concat(SUBSTRING_INDEX(pt.entity_key, '-', 1), '_', pge.entityProduct_key) 	AS slug,
        cif_nl_descr.text                                                  	   AS product_nl_description,
        cif_nl_descr.text                                                  	   AS product_en_description,
        concat('vat', v.vatcode)                                                AS tax_category_key,
@@ -616,12 +520,11 @@ SELECT pge.entityProduct_key AS entity_key,
 			)  
 	   , pt.DefaultCategoryKey )	 AS category_keys,
 
-       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
+       replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
 		  -- 'variantKey', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
 		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   -- 'skuId', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),
-		   'skuId', Concat(case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then p.entityProduct_key else p.PRODUCTCODE end
-						  ,case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then '-STANDARD' else '' end),
+		   'skuId', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'masterVariant', CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END,
            'productCode', p.PRODUCTCODE,
 		   'productTemplateId', ptp.productTemplateId,
@@ -655,10 +558,8 @@ SELECT pge.entityProduct_key AS entity_key,
 							else  pt.AttributesTemplate
 						  end
 			
-		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rnttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}'), 't{','{'), '}t','}'), 'nttttt',''), '}t','}')
+		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'ntttttt', ''), ']"}]', ']}]'), '}]"}', '}]}')  , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}')
 	   AS product_variants,
-	   
-	   case when p.MPTypeCode like '%personalised%' then true else false end  AS personalized,
 	   NULL AS productId,
 	   0 AS NoImages
 

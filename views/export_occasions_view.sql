@@ -1,4 +1,4 @@
-CREATE VIEW export_occasions_view 
+CREATE OR REPLACE VIEW export_occasions_view 
 AS
 SELECT 'anniversary' AS 'entity_key', 'Anniversary' AS 'name'
 UNION ALL SELECT 'anniversary-work-anniversary', 'Anniversary - Work anniversary'
@@ -92,7 +92,7 @@ UNION ALL SELECT 'dinner-party-en-drinks-invitations', 'Dinner party en drinks (
 UNION ALL SELECT 'dinner-party-en-drinks-invitations-borrel-invitation', 'Dinner party en drinks (invitations) - Borrel (invitation)'
 UNION ALL SELECT 'easterpasen', 'Easter/Pasen'
 UNION ALL SELECT 'eid-al-adha->-offerfeest', 'Eid al Adha > Offerfeest'
-UNION ALL SELECT 'eid-mubarak-*-suikerfeest', 'Eid Mubarak * Suikerfeest'
+UNION ALL SELECT 'eid-mubarak--suikerfeest', 'Eid Mubarak * Suikerfeest'
 UNION ALL SELECT 'exam-party-invitations', 'Exam party (invitations)'
 UNION ALL SELECT 'failed', 'Failed'
 UNION ALL SELECT 'failed-re-exam', 'Failed - re exam'
@@ -229,3 +229,16 @@ UNION ALL SELECT 'wedding-registered-partnership', 'Wedding - Registered partner
 UNION ALL SELECT 'wedding-wedding-anniversary', 'Wedding - Wedding Anniversary'
 UNION ALL SELECT 'wedding-wedding-anniversary-just-married', 'Wedding - Wedding Anniversary - Just Married'
 UNION ALL SELECT 'wedding-witness', 'Wedding - Witness'
+
+-- 2022-07-22
+UNION ALL SELECT 'newyearscards', 'Newyearscards'
+UNION ALL SELECT 'keti-koti', 'Keti Koti'
+UNION ALL SELECT 'christmas-newyear-cards', 'Christmas Newyear Cards'
+UNION ALL SELECT 'summer-pictures', 'Summer Pictures'
+UNION ALL SELECT 'newyearscards-newyear-new-home', 'Newyearscards - Newyear - New Home'
+UNION ALL SELECT 'newyearscards-newyear-birth', 'Newyearscards - Newyear - Birth'
+UNION ALL SELECT 'newyearscards-newyear-birthday', 'Newyearscards - Newyear - Birthday'
+UNION ALL SELECT 'eid-al-adha--offerfeest', 'Eid Al Adha - Offerfeest'
+UNION ALL SELECT 'promotion-summer', 'Promotion - Summer'
+UNION ALL SELECT 'uncle-and-aunt-day', 'Uncle And Aunt Day'
+UNION ALL SELECT 'world-friendship-day', 'World Friendship Day'

@@ -1,4 +1,4 @@
-CREATE VIEW export_suppliers_view 
+CREATE OR REPLACE export_suppliers_view 
 AS
 SELECT 'Abacus Cards' AS 'entity_key', 'Abacus Cards' AS 'name'
 UNION ALL SELECT 'Alex Sharp', 'Alex Sharp'
@@ -121,3 +121,4 @@ UNION ALL SELECT 'UKG ( UK Greetings)', 'UKG ( UK Greetings)'
 UNION ALL SELECT 'Vreemde vogels', 'Vreemde vogels'
 UNION ALL SELECT 'YH Tekent', 'YH Tekent'
 UNION ALL SELECT 'Zusss', 'Zusss'
+UNION ALL SELECT 'Unspecified', 'Unspecified'

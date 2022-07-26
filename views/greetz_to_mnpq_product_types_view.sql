@@ -3,7 +3,7 @@
 -- #
 -- ########################################################################################
 
-CREATE VIEW greetz_to_mnpg_product_types_view AS
+CREATE OR REPLACE greetz_to_mnpg_product_types_view AS
 with parent_category as (
     select id,
            name
@@ -28,20 +28,17 @@ with parent_category as (
 				
 				case 
 					when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"},
-						{"attributeName": "oddsize", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addon", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
+						{"attributeName": "oddsize", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
 					when MPTypeCode = 'gift-card' then '[{"attributeName": "delivery-type", "attributeValue": "physical", "attributeType": "lenum"}, 
 						{"attributeName": "upc", "attributeValue": "SKUNumber", "attributeType": "text"},
 						{"attributeName": "brand", "attributeValue": "unspecified", "attributeType": "lenum"}]'
-					when MPTypeCode = 'personalised-alcohol' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "category-reference"},
-						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
+					when MPTypeCode = 'personalised-alcohol' then '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addon", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
 						]'						
 					when MPTypeCode LIKE '%personalised%' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "category-reference"},
+						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
 						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
@@ -49,14 +46,14 @@ with parent_category as (
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
 						]'		
 					when MPTypeCode = 'postcard' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-17202-tangled", "attributeType": "category-reference"},
+						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
 						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
 						]'		
-					when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addon", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
+					when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
 					when MPTypeCode IN ('chocolate', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
 					then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'
 					-- Chocolate Telegram, Chocolate Letter

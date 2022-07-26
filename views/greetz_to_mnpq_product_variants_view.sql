@@ -1,6 +1,6 @@
 -- This view creates mapped Greetz product variants
 
-CREATE VIEW greetz_to_mnpg_product_variants_view AS
+CREATE OR REPLACE greetz_to_mnpg_product_variants_view AS
 
 SELECT p.id                          AS product_id, -- The Product to which this Product Variant belongs.
        Concat(p.id, '-', 'STANDARD') AS sku_id,

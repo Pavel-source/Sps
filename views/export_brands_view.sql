@@ -1,4 +1,4 @@
-CREATE VIEW export_brands_view 
+CREATE OR REPLACE VIEW export_brands_view 
 AS
 SELECT 'beauty_cadeau' AS entity_key, 'Beauty cadeau' AS 'name'
 UNION ALL SELECT 'bijenkorf', 'Bijenkorf'
