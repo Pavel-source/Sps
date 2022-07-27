@@ -13,7 +13,8 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 		end  
 		AS MPTypeCode, 	
 				
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,	
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, 
+		IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,  nl_product_name_2,
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
 		AS entityProduct_key
@@ -30,13 +31,17 @@ FROM product p
 		ON pgp_a.productgiftaddonid = p.id AND p.id IN (1142785824, 1142802984, 1142781710, 1142781707)
 	LEFT JOIN 
 		(
-		 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product, cd.contentinformationid AS design_contentinformationid
+		 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product, cd.contentinformationid AS design_contentinformationid,
+				cif_nl_title.TEXT AS nl_product_name_2
 		 FROM productpersonalizedgiftdesign ppd 				
 			 JOIN carddefinition cd 
 					ON cd.ID = ppd.GIFTDEFINITION
 						AND cd.ENABLED = 'Y'
 						AND cd.APPROVALSTATUS = 'APPROVED'
 						AND cd.CONTENTTYPE = 'STOCK'
+			 LEFT JOIN contentinformationfield cif_nl_title
+		  		ON cif_nl_title.contentinformationid = cd.contentinformationid
+			 		AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 		) z
 			ON z.product = p.ID	
 			
@@ -63,7 +68,7 @@ productList_CorrectedAttributesTemplate
 AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, 
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2,
 	   case when MPTypeCode = 'personalised-alcohol' then 
 			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
@@ -99,7 +104,7 @@ FROM productList_0 p
 productList_with_Addonds AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, 
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2,
 		case 
 			  when Addon_sq.ID IS NOT NULL then REPLACE(p.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
 			  else REPLACE(p.AttributesTemplate, ',{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
@@ -122,7 +127,7 @@ FROM productList_CorrectedAttributesTemplate p
 productList AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, AttributesTemplate
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2
 FROM productList_with_Addonds p
 WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
 	 /*EXISTS(SELECT 1 FROM productimage WHERE productid = productList_0.ID)*/
@@ -253,6 +258,25 @@ FROM productList pl
 	      ON cc.categorytypeid = c.id
 WHERE pl.MPTypeCode = 'gift-card'
 	  AND c.INTERNALNAME = 'Brand/Designer'   		  	  
+),
+
+productList_withSize AS
+(
+SELECT  pl.ID,
+		ct.text as Size
+FROM productList pl
+	 JOIN contentinformation_category ci
+		  ON pl.contentinformationid = ci.contentinformationid
+	 JOIN contentcategory cc
+		  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytranslation ct
+		  ON ct.contentcategoryid = cc.id
+			AND ct.locale = 'nl_NL'
+	 JOIN contentcategorytype c
+	      ON cc.categorytypeid = c.id
+WHERE c.INTERNALNAME = 'Size'  
+	  AND lower(ct.text) LIKE '%personen%' 
+GROUP BY pl.ID		  	  
 ),
 
 grouped_products_0 AS
@@ -388,12 +412,23 @@ AS
 		
 )
 
-SELECT p.entityProduct_key  AS entity_key,
-       IFNULL(cif_nl_title.text, replace(p.INTERNALNAME, '_', ' '))                        AS nl_product_name,
+SELECT  p.entityProduct_key  AS entity_key,
+
+		case 
+			when s.Size IS NOT NULL  AND p.MPTypeCode IN ('cake', 'biscuit')
+			then
+				 case 
+					  when lower(IFNULL(concat(cif_nl_title.text, IFNULL(concat(' ', p.nl_product_name_2), '')), replace(p.INTERNALNAME, '_', ' '))) NOT LIKE '%personen%'
+					  then concat(IFNULL(concat(cif_nl_title.text, IFNULL(concat(' ', p.nl_product_name_2), '')), replace(p.INTERNALNAME, '_', ' ')), ' | ', s.Size)
+					  else IFNULL(concat(cif_nl_title.text, IFNULL(concat(' ', p.nl_product_name_2), '')), replace(p.INTERNALNAME, '_', ' '))
+				 end
+		else IFNULL(concat(cif_nl_title.text, IFNULL(concat(' ', p.nl_product_name_2), '')), replace(p.INTERNALNAME, '_', ' '))
+		end  AS nl_product_name,
+
        cif_en_title.text                                                                   AS en_product_name,
        p.MPTypeCode                                                                        AS product_type_key,
 	   p.designId                                                                          AS design_id,
-       concat(SUBSTRING_INDEX(p.MPTypeCode, '-', 1), '_', p.entityProduct_key)             AS slug,
+       p.entityProduct_key	             												   AS slug,
        
 	   case when design_contentinformationid IS NULL then
 		   case 
@@ -555,6 +590,8 @@ FROM
 			ON ptp.productId = p.ID
 		 LEFT JOIN SKUs 
 			ON SKUs.productId = p.ID
+		 LEFT JOIN productList_withSize s
+			ON p.ID = s.ID
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM productgroupentry pge
@@ -575,7 +612,7 @@ SELECT pge.entityProduct_key AS entity_key,
        COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))            AS en_product_name,
        pt.MPTypeCode                                                           AS product_type_key,
 	   NULL 																   AS design_id,
-       concat(SUBSTRING_INDEX(pt.MPTypeCode, '-', 1), '_', pge.entityProduct_key) 	AS slug,
+       pge.entityProduct_key												   AS slug,
        cif_nl_descr.text                                                  	   AS product_nl_description,
        cif_nl_descr.text                                                  	   AS product_en_description,
        concat('vat', v.vatcode)                                                AS tax_category_key,
@@ -690,6 +727,8 @@ FROM
 			ON ptp.productId = p.ID
 		 LEFT JOIN SKUs 
 			ON SKUs.productId = p.ID
+		 LEFT JOIN productList_withSize s
+			ON p.ID = s.ID
 				 
 GROUP BY pge.entityProduct_key
 ORDER BY entity_key

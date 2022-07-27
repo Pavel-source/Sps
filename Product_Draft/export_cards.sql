@@ -16,13 +16,13 @@ SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then concat('GRTZ', cast(cd.ID a
 				end  									AS  Attribute_Shape,
 
 				case pc.CARDSIZE
-					when 'MEDIUM' then 1
-					when 'XXL' then 2
-					when 'XL' then 3
-					when 'LARGE' then 4
+					when 'MEDIUM' then 1	
+					when 'LARGE' then 2
+					when 'XXL' then 3
+					when 'XL' then 4
 					when 'SUPERSIZE' then 5
-					when 'XS' then 6		-- not used
-					when 'SMALL' then 7 	-- not used
+					when 'XS' then 6		
+					when 'SMALL' then 7 	
 					when 'MINI' then 8
 				end  									AS  NumberForSorting,
                 pc.AMOUNTOFPANELS                     
@@ -62,6 +62,7 @@ FROM productcard pc
 	 LEFT JOIN contentinformationfield cif_en_title
 		  ON cif_en_title.contentinformationid = cd.contentinformationid
 			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
+	 LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid
 WHERE
 	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
@@ -69,11 +70,11 @@ WHERE
 	  AND (r.id is null OR (r.orderablefrom <= '2022-06-22' AND '2022-06-22' <= r.shippableto))	 
 	  AND cdc.channelID = '2'
 	  AND (
-			pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE') 
-			OR  
-			pc.AMOUNTOFPANELS = 1
+			(pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'STANDARD'  AND pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE')) 
+			OR (pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'SQUARE' AND pc.CARDSIZE IN ('LARGE', 'XXL', 'SUPERSIZE')) 
+			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
 		  )	  
-	  AND cd.ID NOT IN (SELECT carddefinitionid FROM black_list_for_cards)
+	  AND bl.carddefinitionid IS NULL
 	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 	  AND concat(:designIds) IS NULL) 
 	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
@@ -83,6 +84,23 @@ Carddefinition_Grouped AS
 (
 SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
+),
+
+Invitations AS
+(
+SELECT cd.contentinformationid
+FROM Carddefinition_Grouped cd
+	JOIN contentinformation_category ci 
+		ON cd.contentinformationid = ci.contentinformationid
+	JOIN contentcategory cc
+		ON cc.id = ci.contentcategoryid
+	JOIN contentcategorytype cct
+		ON cct.ID = cc.categorytypeid
+	JOIN contentcategorytranslation ct
+		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
+WHERE cct.INTERNALNAME = 'Occasion'
+		AND lower(ct.TEXT) LIKE '%invit%'
+GROUP BY cd.contentinformationid
 ),
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
@@ -175,21 +193,11 @@ AS
 (
 SELECT *, 
 		case 
-			when CARDSIZE = 'MEDIUM' then 'standard'
+			when CARDSIZE = 'MEDIUM' AND cardratio = 'STANDARD' then 'standard'
+			when CARDSIZE = 'LARGE' AND cardratio = 'SQUARE' then 'standard'
+			when CARDSIZE = 'XXL' then 'large'
 			when CARDSIZE = 'SUPERSIZE' then 'giant'
-			when CARDSIZE IN ('LARGE', 'XL', 'XXL') then 'large'
-			when CARDSIZE IN ('SMALL', 'XS', 'MINI') then 'small'
 		end  AS Attribute_Size,
-		
-		ROW_NUMBER() OVER(PARTITION BY  
-							entity_key, 
-							case 
-								when CARDSIZE = 'MEDIUM' then 'standard'
-								when CARDSIZE = 'SUPERSIZE' then 'giant'
-								when CARDSIZE IN ('LARGE', 'XL', 'XXL') then 'large'
-								when CARDSIZE IN ('SMALL', 'XS', 'MINI') then 'small'
-							end
-						  ORDER BY CARDSIZE DESC)  AS RN_Attribute_Size, 
 
 		ROW_NUMBER() OVER(PARTITION BY entity_key ORDER BY NumberForSorting)  AS RN_MasterVariant
 	
@@ -215,7 +223,7 @@ SELECT
 		pl.carddefinitionid 	AS design_id,
 		pl.Attribute_Shape		AS shape,
         IFNULL(pr.product_range_key,'range-tangled')	AS 'range',
-		concat(pl.PRODUCTCODE, '_', pl.entity_key, '_', pl.CARDSIZE)  AS slug,
+		pl.entity_key	  AS slug,
 
 		case 
 			when (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
@@ -353,10 +361,12 @@ FROM ProductList pl
 	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
 	 LEFT JOIN greetz_to_mnpg_multioccasions_view a_oc_2
-		  ON a_oc_2.design_id = pl.carddefinitionid		  
+		  ON a_oc_2.design_id = pl.carddefinitionid		
+	 LEFT JOIN Invitations inv
+		  ON inv.carddefinitionid = pl.carddefinitionid	
 WHERE
-		pl.RN_Attribute_Size = 1
-		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
+		(inv.carddefinitionid IS NULL  OR  Attribute_Size = 'standard')
+		(pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
 		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
 		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
 GROUP BY 
