@@ -3,7 +3,7 @@
 -- #
 -- ########################################################################################
 
-CREATE OR REPLACE greetz_to_mnpg_product_types_view AS
+CREATE OR REPLACE VIEW greetz_to_mnpg_product_types_view AS
 with parent_category as (
     select id,
            name
@@ -215,5 +215,7 @@ with parent_category as (
               ) a
      )
 
-select entity_key, GreetzTypeID, GreetzTypeName, GreetzSubTypeName, MPTypeCode, AttributesTemplate, DefaultCategoryKey				
-from product_type
+select t.entity_key, t.GreetzTypeID, t.GreetzTypeName, t.GreetzSubTypeName, t.MPTypeCode, t.AttributesTemplate, t.DefaultCategoryKey,
+		tc.CategoryCode
+from product_type t
+	left join type_to_category_view tc on t.GreetzTypeID = tc.GreetzTypeID

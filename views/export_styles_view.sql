@@ -1,4 +1,4 @@
-CREATE OR REPLACE export_styles_view 
+CREATE OR REPLACE VIEW export_styles_view 
 AS
 SELECT 'cards-3d-illustration' AS entity_key, 'Cards 3D illustration' AS 'name'
 UNION ALL SELECT 'cards-3d-typography', 'Cards 3D typography'

@@ -1,4 +1,4 @@
-CREATE OR REPLACE filling_attributes_view 
+CREATE OR REPLACE VIEW filling_attributes_view 
 AS
 SELECT DISTINCT CONCAT('oc_', entity_key) AS ENTITY_KEY, False AS LOCALIZED_ENUM, 'greetingcard' AS PRODUCT_TYPE_KEY,'reporting-occasion' AS ATTRIBUTE_NAME, entity_key AS VALUE_KEY, NAME AS VALUE_LABEL
 FROM export_occasions_view

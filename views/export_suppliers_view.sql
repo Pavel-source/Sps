@@ -1,4 +1,4 @@
-CREATE OR REPLACE export_suppliers_view 
+CREATE OR REPLACE VIEW export_suppliers_view 
 AS
 SELECT 'Abacus Cards' AS 'entity_key', 'Abacus Cards' AS 'name'
 UNION ALL SELECT 'Alex Sharp', 'Alex Sharp'

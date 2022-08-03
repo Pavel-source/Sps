@@ -1,4 +1,4 @@
-CREATE OR REPLACE greetz_to_mnpq_categories_cards_view AS
+CREATE OR REPLACE VIEW greetz_to_mnpq_categories_cards_view AS
 -- Age, 1 year --> Age, Baby (0-18m)
 SELECT 1143751079 AS GreetzCategoryID, 'baby-0-1-years-old' AS MPCategoryKey, 'Age' AS MPParentName
 -- Age, 10 year --> Age, Tween (9-12) years old

@@ -1,4 +1,4 @@
-CREATE OR REPLACE export_productranges_view 
+CREATE OR REPLACE VIEW export_productranges_view 
 AS
 SELECT 'range-abacus-cards' AS entity_key, 'Abacus Cards' AS 'name', 'Abacus Cards' AS channel_key
 UNION ALL SELECT 'range-alex-sharp-photography', 'Alex Sharp Photography', 'Alex Sharp'

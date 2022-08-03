@@ -1,4 +1,4 @@
-CREATE OR REPLACE greetz_to_mnpg_relations_view 
+CREATE OR REPLACE VIEW greetz_to_mnpg_relations_view 
 AS
 SELECT 'B2B' AS Greetz_Name, 'b2b' AS MP_Code, 'B2B' AS MP_Name, 1 AS ToAdd
 UNION ALL SELECT 'Aunt', 'auntie', 'Auntie', 1
