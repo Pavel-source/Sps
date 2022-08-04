@@ -1,6 +1,6 @@
 WITH productList_0 AS
 (
-SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.AttributesTemplate,
+SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.AttributesTemplate, pt.CategoryCode,
 
 		case 
 			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
@@ -82,7 +82,8 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
+						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
 						]'		
 			when MPTypeCode = 'balloon' then  NULL		
 			when MPTypeCode = 'personalised-mug' then  
@@ -92,11 +93,23 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
+						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
 						]'			
 			else AttributesTemplate
 	   end
-	   AS AttributesTemplate
+	   AS AttributesTemplate,
+	   
+	   case when MPTypeCode = 'personalised-alcohol' then 'Alcohol'
+			when MPTypeCode = 'personalised-mug' then 'Mugs'
+			when MPTypeCode = 'beauty' then 'Beauty'
+			when MPTypeCode = 'toy-game' and CategoryCode IS NULL then 'Toys-Games'
+			when MPTypeCode = 'cake' and CategoryCode IS NULL then 'Other-Confectionery'
+			when MPTypeCode like '%chocolate%' then 'Chocolate'
+			when MPTypeCode like '%balloon%' then 'Balloons'
+			else CategoryCode
+	   end
+	   AS CategoryCode
 												
 FROM productList_0 p
 ),
@@ -104,7 +117,7 @@ FROM productList_0 p
 productList_with_Addonds AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2,
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, CategoryCode,
 		case 
 			  when Addon_sq.ID IS NOT NULL then REPLACE(p.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
 			  else REPLACE(p.AttributesTemplate, ',{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}', '') 
@@ -127,7 +140,8 @@ FROM productList_CorrectedAttributesTemplate p
 productList AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2,
+	   p.CategoryCode
 FROM productList_with_Addonds p
 WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
 	 /*EXISTS(SELECT 1 FROM productimage WHERE productid = productList_0.ID)*/
@@ -225,20 +239,21 @@ productList_withAttributes AS
 SELECT  pl.ID, 
 		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
 		-- 'letterbox gifts', 'bloompost', 'brievenbuscadeau', 'Cardboxes L2', 'Cardboxes L3', 'Chocoladeletters', 'Chocolate telegram', 'Telegram'
-		SUM(case when ci.contentcategoryid 
-			in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
+		SUM(case when (ci.contentcategoryid in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
+					   OR lower(ct.text) like '%letterbox%')
+					AND pl.ID != 1142812037			-- exception (suggested by Floris Janssen 2022-08-01)
 			then 1 else 0 end) as LetterboxAtr
 FROM productList pl
 	 JOIN contentinformation_category ci
 		  ON pl.contentinformationid = ci.contentinformationid
 	 JOIN contentcategory cc
 		  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytranslation ct
-		  ON ct.contentcategoryid = cc.id
-			AND ct.locale = 'en_EN'
 	 JOIN contentcategorytype c
 	      ON cc.categorytypeid = c.id
-WHERE c.INTERNALNAME != 'Keywords'   		  
+	 LEFT JOIN contentcategorytranslation ct
+		  ON ct.contentcategoryid = cc.id
+			AND ct.locale = 'en_EN'
+WHERE c.INTERNALNAME != 'Keywords'   
 GROUP BY pl.ID		  
 ),
 
@@ -483,12 +498,14 @@ SELECT  p.entityProduct_key  AS entity_key,
 		 ORDER BY pmd.name ASC
 		 LIMIT 1) 																			AS meta_description_nl,
 	   
-	   group_concat(IFNULL(ct.text, ct2.text) separator ', ') 								AS keywords_nl,
-	   group_concat(ct2.text separator ', ') 												AS keywords_en,
+		group_concat(DISTINCT(IFNULL(ct.text, ct2.text)) separator ', ') 					AS keywords_nl,
+	    group_concat(DISTINCT(ct2.text) separator ', ') 									AS keywords_en,
 	   
-	   IFNULL(
-			group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
-	   , p.DefaultCategoryKey) 	AS category_keys,
+	    CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+			   COALESCE(
+					group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
+			   , p.DefaultCategoryKey, ''))	
+	   AS category_keys,
 
 
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
@@ -527,15 +544,16 @@ SELECT  p.entityProduct_key  AS entity_key,
 							when p.ID IN (1142811967,1142812400,1142812682,1142812917,1142815693,1142816513) then replace(p.AttributesTemplate, '"oddsize", "attributeValue": "false"', '"oddsize", "attributeValue": "true"')
 							when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "large"')
 							when p.MPTypeCode = 'flower' AND  atr.LetterboxAtr > 0 then replace(p.AttributesTemplate, '"attributeValue": "standard"', '"attributeValue": "letterbox"')	
-							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+							when atr.LetterboxAtr > 0 AND p.MPTypeCode IN ('chocolate', 'alcohol', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game'
+															, /*+2022-08-03:*/ 'book', 'home-gift', 'personalised-chocolate', 'personalised-mug', 'personalised-sweets') 
 								then replace(p.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"',   '"letterbox-friendly", "attributeValue": "true"')
-							when p.MPTypeCode = 'gift-card' then replace(
-																	replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, IFNULL(concat('_', p.designId), ''), '-STANDARD')),
-																	'unspecified',
-																	IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')
-																	)
-						    when ptp.productTemplateId = 672671 then replace(p.AttributesTemplate, '"refrigerated", "attributeValue": "false"', '"refrigerated", "attributeValue": "true"')	
-							else  p.AttributesTemplate
+							when p.MPTypeCode = 'gift-card' then replace(replace(replace(p.AttributesTemplate, 'SKUNumber', Concat(p.id, IFNULL(concat('_', p.designId), ''), '-STANDARD')),
+																	'unspecified', IFNULL((SELECT replace(replace(lower(BrandAttr), ' ', '_'), '.', '_') FROM productList_withAttributes_2 WHERE ID = p.ID LIMIT 1), 'unspecified')),
+																	'"letterbox-friendly", "attributeValue": "false"', case when atr.LetterboxAtr > 0 then '"letterbox-friendly", "attributeValue": "true"' else '"letterbox-friendly", "attributeValue": "false"' end)
+																	
+						    when p.MPTypeCode = 'cake' then replace(replace(p.AttributesTemplate, '"letterbox-friendly", "attributeValue": "false"', case when atr.LetterboxAtr > 0 then '"letterbox-friendly", "attributeValue": "true"' else '"letterbox-friendly", "attributeValue": "false"' end),
+															'"refrigerated", "attributeValue": "false"', case when ptp.productTemplateId = 672671 then '"refrigerated", "attributeValue": "true"' else '"refrigerated", "attributeValue": "false"' end)
+							else p.AttributesTemplate
 						  end
 						  )
 		    , ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rnttttt', ''), ']"}]', ']}]')   , '"[]"', '[]'), '"[','['), ']"',']'), 'r{','{'), '}r','}'), 't{','{'), '}t','}'), 'nttttt',''), '}t','}')		AS product_variants,
@@ -640,18 +658,20 @@ SELECT pge.entityProduct_key AS entity_key,
 		 WHERE ci.contentinformationid = p.contentinformationid  
 	  )  AS keywords_en,
 	 
-	 IFNULL(
-			(
-			 SELECT group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey )) separator ', ')
-			 FROM contentinformation_category ci
-				 JOIN contentcategory cc
-					ON cc.id = ci.contentcategoryid
-				 JOIN greetz_to_mnpq_categories_view mc 
-					ON mc.GreetzCategoryID = cc.id 
-					   AND mc.MPTypeCode = pt.MPTypeCode
-			 WHERE ci.contentinformationid = p.contentinformationid  
-			)  
-	   , pt.DefaultCategoryKey )	 AS category_keys,
+	 CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+			 COALESCE(
+					(
+					 SELECT group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, pt.DefaultCategoryKey )) separator ', ')
+					 FROM contentinformation_category ci
+						 JOIN contentcategory cc
+							ON cc.id = ci.contentcategoryid
+						 JOIN greetz_to_mnpq_categories_view mc 
+							ON mc.GreetzCategoryID = cc.id 
+							   AND mc.MPTypeCode = pt.MPTypeCode
+					 WHERE ci.contentinformationid = p.contentinformationid  
+					)  
+		   , pt.DefaultCategoryKey, '' ))	 
+	   AS category_keys,
 
        replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', group_concat(JSON_OBJECT(
 		  -- 'variantKey', Concat(pge.productgroupid, concat('_', pge.productStandardGift)),

@@ -31,7 +31,8 @@ with parent_category as (
 						{"attributeName": "oddsize", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
 					when MPTypeCode = 'gift-card' then '[{"attributeName": "delivery-type", "attributeValue": "physical", "attributeType": "lenum"}, 
 						{"attributeName": "upc", "attributeValue": "SKUNumber", "attributeType": "text"},
-						{"attributeName": "brand", "attributeValue": "unspecified", "attributeType": "lenum"}]'
+						{"attributeName": "brand", "attributeValue": "unspecified", "attributeType": "lenum"},
+						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'
 					when MPTypeCode = 'personalised-alcohol' then '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
@@ -43,7 +44,8 @@ with parent_category as (
 						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
+						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
+						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
 						]'		
 					when MPTypeCode = 'postcard' then '[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
 						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
@@ -54,12 +56,12 @@ with parent_category as (
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"}
 						]'		
 					when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
-					when MPTypeCode IN ('chocolate', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game') 
+					when MPTypeCode IN ('chocolate', 'beauty', 'biscuit', 'gadget-novelty', 'sweet', 'toy-game',  'book', 'home-gift') 
 					then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'
 					-- Chocolate Telegram, Chocolate Letter
 					when GreetzTypeID IN (398498540, 398498539) then '[{"attributeName": "letterbox-friendly", "attributeValue": "true", "attributeType": "boolean"}]'
-					when MPTypeCode = 'cake' then '[{"attributeName": "refrigerated", "attributeValue": "false", "attributeType": "boolean"}]'
-
+					when MPTypeCode = 'cake' then '[{"attributeName": "refrigerated", "attributeValue": "false", "attributeType": "boolean"},
+						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'
 						
 				end  as AttributesTemplate,
 				

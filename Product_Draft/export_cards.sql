@@ -88,7 +88,7 @@ FROM ProductList_0
 
 Invitations AS
 (
-SELECT cd.contentinformationid
+SELECT cd.carddefinitionid
 FROM Carddefinition_Grouped cd
 	JOIN contentinformation_category ci 
 		ON cd.contentinformationid = ci.contentinformationid
@@ -100,7 +100,7 @@ FROM Carddefinition_Grouped cd
 		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
 WHERE cct.INTERNALNAME = 'Occasion'
 		AND lower(ct.TEXT) LIKE '%invit%'
-GROUP BY cd.contentinformationid
+GROUP BY cd.carddefinitionid
 ),
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
@@ -285,7 +285,7 @@ SELECT
 						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
-						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
+						   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
            'productCode', replace(pl.entity_key, 'GRTZ', ''),

@@ -17,7 +17,7 @@ UNION ALL SELECT 'Father and mother', 'mum&dad', 'Mum And Dad', 0
 UNION ALL SELECT 'Fathers', 'dad', 'Dad', 0
 UNION ALL SELECT 'Friend man', 'friend', 'Friend', 1
 UNION ALL SELECT 'Friend woman', 'friend', 'Friend', 1
-UNION ALL SELECT 'Girl', 'for-girls', 'For Girls', 1
+-- UNION ALL SELECT 'Girl', 'for-girls', 'For Girls', 1
 UNION ALL SELECT 'Girl general', 'for-girls', 'For Girls', 1
 UNION ALL SELECT 'Girls', 'for-girls', 'For Girls', 1
 UNION ALL SELECT 'Granddaughter', 'granddaughter', 'Granddaughter', 0
@@ -25,7 +25,7 @@ UNION ALL SELECT 'Grandfather', 'grandad', 'Grandad', 0
 UNION ALL SELECT 'Grandmother', 'granny', 'Granny', 0
 UNION ALL SELECT 'Grandparents (Card only)', 'grandparents', 'Grandparents', 1
 UNION ALL SELECT 'Grandson', 'grandson', 'Grandson', 0
-UNION ALL SELECT 'Men', 'for-him', 'For Him', 1
+-- UNION ALL SELECT 'Men', 'for-him', 'For Him', 1
 UNION ALL SELECT 'Men general', 'friend', 'Friend', 1
 UNION ALL SELECT 'Mommy to be', 'mum-to-be', 'Mum To Be', 1
 UNION ALL SELECT 'Mother', 'mum', 'Mum', 0
@@ -40,7 +40,7 @@ UNION ALL SELECT 'Parents', 'parents', 'Parents', 1
 UNION ALL SELECT 'Sister', 'sister', 'Sister', 0
 UNION ALL SELECT 'Son', 'son', 'Son', 0
 UNION ALL SELECT 'Uncle', 'uncle', 'Uncle', 1
-UNION ALL SELECT 'Uniseks', 'uniseks', 'Uniseks', 1
+-- UNION ALL SELECT 'Uniseks', 'uniseks', 'Uniseks', 1
 UNION ALL SELECT 'Woman general', 'for-her', 'For Her', 1
 UNION ALL SELECT 'Women', 'for-her', 'For Her', 1
 UNION ALL SELECT 'Zakelijk1 (cards missions)', 'colleague', 'Colleague', 1
@@ -63,3 +63,6 @@ UNION ALL SELECT 'Little sister', 'little-sister', 'Little sister', 1
 UNION ALL SELECT 'Little son', 'little-son', 'Little son', 1
 UNION ALL SELECT 'Niece', 'niece', 'Niece', 1
 UNION ALL SELECT 'Twins and Multiple (Birth)', 'twins-and-multiple-birth', 'Twins and Multiple (Birth)', 1
+
+UNION ALL SELECT 'Neighbors', 'neighbors', 1
+
