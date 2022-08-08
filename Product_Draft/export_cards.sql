@@ -352,10 +352,14 @@ FROM ProductList pl
 		  ON i.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN attr a_oc	
 		  ON a_oc.carddefinitionid = pl.carddefinitionid AND a_oc.INTERNALNAME = 'Occasion'
+	 LEFT JOIN export_occasions_view e_oc
+		  ON a_oc.Val_Code = e_oc.entity_key
 	 LEFT JOIN attr a_des	
-		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'		
+		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'	
+	 LEFT JOIN export_styles_view e_des
+		  ON a_des.Val_Code = e_des.entity_key		  
 	 LEFT JOIN attr a_tgt	
-		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'	
+		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'			  
 	 LEFT JOIN greetz_to_mnpg_relations_view a_rl_2
 		  ON a_rl_2.Greetz_Name = a_tgt.Val_Name		  
 	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
@@ -366,6 +370,8 @@ FROM ProductList pl
 		  ON inv.carddefinitionid = pl.carddefinitionid	
 WHERE
 		(inv.carddefinitionid IS NULL  OR  Attribute_Size = 'standard')
+		AND e_oc.entity_key IS NOT NULL 
+		AND e_des.entity_key IS NOT NULL 
 		(pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
 		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
 		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
