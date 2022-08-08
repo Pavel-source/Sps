@@ -174,7 +174,7 @@ SELECT INTERNALNAME, carddefinitionid, Val
 FROM attr_Single_Val
 ),
 
-attr AS
+attr_6 AS
 (
 SELECT INTERNALNAME,
 	   carddefinitionid,
@@ -185,6 +185,18 @@ GROUP BY INTERNALNAME,
 	   carddefinitionid,
 	   lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '-'), ' ' , '-'), '&' , '-and-'), '+' , 'plus'), '?' , ''),     '''' , '_'), '(' , ''), ')' , ''), '%', ''), '.', ''), '/', ''), '!', ''), 'ë', 'e'), '’', '_'), '*', ''))
 ),
+
+attr AS
+(
+SELECT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
+FROM attr_6
+	 LEFT JOIN export_occasions_view e_oc ON attr_6.Val_Code = e_oc.entity_key AND attr_6.INTERNALNAME = 'Occasion'
+	 LEFT JOIN export_styles_view e_st ON attr_6.Val_Code = e_st.entity_key AND attr_6.INTERNALNAME = 'Design Style'
+WHERE (attr_6.INTERNALNAME != 'Occasion' OR e_oc.entity_key IS NOT NULL)
+	   AND
+	  (attr_6.INTERNALNAME != 'Design Style' OR e_st.entity_key IS NOT NULL)
+),
+
 
 -- ----------------------------------------------------------
 
@@ -352,12 +364,12 @@ FROM ProductList pl
 		  ON i.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN attr a_oc	
 		  ON a_oc.carddefinitionid = pl.carddefinitionid AND a_oc.INTERNALNAME = 'Occasion'
-	 LEFT JOIN export_occasions_view e_oc
-		  ON a_oc.Val_Code = e_oc.entity_key
+	/* LEFT JOIN export_occasions_view e_oc
+		  ON a_oc.Val_Code = e_oc.entity_key*/
 	 LEFT JOIN attr a_des	
 		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'	
-	 LEFT JOIN export_styles_view e_des
-		  ON a_des.Val_Code = e_des.entity_key		  
+	/* LEFT JOIN export_styles_view e_des
+		  ON a_des.Val_Code = e_des.entity_key*/		  
 	 LEFT JOIN attr a_tgt	
 		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'			  
 	 LEFT JOIN greetz_to_mnpg_relations_view a_rl_2
@@ -370,8 +382,8 @@ FROM ProductList pl
 		  ON inv.carddefinitionid = pl.carddefinitionid	
 WHERE
 		(inv.carddefinitionid IS NULL  OR  Attribute_Size = 'standard')
-		AND e_oc.entity_key IS NOT NULL 
-		AND e_des.entity_key IS NOT NULL 
+	/*	AND e_oc.entity_key IS NOT NULL 
+		AND e_des.entity_key IS NOT NULL */
 		(pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
 		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
 		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))

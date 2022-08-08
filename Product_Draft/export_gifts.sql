@@ -5,6 +5,59 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 		case 
 			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
 			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
+			  when p.id IN (
+1142811995,
+1142811998,
+1142812019,
+1142812064,
+1142812067,
+1142812076,
+1142812097,
+1142812133,
+1142812136,
+1142812322,
+1142812370,
+1142812749,
+1142812755,
+1142815268,
+1142815288,
+1142815293,
+1142815333,
+1142815348,
+1142815363,
+1142815408,
+1142815418,
+1142812001,
+1142812013,
+1142812031,
+1142812037,
+1142812043,
+1142812049,
+1142812058,
+1142812073,
+1142812079,
+1142812091,
+1142812109,
+1142812115,
+1142812121,
+1142812124,
+1142812127,
+1142813423,
+1142813458,
+1142813498,
+1142813528,
+1142813948,
+1142813998,
+1142816713,
+1142816743,
+1142816818,
+1142816823,
+1142816883,
+1142816918,
+1142816928,
+1142816933,
+1142818353)
+					then 'alcohol'
 			  when pgt.internalname like 'Personalised%Merci%' OR pgt.internalname like 'Personalised_Australian%'  
 					OR pgt.internalname like 'Personalised_Tonys%' OR pgt.internalname like 'Personalised_Leonidas%' then 'personalised-chocolate'
 			  when lower(pgt.internalname) like '%balloon%' then 'balloon'
@@ -75,6 +128,7 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
 						]'		
+			when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
 			when MPTypeCode = 'personalised-chocolate' then 			
 						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
 						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
