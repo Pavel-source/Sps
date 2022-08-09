@@ -384,7 +384,7 @@ WHERE
 		(inv.carddefinitionid IS NULL  OR  Attribute_Size = 'standard')
 	/*	AND e_oc.entity_key IS NOT NULL 
 		AND e_des.entity_key IS NOT NULL */
-		(pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
+		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
 		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
 		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
 GROUP BY 

@@ -2,6 +2,8 @@ CREATE OR REPLACE VIEW filling_attributes_view
 AS
 SELECT DISTINCT CONCAT('oc_', entity_key) AS ENTITY_KEY, False AS LOCALIZED_ENUM, 'greetingcard' AS PRODUCT_TYPE_KEY,'reporting-occasion' AS ATTRIBUTE_NAME, entity_key AS VALUE_KEY, NAME AS VALUE_LABEL
 FROM export_occasions_view
+WHERE name NOT IN ('Eid al Adha * Offerfeest', 'Christmas Newyear Cards', 'Newyearscards - Newyear - Birth', 'NewYearsCards - NewYear Birthday', 
+'NewYearsCards - NewYear New home', 'Promotion summer')
 UNION ALL
 SELECT DISTINCT CONCAT('st_', entity_key), False, 'greetingcard', 'reporting-style', entity_key, name
 FROM export_styles_view
@@ -11,6 +13,8 @@ FROM export_relations_view
 UNION ALL
 SELECT DISTINCT CONCAT('oc_p_', entity_key) AS ENTITY_KEY, False AS LOCALIZED_ENUM, 'postcard' AS PRODUCT_TYPE_KEY,'reporting-occasion' AS ATTRIBUTE_NAME, entity_key AS VALUE_KEY, NAME AS VALUE_LABEL
 FROM export_occasions_view
+WHERE name NOT IN ('Eid al Adha * Offerfeest', 'Christmas Newyear Cards', 'Newyearscards - Newyear - Birth', 'NewYearsCards - NewYear Birthday', 
+'NewYearsCards - NewYear New home', 'Promotion summer')
 UNION ALL
 SELECT DISTINCT CONCAT('st_p_', entity_key), False, 'postcard', 'reporting-style', entity_key, name
 FROM export_styles_view
@@ -119,7 +123,13 @@ WHERE entity_key NOT IN
 'cheeky-chops-marketplace',
 'stella-isaac-illustration',
 'beth-fletcher-illustration',
-'bouffants-and-broken-hearts'
+'bouffants-and-broken-hearts',
+
+-- 2022-08-09
+'pigment-30k',
+'pigment-emporium',
+'pigment-everyday',
+'pigment-hello-there'
 )
 UNION ALL
 SELECT DISTINCT CONCAT('rn_p_', entity_key), False, 'postcard', 'range', entity_key, name
@@ -218,5 +228,10 @@ WHERE entity_key NOT IN
 'cheeky-chops-marketplace',
 'stella-isaac-illustration',
 'beth-fletcher-illustration',
-'bouffants-and-broken-hearts'
+'bouffants-and-broken-hearts',
+
+-- 2022-08-09
+'pigment-emporium',
+'pigment-everyday',
+'pigment-hello-there'
 )

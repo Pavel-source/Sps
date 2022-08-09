@@ -154,7 +154,7 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 	   end
 	   AS AttributesTemplate,
 	   
-	   case when MPTypeCode = 'personalised-alcohol' then 'Alcohol'
+	   case when MPTypeCode like '%alcohol%' then 'Alcohol'
 			when MPTypeCode = 'personalised-mug' then 'Mugs'
 			when MPTypeCode = 'beauty' then 'Beauty'
 			when MPTypeCode = 'toy-game' and CategoryCode IS NULL then 'Toys-Games'
@@ -479,6 +479,30 @@ AS
 			  ON cif_en_descr_design_2.contentinformationid = p.design_contentinformationid
 				 AND cif_en_descr_design_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_design_2.locale = 'en_EN'
 		
+),
+
+cte_CategoriesForDesigns
+AS
+(
+	SELECT 
+		   p.ID, 
+		   p.designId,
+		   
+		    CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+			   COALESCE(
+					group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
+			   , p.DefaultCategoryKey, ''))	
+			AS category_keys
+    FROM
+		(SELECT * FROM productList WHERE designId IS NOT NULL) p
+		 JOIN contentinformation_category ci
+              ON p.design_contentinformationid = ci.contentinformationid
+         JOIN greetz_to_mnpq_categories_view mc 
+			  ON mc.GreetzCategoryID = ci.contentcategoryid
+				-- AND mc.MPTypeCode = p.MPTypeCode
+	GROUP BY 
+			p.ID, 
+		    p.designId
 )
 
 SELECT  p.entityProduct_key  AS entity_key,
@@ -555,12 +579,12 @@ SELECT  p.entityProduct_key  AS entity_key,
 		group_concat(DISTINCT(IFNULL(ct.text, ct2.text)) separator ', ') 					AS keywords_nl,
 	    group_concat(DISTINCT(ct2.text) separator ', ') 									AS keywords_en,
 	   
-	    CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
-			   COALESCE(
-					group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
-			   , p.DefaultCategoryKey, ''))	
+	    IFNULL( cats_d.category_keys,		
+				CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+					   COALESCE(
+							group_concat(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) separator ', ')   
+					   , p.DefaultCategoryKey, '')))	
 	   AS category_keys,
-
 
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', JSON_OBJECT(		   'variantKey', Concat(p.entityProduct_key, case when p.MPTypeCode = 'flower' AND atr.LargeAtr > 0 then '-LARGE' else '-STANDARD' end),
 		   'skuId', Concat(case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then p.entityProduct_key else p.PRODUCTCODE end
@@ -664,6 +688,8 @@ FROM
 			ON SKUs.productId = p.ID
 		 LEFT JOIN productList_withSize s
 			ON p.ID = s.ID
+		 LEFT JOIN cte_CategoriesForDesigns cats_d
+			ON p.ID = cats_d.ID AND p.designId = cats_d.designId
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM productgroupentry pge

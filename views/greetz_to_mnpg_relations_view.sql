@@ -64,5 +64,5 @@ UNION ALL SELECT 'Little son', 'little-son', 'Little son', 1
 UNION ALL SELECT 'Niece', 'niece', 'Niece', 1
 UNION ALL SELECT 'Twins and Multiple (Birth)', 'twins-and-multiple-birth', 'Twins and Multiple (Birth)', 1
 
-UNION ALL SELECT 'Neighbors', 'neighbors', 1
+UNION ALL SELECT 'Neighbors', 'neighbors', 'Neighbors', 1
 
