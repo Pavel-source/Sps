@@ -1,4 +1,23 @@
-WITH ProductList_0
+WITH Invitations
+AS
+(
+SELECT DISTINCT cd.id as carddefinitionid
+FROM carddefinition cd
+	JOIN contentinformation_category ci 
+		ON cd.contentinformationid = ci.contentinformationid
+	JOIN contentcategory cc
+		ON cc.id = ci.contentcategoryid
+	JOIN contentcategorytype cct
+		ON cct.ID = cc.categorytypeid
+	JOIN contentcategorytranslation ct
+		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
+WHERE  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
+	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
+	  AND cct.INTERNALNAME = 'Occasion'
+	  AND lower(ct.TEXT) LIKE '%invit%'
+),
+
+ProductList_0
 AS
 (
 SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then concat('GRTZ', cast(cd.ID as varchar(50))) else concat('GRTZ', cast(cd.ID as varchar(50)), '-P') end 
@@ -28,11 +47,17 @@ SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then concat('GRTZ', cast(cd.ID a
                 pc.AMOUNTOFPANELS                     
 				
 FROM productcard pc
+	 JOIN carddefinition cd 
+			ON cd.CARDRATIO = pc.CARDRATIO 
+				AND cd.OBLONG = pc.OBLONG 
+				AND (cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS 
+					 OR (pc.AMOUNTOFPANELS = 1 AND cd.NUMBEROFPANELS = 2 AND cd.allowsinglepanel = 'Y'))
+	 LEFT JOIN Invitations i ON cd.ID = i.carddefinitionid
      JOIN product p 
 		ON pc.PRODUCTID = p.ID 
 			AND p.TYPE = 'productCardSingle' 
 			AND p.CHANNELID = 2 
-			AND p.onlyAvailableForFlow is null 
+			AND ((i.carddefinitionid IS NULL  AND p.onlyAvailableForFlow IS NULL) OR (i.carddefinitionid IS NOT NULL  AND  p.ID IN (1142760910, 1142760911, 1142760912))) -- ('invite_card_Standard_Medium_1panel', 'invite_card_Standard_Medium_2panel', 'invite_card_Square_Large_2panel')) 
 			AND pc.enabled = 'Y' 
 			AND p.removed is null
 			AND p.endoflife != 'Y'
@@ -41,19 +66,16 @@ FROM productcard pc
 	--		AND ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
      JOIN productcardprice pcp 
 		ON PRODUCTCARDID = p.ID 
-			AND '2022-06-22' between pcp.availableFrom AND pcp.availableTill 
+			AND current_date() between pcp.availableFrom AND pcp.availableTill 
 			AND pcp.amountFrom = 1
-     JOIN carddefinition cd 
-		ON cd.CARDRATIO = pc.CARDRATIO 
-			AND cd.OBLONG = pc.OBLONG 
-			AND (cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS 
-				 OR (pc.AMOUNTOFPANELS = 1 AND cd.NUMBEROFPANELS = 2 AND cd.allowsinglepanel = 'Y'))
+     
      JOIN carddefinition_limitedcardsize cdl 
 		ON cdl.CARDDEFINITIONID = cd.ID 
 			AND pc.CARDSIZE = cdl.CARDSIZE
 	 JOIN carddefinition_channel cdc
 			ON cdc.CARDDEFINITIONID = cd.ID
 				AND pc.CARDSIZE = cdl.CARDSIZE
+				AND (i.carddefinitionid IS NULL  OR  cdc.CHANNELFLOWID = p.onlyAvailableForFlow) 
 	 LEFT JOIN productavailability pa ON p.ID = pa.productid
      LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
 	 LEFT JOIN contentinformationfield cif_nl_title
@@ -62,12 +84,12 @@ FROM productcard pc
 	 LEFT JOIN contentinformationfield cif_en_title
 		  ON cif_en_title.contentinformationid = cd.contentinformationid
 			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
-	 LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid
+	 LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid	 
 WHERE
 	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
-	  AND (r.id is null OR (r.orderablefrom <= '2022-06-22' AND '2022-06-22' <= r.shippableto))	 
+	  AND (r.id is null OR (r.orderablefrom <= current_date() AND current_date() <= r.shippableto))	 
 	  AND cdc.channelID = '2'
 	  AND (
 			(pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'STANDARD'  AND pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE')) 
@@ -84,23 +106,6 @@ Carddefinition_Grouped AS
 (
 SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
-),
-
-Invitations AS
-(
-SELECT cd.carddefinitionid
-FROM Carddefinition_Grouped cd
-	JOIN contentinformation_category ci 
-		ON cd.contentinformationid = ci.contentinformationid
-	JOIN contentcategory cc
-		ON cc.id = ci.contentcategoryid
-	JOIN contentcategorytype cct
-		ON cct.ID = cc.categorytypeid
-	JOIN contentcategorytranslation ct
-		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
-WHERE cct.INTERNALNAME = 'Occasion'
-		AND lower(ct.TEXT) LIKE '%invit%'
-GROUP BY cd.carddefinitionid
 ),
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
@@ -188,7 +193,7 @@ GROUP BY INTERNALNAME,
 
 attr AS
 (
-SELECT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
+SELECT DISTINCT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
 FROM attr_6
 	 LEFT JOIN export_occasions_view e_oc ON attr_6.Val_Code = e_oc.entity_key AND attr_6.INTERNALNAME = 'Occasion'
 	 LEFT JOIN export_styles_view e_st ON attr_6.Val_Code = e_st.entity_key AND attr_6.INTERNALNAME = 'Design Style'
@@ -321,11 +326,11 @@ SELECT
 								  LEFT JOIN productcontentprice pcp
 									ON pcp.PRODUCTCONTENTID = dpc.PRODUCTCONTENTID
 									   AND pcp.amountfrom = 1
-									   AND '2022-06-22' BETWEEN pcp.availablefrom AND pcp.availabletill
+									   AND current_date() BETWEEN pcp.availablefrom AND pcp.availabletill
 									   AND pcp.cardsize = pl.cardsize
 									   AND cp.currency = pcp.currency
 							 WHERE cp.productcardid = pl.productid
-									AND '2022-06-22' between cp.availableFrom AND cp.availableTill 
+									AND current_date() between cp.availableFrom AND cp.availableTill 
 									AND cp.amountFrom = 1
 							 ),
 							 
