@@ -44,7 +44,7 @@ gift_product_variants AS
       concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID AS varchar(50)) else concat('D', cast(z.designProductId AS varchar(50))) end)
 	  AS productKey,
 	  IFNULL(cif_nl_title.text, replace(p.INTERNALNAME, '_', ' ')) AS nl_product_name,
-      cif_en_title.text AS en_product_name,
+   --   cif_en_title.text AS en_product_name,
       p.PRODUCTCODE AS sku_id,
      -- 1                             AS variant_key,
       concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID AS varchar(50)) else concat('D', cast(z.designProductId AS varchar(50))) end)
@@ -60,11 +60,11 @@ gift_product_variants AS
 				 WHERE type = 'TITLE'
 					   AND locale = 'nl_NL') cif_nl_title
             ON cif_nl_title.contentinformationid = p.contentinformationid
-	  LEFT JOIN (SELECT contentinformationid, text, db_updated
+	 /* LEFT JOIN (SELECT contentinformationid, text, db_updated
 				 FROM contentinformationfield
 				 WHERE type = 'TITLE'
                        AND locale = 'en_EN') cif_en_title
-            ON cif_en_title.contentinformationid = p.contentinformationid
+            ON cif_en_title.contentinformationid = p.contentinformationid*/
 	  LEFT JOIN greetz_to_mnpg_product_types_view pt
               ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid)
 	  LEFT JOIN 
@@ -93,7 +93,7 @@ gift_product_variants AS
 		pge.productstandardgift AS product_id,
 		concat('GRTZG', cast(ppg.ID AS varchar(50)))   AS productKey,
 		ppg.title AS nl_product_name,
-		null      AS en_product_name,
+	--	null      AS en_product_name,
 		p.PRODUCTCODE AS sku_id,
 		concat('GRTZ',  cast(p.ID AS varchar(50))) AS variant_key,
 	--	CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END AS ismastervariant,
@@ -117,7 +117,7 @@ gift_product_variants AS
 
 cte_mobileByContact as (
     select contactid,
-           max(number_) mobile_phone,
+           max(number_) mobile_phone
     from phonenumber pn
 	where type = 'MOBILE_PHONE'
     group by contactid
@@ -125,7 +125,7 @@ cte_mobileByContact as (
 
 cte_mobileByCustomer as (
     select customerid,
-           max(number_) mobile_phone,
+           max(number_) mobile_phone
     from phonenumber pn
 	where type = 'MOBILE_PHONE'
     group by customerid
@@ -139,15 +139,16 @@ SELECT
    '0' AS orderReference, 
    o.customerid AS customerId,
    cr.email AS customerEmail,
-   o.grandtotalforpayment AS totalPrice,
-   (sbp.priceWithVat + sbp.discountWithVat) AS totalShippingPrice,
+   o.currencycode,
+   CONCAT('{"centAmount": ', cast(o.grandtotalforpayment * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast((sbp.priceWithVat + sbp.discountWithVat) * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalShippingPrice,
    
 	CONCAT('{',
 		'"id": ', CONCAT('"delivery_', o.ORDERCODE, '"'),
 		IFNULL(CONCAT(',"status": ', CONCAT('"', sds.currentState, '"')), ''), 
 		IFNULL(CONCAT(',"firstName": ', CONCAT('"', r.firstname, '"')), ''), 
 		IFNULL(CONCAT(',"lastName": ', CONCAT('"', r.lastname, '"')), ''), 
-		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', dp.type, '"')), ''), 
+		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', /*dp.type*/ 'DeliveryType.STANDARD', '"')), ''), 
 		
 		',"address": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
@@ -221,19 +222,13 @@ SELECT
 		-- estimatedDispatchDate
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
 	--	IFNULL(CONCAT(',"promisedDeliveredDate": ', CONCAT('"', cast(cast(dp.deliveryDate AS DATE) AS VARCHAR(50)), '"')), ''), 
-		 							
-		',"deliveryInformation": ', 	CONCAT('{',
-										IFNULL(CONCAT('"deliveryMethodName": ', CONCAT('"', 'Standard', '"')), ''), 
-										'}'),
-								   --		'deliveryType', dp.type,
-								   --	'carrierType', ct.type),
 		
 		',"orderItems": ',	concat('[',
 						group_concat(
 							CONCAT('{',
 							   '"id": ', ol.id,
-							   '"previewImages": null', 
-						--	   '"lineItemId": ', ol.ORDERLINEIDX,
+							   ',"previewImages": null', 
+							--	   '"lineItemId": ', ol.ORDERLINEIDX,
 							    IFNULL(CONCAT(',"title": ', CONCAT('"', gpv.nl_product_name, '"')), ''),  
 							--    IFNULL(CONCAT(',"titleEn": ', CONCAT('"', gpv.en_product_name, '"')), ''), 
 							   ',"quantity": ', ol.productamount,
@@ -247,8 +242,17 @@ SELECT
 										'}')
 									)
 							, ']'),
-							
-		IFNULL(CONCAT(',"mobileNumber": ', CONCAT('"', case when a.ID IS NOT NULL then cte_mobileByContact.mobile_phone else cte_mobileByCustomer.mobile_phone end, '"')), ''), 
+		 							
+		',"deliveryInformation": ', 	CONCAT('{',
+										IFNULL(CONCAT('"deliveryMethodName": ', CONCAT('"', 'Standard', '"')), ''), 
+										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', isp.TRACKANDTRACECODE, '"')), ''),
+										IFNULL(CONCAT(',"deliveryMethodId": ', CONCAT('"', ct.id, '"')), 'NONE'),
+										IFNULL(CONCAT(',"deliveryMethodName": ', CONCAT('"', ct.type, '"')), ''),
+										',"fulfilmentCentre" : {"id" : "2", "countryCode": "NL"}',
+										'}'),
+								   --		'deliveryType', dp.type,
+		
+		IFNULL(CONCAT(',"mobileNumber": ', CONCAT('"', case when a.ID IS NOT NULL then mct.mobile_phone else mcm.mobile_phone end, '"')), ''),  
 		'}'				
 		)
 	AS orderDelivery
@@ -336,31 +340,25 @@ AS
 (
 SELECT
    i.id,
-   0 AS version,
    i.createdAt,
    i.orderReference, 
    i.customerId,
    i.customerEmail,
-   'NL' AS store,
-   i.totalPrice,
-   p.totalItemPrice,
-   i.totalShippingPrice,
-   p.totalTaxExclusive,
-   p.totalPriceGross,
-   p.totalDiscount,
+   CONCAT('{"centAmount": ', cast(i.totalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast(p.totalItemPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
+   CONCAT('{"centAmount": ', cast(p.totalTaxExclusive * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
+   CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
+   CONCAT('{"centAmount": ', cast(p.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
    p.totalItems,
-   0 AS creditsUsed,
    
 	concat('[',
 	TRIM(LEADING ',' FROM CONCAT(
 		group_concat(IFNULL(i.orderDelivery, ''))
 	))
 			, ']')
-	
-	AS orderDeliveries,
-	
-	'S3' AS dataSource
-	
+	AS orderDeliveries
+		
 FROM cte_Individualshipping i
 	 LEFT JOIN cte_Prices p ON i.id = p.id
 GROUP BY
@@ -375,12 +373,12 @@ SELECT
 				group_concat(
 							CONCAT('{',
 										 '"id": "', id, '"',
-										 ',"version": ', version,
+										 ',"version": 0', 
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
 										 ',"customerId": ', customerId,
 										  IFNULL(CONCAT(',"customerEmail": ', CONCAT('"', customerEmail, '"')), ''),
-										  ',"store": ', '"', store, '"',
+										  ',"store": "NL"', 
 										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
 										  IFNULL(CONCAT(',"totalItemPrice": ', totalItemPrice), ''),
 										  IFNULL(CONCAT(',"totalShippingPrice": ', totalShippingPrice), ''),
@@ -388,12 +386,12 @@ SELECT
 										  IFNULL(CONCAT(',"totalPriceGross": ', totalPriceGross), ''),
 										  IFNULL(CONCAT(',"totalDiscount": ', totalDiscount), ''),
 										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
-										  ',"creditsUsed": ', creditsUsed,
+										  ',"creditsUsed": 0', 
 										  
 										--  IFNULL(CONCAT(',"orderState": ', CONCAT('"', orderState, '"')), ''),
 										--  IFNULL(CONCAT(',"paymentState": ', CONCAT('"', paymentState, '"')), ''),										 										 
 										 ',"orderDeliveries": ', orderDeliveries,
-										  ',"dataSource": ', '"', dataSource, '"',
+										  ',"dataSource": "S3"', 
 										 '}'
 										 
 										))
