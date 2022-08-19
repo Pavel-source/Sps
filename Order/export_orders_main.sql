@@ -134,16 +134,17 @@ cte_mobileByCustomer as (
 cte_Individualshipping AS
 (
 SELECT
-   o.ORDERCODE AS id,
+   o.id,
+   concat('LEGO-', o.ORDERCODE) AS id_str,
    o.Created AS createdAt,
-   '0' AS orderReference, 
+   o.ORDERCODE AS orderReference, 
    o.customerid AS customerId,
    cr.email AS customerEmail,
    o.currencycode,
-   CONCAT('{"centAmount": ', cast(o.grandtotalforpayment * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalPrice,
-   CONCAT('{"centAmount": ', cast((sbp.priceWithVat + sbp.discountWithVat) * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalShippingPrice,
+ --  CONCAT('{"centAmount": ', cast(o.grandtotalforpayment * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast((IFNULL(sbp.priceWithVat, 0) + IFNULL(sbp.discountWithVat, 0)) * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalShippingPrice,
    
-	CONCAT('{',
+   CONCAT('{',
 		'"id": ', CONCAT('"delivery_', o.ORDERCODE, '"'),
 		IFNULL(CONCAT(',"status": ', CONCAT('"', sds.currentState, '"')), ''), 
 		IFNULL(CONCAT(',"firstName": ', CONCAT('"', r.firstname, '"')), ''), 
@@ -158,7 +159,7 @@ SELECT
 												',"addressFirstLine": null', 	
 												IFNULL(CONCAT(',"houseNumber": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumber else a2.streetnumber end, '"')), ''), 
 												IFNULL(CONCAT(',"houseNumberExtension": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumberextension else a2.streetnumberextension end, '"')), ''), 
-												IFNULL(CONCAT(',"extraAddressLine": ', case when a.ID IS NOT NULL then 
+												IFNULL(CONCAT(',"extraAddressLine": "', case when a.ID IS NOT NULL then 
 																								case when COALESCE(a.extraaddressline1, a.extraaddressline2, a.extraaddressline3) IS NULL
 																									then NULL
 																								else
@@ -170,7 +171,7 @@ SELECT
 																								else
 																									trim(concat(nvl(a2.extraaddressline1, ''), ' ', nvl(a2.extraaddressline2, ''), ' ', nvl(a2.extraaddressline3, '')))
 																								end
-																						end
+																						end, '"'
 															 )
 													, ''),												
 												
@@ -193,7 +194,7 @@ SELECT
 											--	',"addressFirstLine": null', 	
 												IFNULL(CONCAT(',"houseNumber": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumber else a2.streetnumber end, '"')), ''), 
 												IFNULL(CONCAT(',"houseNumberExtension": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumberextension else a2.streetnumberextension end, '"')), ''), 
-												IFNULL(CONCAT(',"extraAddressLine": ', case when a.ID IS NOT NULL then 
+												IFNULL(CONCAT(',"extraAddressLine": "', case when a.ID IS NOT NULL then 
 																								case when COALESCE(a.extraaddressline1, a.extraaddressline2, a.extraaddressline3) IS NULL
 																									then NULL
 																								else
@@ -205,7 +206,7 @@ SELECT
 																								else
 																									trim(concat(nvl(a2.extraaddressline1, ''), ' ', nvl(a2.extraaddressline2, ''), ' ', nvl(a2.extraaddressline3, '')))
 																								end
-																						end
+																						end, '"'
 															 )
 													, ''),												
 												
@@ -324,13 +325,13 @@ cte_Prices
 AS
 (
 SELECT  o.id,
-		sum(WITHVAT) AS totalItemPrice,
-		sum(WITHOUTVAT) AS totalTaxExclusive,
-		sum(WITHVAT) AS totalPriceGross,
-		abs(sum(DISCOUNTWITHVAT)) AS totalDiscount,
+		o.id_str,
+		sum(ol.WITHVAT) AS subTotalPrice,
+		sum(ol.WITHOUTVAT) AS totalTaxExclusive,
+		abs(sum(ol.DISCOUNTWITHVAT)) AS totalDiscount,
 		sum(ol.productamount) AS totalItems
 FROM
-	(SELECT DISTINCT id FROM cte_Individualshipping) o 
+	(SELECT DISTINCT id, id_str FROM cte_Individualshipping) o 
 	 JOIN orderline ol ON o.id = ol.orderid
 GROUP BY o.id	 
 ),
@@ -340,15 +341,25 @@ AS
 (
 SELECT
    i.id,
+   i.id_str,
    i.createdAt,
    i.orderReference, 
    i.customerId,
    i.customerEmail,
-   CONCAT('{"centAmount": ', cast(i.totalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
-   CONCAT('{"centAmount": ', cast(p.totalItemPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   -- subTotalPrice
+   CONCAT('{"centAmount": ', cast(p.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
+   -- totalPrice = subTotalPrice + totalShippingAmount
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+   -- totalItemPrice = totalPrice + totalDiscount - totalShippingAmount
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice + p.totalDiscount - i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   -- subTotalIncTax = totalItemPrice + totalShippingPrice
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice + p.totalDiscount /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   -- totalShippingPrice
    CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
+   -- totalTaxExclusive
    CONCAT('{"centAmount": ', cast(p.totalTaxExclusive * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
-   CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
+  -- CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
+   -- totalDiscount
    CONCAT('{"centAmount": ', cast(p.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
    p.totalItems,
    
@@ -357,7 +368,7 @@ SELECT
 		group_concat(IFNULL(i.orderDelivery, ''))
 	))
 			, ']')
-	AS orderDeliveries
+	AS deliveries
 		
 FROM cte_Individualshipping i
 	 LEFT JOIN cte_Prices p ON i.id = p.id
@@ -372,25 +383,26 @@ SELECT
 				
 				group_concat(
 							CONCAT('{',
-										 '"id": "', id, '"',
+										 '"id": "', id_str, '"',
 										 ',"version": 0', 
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
 										 ',"customerId": ', customerId,
 										  IFNULL(CONCAT(',"customerEmail": ', CONCAT('"', customerEmail, '"')), ''),
 										  ',"store": "NL"', 
-										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
+										  IFNULL(CONCAT(',"subTotalPrice": ', subTotalPrice), ''),
 										  IFNULL(CONCAT(',"totalItemPrice": ', totalItemPrice), ''),
 										  IFNULL(CONCAT(',"totalShippingPrice": ', totalShippingPrice), ''),
+										  IFNULL(CONCAT(',"postagePrice": ', totalShippingPrice), ''),			 -- postagePrice = totalShippingPrice
+										  IFNULL(CONCAT(',"subTotalIncTax": ', subTotalIncTax), ''),
 										  IFNULL(CONCAT(',"totalTaxExclusive": ', totalTaxExclusive), ''),
-										  IFNULL(CONCAT(',"totalPriceGross": ', totalPriceGross), ''),
+										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
+										  IFNULL(CONCAT(',"totalPriceGross": ', totalPrice), ''),			 	 -- totalPriceGross = totalPrice
 										  IFNULL(CONCAT(',"totalDiscount": ', totalDiscount), ''),
-										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
 										  ',"creditsUsed": 0', 
-										  
-										--  IFNULL(CONCAT(',"orderState": ', CONCAT('"', orderState, '"')), ''),
-										--  IFNULL(CONCAT(',"paymentState": ', CONCAT('"', paymentState, '"')), ''),										 										 
-										 ',"orderDeliveries": ', orderDeliveries,
+										  IFNULL(CONCAT(',"totalPaid": ', totalPrice), ''),						 -- totalPaid = totalPriceGross = totalPrice
+										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
+										 ',"deliveries": ', deliveries,
 										  ',"dataSource": "S3"', 
 										 '}'
 										 
