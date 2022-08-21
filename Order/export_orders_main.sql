@@ -1,25 +1,3 @@
--- ########################################################################################
--- # Query return all the orders made by registered customers, not registered customers and
--- # registered customers with individual shipping address. It filter out those that
--- # have not been fulfilled and marked AS either 'CANCELLED' or 'PAYMENT_FAILED'
--- #
--- # TODO:
--- # Orders should be imported at the end once all of the products are handled (gifts + cards). For now, this query
--- # is limited only to the gifts!
--- #
--- # Questions:
--- #
--- # 1) Order billing address vs shipping address?
--- # 2) Some customers are not registered? What about them? Because if some customer order something and did not register then we do not have neither email, contact address etc.
--- # 3) What about order that were not ordered by registered customers? - okay, checked. we can export order without email assigned. Perhaps we should separately import such orders?
--- #
--- # Other:
--- #
--- # Email uniqueness
--- # In commercetools, customers are identified by their email address. Email addresses must be unique. You can create customers globally for the project or create them in specific stores.
--- # Keep two things in mind about email uniqueness: case insensitivity and global versus store-specific customer accounts.
--- ########################################################################################
-
 WITH /*MasterVariant_productStandardGift_0 AS
 (
 	SELECT pge.productGroupId, pge.productStandardGift,
@@ -45,8 +23,13 @@ gift_product_variants AS
 	  AS productKey,
 	  IFNULL(cif_nl_title.text, replace(p.INTERNALNAME, '_', ' ')) AS nl_product_name,
    --   cif_en_title.text AS en_product_name,
-      p.PRODUCTCODE AS sku_id,
-     -- 1                             AS variant_key,
+   
+	  case 
+		  when pt.MPTypeCode like '%personalised%' OR z.designProductId IS NOT NULL 
+			   then concat('GRTZD', cast(z.designProductId AS varchar(50)), '-STANDARD')
+		  else p.PRODUCTCODE 
+	  end AS sku_id,
+						  
       concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID AS varchar(50)) else concat('D', cast(z.designProductId AS varchar(50))) end)
 	  AS variant_key,
    --   true                          AS ismastervariant,
@@ -93,7 +76,7 @@ gift_product_variants AS
 		pge.productstandardgift AS product_id,
 		concat('GRTZG', cast(ppg.ID AS varchar(50)))   AS productKey,
 		ppg.title AS nl_product_name,
-	--	null      AS en_product_name,
+	--	null      AS en_product_name,		
 		p.PRODUCTCODE AS sku_id,
 		concat('GRTZ',  cast(p.ID AS varchar(50))) AS variant_key,
 	--	CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END AS ismastervariant,
@@ -142,11 +125,19 @@ SELECT
    cr.email AS customerEmail,
    o.currencycode,
  --  CONCAT('{"centAmount": ', cast(o.grandtotalforpayment * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalPrice,
-   CONCAT('{"centAmount": ', cast((IFNULL(sbp.priceWithVat, 0) + IFNULL(sbp.discountWithVat, 0)) * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalShippingPrice,
+   IFNULL(sbp.priceWithVat, 0) + IFNULL(sbp.discountWithVat, 0) AS totalShippingPrice,
    
    CONCAT('{',
-		'"id": ', CONCAT('"delivery_', o.ORDERCODE, '"'),
-		IFNULL(CONCAT(',"status": ', CONCAT('"', sds.currentState, '"')), ''), 
+		'"id": ', CONCAT('"delivery_', 'LEGO-', o.ORDERCODE, '"'),
+		
+		IFNULL(CONCAT(',"status": ', CONCAT('"', 
+			case 
+				 when sds.currentState in ('AVAILABLE_AT_PICKUP_POINT', 'NOT_AT_HOME', 'UITLEVERING') then 'SENT'
+				 when sds.currentState = 'DELETED' then 'CANCELLED'
+				 when sds.currentState IS NOT NULL then 'RECEIVED'
+			end
+		, '"')), ''), 
+		
 		IFNULL(CONCAT(',"firstName": ', CONCAT('"', r.firstname, '"')), ''), 
 		IFNULL(CONCAT(',"lastName": ', CONCAT('"', r.lastname, '"')), ''), 
 		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', /*dp.type*/ 'DeliveryType.STANDARD', '"')), ''), 
@@ -155,8 +146,8 @@ SELECT
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
 												IFNULL(CONCAT(',"firstName": ', CONCAT('"', r.firstname, '"')), ''), 
 												IFNULL(CONCAT(',"lastName": ', CONCAT('"', r.lastname, '"')), ''), 	
-												',"title": null', 	
-												',"addressFirstLine": null', 	
+											--	',"title": null', 	
+											--	',"addressFirstLine": null', 	
 												IFNULL(CONCAT(',"houseNumber": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumber else a2.streetnumber end, '"')), ''), 
 												IFNULL(CONCAT(',"houseNumberExtension": ', CONCAT('"', case when a.ID IS NOT NULL then a.streetnumberextension else a2.streetnumberextension end, '"')), ''), 
 												IFNULL(CONCAT(',"extraAddressLine": "', case when a.ID IS NOT NULL then 
@@ -222,7 +213,7 @@ SELECT
 		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(sds.deliveredTime AS DATE) AS VARCHAR(50)), '"')), ''), 
 		-- estimatedDispatchDate
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
-	--	IFNULL(CONCAT(',"promisedDeliveredDate": ', CONCAT('"', cast(cast(dp.deliveryDate AS DATE) AS VARCHAR(50)), '"')), ''), 
+		IFNULL(CONCAT(',"promisedDeliveredDate": ', CONCAT('"', cast(cast(dp.deliveryDate AS DATE) AS VARCHAR(50)), '"')), ''), 
 		
 		',"orderItems": ',	concat('[',
 						group_concat(
@@ -233,8 +224,8 @@ SELECT
 							    IFNULL(CONCAT(',"title": ', CONCAT('"', gpv.nl_product_name, '"')), ''),  
 							--    IFNULL(CONCAT(',"titleEn": ', CONCAT('"', gpv.en_product_name, '"')), ''), 
 							   ',"quantity": ', ol.productamount,
-							   ',"totalPrice": ', ol.totalwithvat,
-							   ',"unitPrice": ', cast(ol.totalwithvat/ol.productamount as DECIMAL(10,2)),
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', cast(100 * ol.totalwithvat AS INT), ', "currencyCode": "', o.currencycode, '"}')),  
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', cast(100 * ol.totalwithvat/ol.productamount as DECIMAL(10,2)), ', "currencyCode": "', o.currencycode, '"}')), 
 							--   ',"taxCategory": ',  CONCAT('"', concat('vat', ol.vatcode), '"'),
 							   ',"productType": ', CONCAT('"', gpv.productTypeKey, '"'),
 							   ',"skuId": ', CONCAT('"', gpv.sku_id, '"'), 
@@ -256,7 +247,8 @@ SELECT
 		IFNULL(CONCAT(',"mobileNumber": ', CONCAT('"', case when a.ID IS NOT NULL then mct.mobile_phone else mcm.mobile_phone end, '"')), ''),  
 		'}'				
 		)
-	AS orderDelivery
+	AS orderDelivery,
+	o.currentorderstate
 
 FROM
   -- (SELECT * FROM orders ORDER BY id DESC LIMIT 1000) o
@@ -310,12 +302,23 @@ WHERE
     o.customerid > :migrateFromId and o.customerid <= :migrateToId
 	and IFNULL(cr.lastactivitydate, cr.REGISTRATIONDATE) > CURRENT_DATE() - INTERVAL 25 MONTH
 	and o.channelid = 2
-	and o.currentorderstate not in ('CANCELLED', 'PAYMENT_FAILED')
+	and o.currentorderstate not in 
+		('ADDED_BILLINGADDRES_INFORMATION',
+        'CREATED_FOR_SHOPPINGBASKET',
+        'CREATED_FOR_WALLETDEPOSIT',
+        'PAYMENT_FAILED',
+        'PAYMENT_FAILED_AFTER_PRINTING',
+        'PAYMENT_STARTED_BIBIT_DIRECT',
+        'PAYMENT_STARTED_BIBIT_REDIRECT',
+        'PENDING_INVOICE',
+        'UPDATED_BILLINGADDRES_INFORMATION',
+        'PAID_ADYEN_PENDING_HELD',
+        'CANCELLED')
 	and concat(:keys) IS NULL
    )
    or o.customerid in (:keys)
 GROUP BY
-		 customerId,
+		 o.customerId,
 		 o.id,
 		 ol.individualshippingid
 LIMIT :limit
@@ -361,6 +364,8 @@ SELECT
   -- CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
    -- totalDiscount
    CONCAT('{"centAmount": ', cast(p.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
+   -- creditsUsed (const)
+   CONCAT('{"creditsUsed": 0, "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
    p.totalItems,
    
 	concat('[',
@@ -368,7 +373,9 @@ SELECT
 		group_concat(IFNULL(i.orderDelivery, ''))
 	))
 			, ']')
-	AS deliveries
+	AS deliveries,
+	
+   i.currentorderstate
 		
 FROM cte_Individualshipping i
 	 LEFT JOIN cte_Prices p ON i.id = p.id
@@ -384,6 +391,7 @@ SELECT
 				group_concat(
 							CONCAT('{',
 										 '"id": "', id_str, '"',
+										  ',"currentorderstate": ', '"', currentorderstate, '"',
 										 ',"version": 0', 
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
@@ -399,12 +407,12 @@ SELECT
 										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
 										  IFNULL(CONCAT(',"totalPriceGross": ', totalPrice), ''),			 	 -- totalPriceGross = totalPrice
 										  IFNULL(CONCAT(',"totalDiscount": ', totalDiscount), ''),
-										  ',"creditsUsed": 0', 
+										  ',"creditsUsed": ', creditsUsed, 
 										  IFNULL(CONCAT(',"totalPaid": ', totalPrice), ''),						 -- totalPaid = totalPriceGross = totalPrice
 										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
-										 ',"deliveries": ', deliveries,
+										  ',"deliveries": ', deliveries,
 										  ',"dataSource": "S3"', 
-										 '}'
+										  '}'
 										 
 										))
 								,']')
