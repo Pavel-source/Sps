@@ -33,7 +33,8 @@ gift_product_variants AS
       concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID AS varchar(50)) else concat('D', cast(z.designProductId AS varchar(50))) end)
 	  AS variant_key,
    --   true                          AS ismastervariant,
-	  pt.MPTypeCode AS productTypeKey
+	  pt.MPTypeCode AS productTypeKey,
+	  p.type
    FROM
       productgift pg
 	  JOIN product p
@@ -80,7 +81,8 @@ gift_product_variants AS
 		p.PRODUCTCODE AS sku_id,
 		concat('GRTZ',  cast(p.ID AS varchar(50))) AS variant_key,
 	--	CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END AS ismastervariant,
-		pt.MPTypeCode AS productTypeKey
+		pt.MPTypeCode AS productTypeKey,
+		p.type
 	FROM
 		productgift pg
 		join product p on pg.productid = p.id
@@ -236,10 +238,9 @@ SELECT
 							, ']'),
 		 							
 		',"deliveryInformation": ', 	CONCAT('{',
-										IFNULL(CONCAT('"deliveryMethodName": ', CONCAT('"', 'Standard', '"')), ''), 
+										IFNULL(CONCAT('"deliveryMethodId": ', CONCAT('"', IFNULL(ct.id, 'NONE') , '"')), ''),
+										IFNULL(CONCAT(',"deliveryMethodName": ', CONCAT('"', IFNULL(ct.type, 'Standard'), '"')), ''),
 										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', isp.TRACKANDTRACECODE, '"')), ''),
-										IFNULL(CONCAT(',"deliveryMethodId": ', CONCAT('"', ct.id, '"')), 'NONE'),
-										IFNULL(CONCAT(',"deliveryMethodName": ', CONCAT('"', ct.type, '"')), ''),
 										',"fulfilmentCentre" : {"id" : "2", "countryCode": "NL"}',
 										'}'),
 								   --		'deliveryType', dp.type,
@@ -258,7 +259,7 @@ FROM
    join customerregistered cr
       on o.customerid = cr.id
    join gift_product_variants gpv
-      on gpv.product_id = ol.productid -- only gift type products. TODO: get back to this. Orders should be exported in the end. First cards should be added to Product.
+      on gpv.product_id = ol.productid
    left join orderbillingaddress oba
       on oba.id = o.billingaddress
    left join individualshipping isp
@@ -302,18 +303,25 @@ WHERE
     o.customerid > :migrateFromId and o.customerid <= :migrateToId
 	and IFNULL(cr.lastactivitydate, cr.REGISTRATIONDATE) > CURRENT_DATE() - INTERVAL 25 MONTH
 	and o.channelid = 2
-	and o.currentorderstate not in 
-		('ADDED_BILLINGADDRES_INFORMATION',
-        'CREATED_FOR_SHOPPINGBASKET',
-        'CREATED_FOR_WALLETDEPOSIT',
-        'PAYMENT_FAILED',
-        'PAYMENT_FAILED_AFTER_PRINTING',
-        'PAYMENT_STARTED_BIBIT_DIRECT',
-        'PAYMENT_STARTED_BIBIT_REDIRECT',
-        'PENDING_INVOICE',
-        'UPDATED_BILLINGADDRES_INFORMATION',
-        'PAID_ADYEN_PENDING_HELD',
-        'CANCELLED')
+	and o.currentorderstate not in (
+			'ADDED_BILLINGADDRES_INFORMATION',
+			'CREATED_FOR_SHOPPINGBASKET',
+			'CREATED_FOR_WALLETDEPOSIT',
+			'PAYMENT_FAILED',
+			'PAYMENT_FAILED_AFTER_PRINTING',
+			'PAYMENT_STARTED_BIBIT_DIRECT',
+			'PAYMENT_STARTED_BIBIT_REDIRECT',
+			'PENDING_INVOICE',
+			'UPDATED_BILLINGADDRES_INFORMATION',
+			'PAID_ADYEN_PENDING_HELD',
+			'CANCELLED')
+	and gpv.type not in (
+			'content',
+			'shipment',
+			'outerCarton',
+			'sound',
+			'packetToSelfSurcharge',
+			'trimoption')
 	and concat(:keys) IS NULL
    )
    or o.customerid in (:keys)
@@ -391,7 +399,7 @@ SELECT
 				group_concat(
 							CONCAT('{',
 										 '"id": "', id_str, '"',
-										  ',"currentorderstate": ', '"', currentorderstate, '"',
+										  ',"state": ', '"', currentorderstate, '"',
 										 ',"version": 0', 
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
