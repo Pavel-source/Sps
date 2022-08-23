@@ -32,8 +32,8 @@ SELECT
 	END  as S3ImagePrefix
    
 FROM
-	(SELECT * FROM orders WHERE id = 1337079006 ORDER BY id DESC LIMIT 1000) o
- --   orders o
+--	(SELECT * FROM orders WHERE id = 1337079006 ORDER BY id DESC LIMIT 1000) o
+    orders o
     JOIN orderline ol ON o.id = ol.orderid
     JOIN customerregistered cr ON o.customerid = cr.id
 	LEFT JOIN productiteminbasket p ON p.ID = ol.PRODUCTITEMINBASKETID
@@ -42,8 +42,9 @@ FROM
 	LEFT JOIN customercreatedcardtemplate cct  ON c.ID = cct.CUSTOMERCREATEDCARD
 	LEFT JOIN cardtemplate ct on ct.ID = cct.CARDSIDETEMPLATE
     LEFT JOIN tmp_dm_gift_product_variants gpv 
-		ON (gpv.designId = c.carddefinition AND prd.type = 'personalizedGift')
+		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND prd.type = 'personalizedGift')
 		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		-- "tmp_dm_gift_product_variants" has not unique product_id
+		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)
 	LEFT JOIN (SELECT DISTINCT product_id, nl_product_name FROM tmp_dm_gift_product_variants) pn
 		ON pn.product_id = ol.productid
 	
@@ -64,14 +65,7 @@ WHERE
 			'UPDATED_BILLINGADDRES_INFORMATION',
 			'PAID_ADYEN_PENDING_HELD',
 			'CANCELLED')
-	and (c.carddefinition IS NOT NULL  OR  gpv.product_id IS NOT NULL)
-/*	and gpv.type not in (
-			'content',
-			'shipment',
-			'outerCarton',
-			'sound',
-			'packetToSelfSurcharge',
-			'trimoption')*/
+	and gpv.productKey IS NOT null
 	and concat(:keys) IS NULL
    )
    or o.customerid in (:keys)
