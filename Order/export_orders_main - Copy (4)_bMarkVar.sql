@@ -54,17 +54,17 @@ gift_product_variants AS
               ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid)
 	  LEFT JOIN 
 			(
-			 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product
-			  -- , cd.contentinformationid AS design_contentinformationid, cif_nl_title.TEXT AS nl_product_name_2
+			 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product, cd.contentinformationid AS design_contentinformationid,
+					cif_nl_title.TEXT AS nl_product_name_2
 			 FROM productpersonalizedgiftdesign ppd 				
 				 JOIN carddefinition cd 
 						ON cd.ID = ppd.GIFTDEFINITION
-						--	AND cd.ENABLED = 'Y'
-						--	AND cd.APPROVALSTATUS = 'APPROVED'
-						--	AND cd.CONTENTTYPE = 'STOCK'
-				/* LEFT JOIN contentinformationfield cif_nl_title
+							AND cd.ENABLED = 'Y'
+							AND cd.APPROVALSTATUS = 'APPROVED'
+							AND cd.CONTENTTYPE = 'STOCK'
+				 LEFT JOIN contentinformationfield cif_nl_title
 					ON cif_nl_title.contentinformationid = cd.contentinformationid
-						AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'*/
+						AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 			) z
 				ON z.product = p.ID	
    WHERE
@@ -79,8 +79,7 @@ gift_product_variants AS
   --    AND p.removed IS NULL
   --    AND p.endoflife != 'Y'
   --    AND productgiftcategoryid IS NOT NULL
-      AND pg.productid NOT IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
-	  
+      AND pg.productid NOT IN (1142811913, 1142811979, 1142811934, 1142813653, 1142811940) 
    UNION ALL
    SELECT
 		pge.productstandardgift AS product_id,
@@ -106,14 +105,14 @@ gift_product_variants AS
 	--	and p.removed is null
 	--	and p.endoflife != 'Y'
 	--	and pg.productgiftcategoryid is not null
-		and pge.productstandardgift IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
+		and pge.productstandardgift IN (1142811913, 1142811979, 1142811934, 1142813653, 1142811940) 
 ),
 
 cte_mobileByContact as (
     select contactid,
            max(number_) mobile_phone
     from phonenumber pn
-	where type = 'MOBILE_PHONE' AND number_ IS NOT NULL  AND number_ != ''
+	where type = 'MOBILE_PHONE'
     group by contactid
 ),
 
@@ -121,7 +120,7 @@ cte_mobileByCustomer as (
     select customerid,
            max(number_) mobile_phone
     from phonenumber pn
-	where type = 'MOBILE_PHONE' AND number_ IS NOT NULL  AND number_ != ''
+	where type = 'MOBILE_PHONE'
     group by customerid
 ),
 
