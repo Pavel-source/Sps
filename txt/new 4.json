@@ -61,7 +61,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adbf484b-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cd3fe-2656-11ed-9f6a-52540093f27c",
                "firstName":"Alexander",
                "lastName":"Kolesnik",
                "houseNumber":"25",
@@ -74,7 +74,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adbf4722-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cd24b-2656-11ed-9f6a-52540093f27c",
                "firstName":"Alexander",
                "lastName":"Kolesnik",
                "houseNumber":"25",
@@ -103,6 +103,32 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
+                     "centAmount":479,
+                     "currencyCode":"EUR"
+                  },
+                  "unitPrice":{
+                     "centAmount":479.00,
+                     "currencyCode":"EUR"
+                  },
+                  "productType":"greetingcard",
+                  "sku":"GRTZ3000062683-STANDARDCARD",
+                  "productSlug":"GRTZ3000062683",
+                  "productKey":"GRTZ3000062683"
+               },
+               {
+                  "id":2032056573,
+                  "previewImages":[
+                     
+                  ],
+                  "s3ImagePrefixes":[
+                     "/images/custom/opt/greetz3/customerCreatedCard/2021/11/19/16/1754340003/prerendered/BACKSIDE_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2021/11/19/16/1754340003/prerendered/INSIDE_RIGHT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2021/11/19/16/1754340003/prerendered/FRONT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2021/11/19/16/1754340003/prerendered/INSIDE_LEFT_975_1329_0.jpg"
+                  ],
+                  "title":"sk content discount 20cent",
+                  "quantity":1,
+                  "totalPrice":{
                      "centAmount":0,
                      "currencyCode":"EUR"
                   },
@@ -110,10 +136,10 @@
                      "centAmount":0.00,
                      "currencyCode":"EUR"
                   },
-                  "productType":"greetingcard",
-                  "sku":"GRTZ3000062683-STANDARDCARD",
-                  "productSlug":"GRTZ3000062683",
-                  "productKey":"GRTZ3000062683"
+                  "productType":"content",
+                  "sku":"sk_content_discount_20cent",
+                  "productSlug":"GRTZ1142812905",
+                  "productKey":"GRTZ1142812905"
                },
                {
                   "id":2032056578,
@@ -213,7 +239,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adc0a77d-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136ce29c-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -224,7 +250,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adc0a6e0-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136ce235-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -335,7 +361,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adc0ae58-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136ce871-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"2",
@@ -346,7 +372,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adc0ade6-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136ce80b-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"2",
@@ -373,17 +399,43 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":0,
+                     "centAmount":50,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":0.00,
+                     "centAmount":50.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
                   "sku":"GRTZ3000074198-STANDARDCARD",
                   "productSlug":"GRTZ3000074198",
                   "productKey":"GRTZ3000074198"
+               },
+               {
+                  "id":2210042071,
+                  "previewImages":[
+                     
+                  ],
+                  "s3ImagePrefixes":[
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/05/15/1916349201/prerendered/INSIDE_RIGHT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/05/15/1916349201/prerendered/INSIDE_LEFT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/05/15/1916349201/prerendered/FRONT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/05/15/1916349201/prerendered/BACKSIDE_975_1329_0.jpg"
+                  ],
+                  "title":"sk content discount 50cent",
+                  "quantity":1,
+                  "totalPrice":{
+                     "centAmount":-50,
+                     "currencyCode":"EUR"
+                  },
+                  "unitPrice":{
+                     "centAmount":-50.00,
+                     "currencyCode":"EUR"
+                  },
+                  "productType":"content",
+                  "sku":"sk_content_discount_50cent",
+                  "productSlug":"GRTZ1142812902",
+                  "productKey":"GRTZ1142812902"
                },
                {
                   "id":2210042076,
@@ -506,7 +558,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adc0d340-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cf1a1-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -517,7 +569,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adc0d2ca-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cf133-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -544,17 +596,43 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":0,
+                     "centAmount":50,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":0.00,
+                     "centAmount":50.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
                   "sku":"GRTZ3000093031-STANDARDCARD",
                   "productSlug":"GRTZ3000093031",
                   "productKey":"GRTZ3000093031"
+               },
+               {
+                  "id":2220796086,
+                  "previewImages":[
+                     
+                  ],
+                  "s3ImagePrefixes":[
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926855686/prerendered/BACKSIDE_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926855686/prerendered/INSIDE_LEFT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926855686/prerendered/FRONT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926855686/prerendered/INSIDE_RIGHT_975_1329_0.jpg"
+                  ],
+                  "title":"sk content discount 50cent",
+                  "quantity":1,
+                  "totalPrice":{
+                     "centAmount":-50,
+                     "currencyCode":"EUR"
+                  },
+                  "unitPrice":{
+                     "centAmount":-50.00,
+                     "currencyCode":"EUR"
+                  },
+                  "productType":"content",
+                  "sku":"sk_content_discount_50cent",
+                  "productSlug":"GRTZ1142812902",
+                  "productKey":"GRTZ1142812902"
                },
                {
                   "id":2220796091,
@@ -654,7 +732,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adc0fc6f-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cfb43-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -665,7 +743,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adc0fbfa-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136cfadd-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -692,17 +770,43 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":0,
+                     "centAmount":50,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":0.00,
+                     "centAmount":50.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
                   "sku":"GRTZ3000093066-STANDARDCARD",
                   "productSlug":"GRTZ3000093066",
                   "productKey":"GRTZ3000093066"
+               },
+               {
+                  "id":2220796851,
+                  "previewImages":[
+                     
+                  ],
+                  "s3ImagePrefixes":[
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926856236/prerendered/BACKSIDE_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926856236/prerendered/FRONT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926856236/prerendered/INSIDE_LEFT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/26/21/1926856236/prerendered/INSIDE_RIGHT_975_1329_0.jpg"
+                  ],
+                  "title":"sk content discount 50cent",
+                  "quantity":1,
+                  "totalPrice":{
+                     "centAmount":-50,
+                     "currencyCode":"EUR"
+                  },
+                  "unitPrice":{
+                     "centAmount":-50.00,
+                     "currencyCode":"EUR"
+                  },
+                  "productType":"content",
+                  "sku":"sk_content_discount_50cent",
+                  "productSlug":"GRTZ1142812902",
+                  "productKey":"GRTZ1142812902"
                },
                {
                   "id":2220796856,
@@ -802,7 +906,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-adc1156e-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136d0242-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -814,7 +918,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-adc114f5-2624-11ed-9f6a-52540093f27c",
+               "id":"fake-136d01d7-2656-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -853,6 +957,32 @@
                   "sku":"GRTZ3000093031-STANDARDCARD",
                   "productSlug":"GRTZ3000093031",
                   "productKey":"GRTZ3000093031"
+               },
+               {
+                  "id":2220973856,
+                  "previewImages":[
+                     
+                  ],
+                  "s3ImagePrefixes":[
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/27/13/1927048416/prerendered/BACKSIDE_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/27/13/1927048416/prerendered/INSIDE_LEFT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/27/13/1927048416/prerendered/FRONT_975_1329_0.jpg",
+                     "/images/custom/opt/greetz3/customerCreatedCard/2022/08/27/13/1927048416/prerendered/INSIDE_RIGHT_975_1329_0.jpg"
+                  ],
+                  "title":"sk content discount 50cent",
+                  "quantity":1,
+                  "totalPrice":{
+                     "centAmount":0,
+                     "currencyCode":"EUR"
+                  },
+                  "unitPrice":{
+                     "centAmount":0.00,
+                     "currencyCode":"EUR"
+                  },
+                  "productType":"content",
+                  "sku":"sk_content_discount_50cent",
+                  "productSlug":"GRTZ1142812902",
+                  "productKey":"GRTZ1142812902"
                },
                {
                   "id":2220973861,
