@@ -1,4 +1,21 @@
-with cte_previwImages as (
+WITH cte_productimage_0
+AS
+(
+SELECT pi.PRODUCTID, pi.WIDTH, pi.HEIGHT, pi.EXTENSION,
+	   ROW_NUMBER() OVER(PARTITION BY pi.PRODUCTID ORDER BY pi.WIDTH DESC) AS RN
+FROM productimage pi
+	 JOIN product p ON pi.productid = p.ID
+WHERE `code` = 'greetz.detail.1' 
+	and p.`TYPE` NOT IN ('personalizedGift', 'cardpackaging', 'productCardSingle')
+),
+
+cte_productimage
+AS
+(
+SELECT * FROM cte_productimage_0 WHERE RN = 1
+),
+
+cte_previwImages AS (
 SELECT
    o.id,
    o.currentorderstate,
@@ -11,48 +28,69 @@ SELECT
    gpv.productKey,
    gpv.productTypeKey,
    gpv.sku_id,
+   gpv.PRODUCTCODE,
+   gpv.type AS product_type,
    pn.nl_product_name,
-   ol.id as  ol_id,
+   ol.id AS ol_id,
    ol.productamount,
-   ol.totalwithvat,
    ol.individualshippingid,
    c.carddefinition,
  --  o.billingaddress,
 	CASE
-        WHEN prd.`TYPE` NOT IN ('gift_addon', 'cardpackaging') THEN 
+        WHEN gpv.`TYPE` NOT IN ('standardGift', 'gift_addon', 'cardpackaging', 'gift_surcharge', 'content') THEN 
 		   concat('[', 
-				 group_concat(
-				   concat('{', 
-						'"url": ', IFNULL(concat(case when c.carddefinition IS NULL then '"/images/static' else '"/images/custom' end, cct.BASEPREVIEWFILENAME, '"'), 'null'),
-						  '}')
-				  ) 
+				IFNULL(
+					 group_concat(
+							concat(case when c.carddefinition IS NULL then '"/images/static' else '"/images/custom' end, cct.BASEPREVIEWFILENAME, '"')
+					  ) 
+				, '')  
 		   , ']')
+	END  as s3ImagePrefixes,
+	
+	CASE
+		WHEN gpv.`TYPE` = 'cardpackaging' THEN  CONCAT('["/images/static/opt/greetz3/images/product/2/', gpv.productcode, '/','ENVELOPE.jpg"]')  
+		WHEN gpv.`TYPE` IN ('gift_addon', 'standardGift') THEN CONCAT('["/images/static/opt/greetz3/images/product/2/', gpv.productcode, '/','greetz.detail.1_', im.HEIGHT,'_', im.WIDTH,EXTENSION, '"]') 
 	ELSE
-		'[{"url": null}]'
-	END  as S3ImagePrefix
-   
+		'[]'
+    END  as s3ImagePrefixes_2,
+	
+	case when gpv.TYPE = 'productCardSingle'
+	then
+	  SUM(case gpv.TYPE in () then ol.TOTALWITHVAT else 0 end) 
+	  OVER (PARTITION BY o.id 
+	  ORDER BY case gpv.TYPE  when 'productCardSingle' then 1  when 'content' then 2 else 3 end 
+	  ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) 
+	else
+		 ol.TOTALWITHVAT
+	end  AS TOTALWITHVAT
+	
+	
 FROM
---	(SELECT * FROM orders WHERE id = 1337079006 ORDER BY id DESC LIMIT 1000) o
+--	(SELECT * FROM orders WHERE ordercode = '1-4RKXKMFYL1' /*id = 1337079006*/ ORDER BY id DESC LIMIT 1000) o
     orders o
     JOIN orderline ol ON o.id = ol.orderid
     JOIN customerregistered cr ON o.customerid = cr.id
 	LEFT JOIN productiteminbasket p ON p.ID = ol.PRODUCTITEMINBASKETID
 	LEFT JOIN customercreatedcard c on p.CONTENTSELECTIONID = c.ID
-    LEFT JOIN product prd on ol.productID = prd.id -- AND prd.`TYPE` NOT IN ('content', 'shipment') -- exists in WHERE
 	LEFT JOIN customercreatedcardtemplate cct  ON c.ID = cct.CUSTOMERCREATEDCARD
 	LEFT JOIN cardtemplate ct on ct.ID = cct.CARDSIDETEMPLATE
-    LEFT JOIN tmp_dm_gift_product_variants gpv 
-		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND prd.type = 'personalizedGift')
+    JOIN tmp_dm_gift_product_variants gpv 
+		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
 		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		-- "tmp_dm_gift_product_variants" has not unique product_id
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)
 	LEFT JOIN (SELECT DISTINCT product_id, nl_product_name FROM tmp_dm_gift_product_variants) pn
 		ON pn.product_id = ol.productid
+	LEFT JOIN cte_productimage im 
+		ON gpv.product_id = im.PRODUCTID
 	
 WHERE
-   (
-    o.customerid > :migrateFromId and o.customerid <= :migrateToId
-	and IFNULL(cr.lastactivitydate, cr.REGISTRATIONDATE) > CURRENT_DATE() - INTERVAL 25 MONTH
+   
+    ((o.customerid > :migrateFromId and o.customerid <= :migrateToId  and  concat(:keys) IS NULL)
+	OR o.customerid in (:keys))
+    and IFNULL(IFNULL(lastactivitydate, LASTLOGINDATE), REGISTRATIONDATE) > '2022-08-27' - INTERVAL 25 MONTH
 	and o.channelid = 2
+	and cr.channelid = 2
+    and cr.active = 'Y'
 	and o.currentorderstate not in (
 			'ADDED_BILLINGADDRES_INFORMATION',
 			'CREATED_FOR_SHOPPINGBASKET',
@@ -65,12 +103,10 @@ WHERE
 			'UPDATED_BILLINGADDRES_INFORMATION',
 			'PAID_ADYEN_PENDING_HELD',
 			'CANCELLED')
-	and gpv.productKey IS NOT null
-	and concat(:keys) IS NULL
-   )
-   or o.customerid in (:keys)
-GROUP BY
-		 ol.id
+	and o.CONTRAFORORDERID IS NULL
+	
+GROUP BY	o.id, 
+			ol.id
 ),
 
 cte_Individualshipping AS
@@ -84,22 +120,24 @@ SELECT
    o.email AS customerEmail,
    o.currencycode,
  --  CONCAT('{"centAmount": ', cast(o.grandtotalforpayment * 100 AS INT), ', "currencyCode": "', o.currencycode, '"}') AS totalPrice,
-   IFNULL(sbp.priceWithVat, 0) + IFNULL(sbp.discountWithVat, 0) AS totalShippingPrice,
+  -- IFNULL(sbp.priceWithVat, 0) + IFNULL(sbp.discountWithVat, 0) AS totalShippingPrice,
    
    CONCAT('{',
-		'"id": ', CONCAT('"delivery_', 'LEGO-', o.ORDERCODE, '"'),
+		'"id": ', CONCAT('"delivery_', 'LEGO-', o.ORDERCODE, '-', IFNULL(o.individualshippingid, 0), '"'),
 		
 		IFNULL(CONCAT(',"status": ', CONCAT('"', 
 			case 
-				 when sds.currentState in ('AVAILABLE_AT_PICKUP_POINT', 'NOT_AT_HOME', 'UITLEVERING') then 'SENT'
+				 when sds.currentState in ('AVAILABLE_AT_PICKUP_POINT', 'NOT_AT_HOME', 'UITLEVERING', 'DELIVERED', 'DELIVEREDBB') then 'SENT'
+				 when sds.currentState = 'NEW' AND shipmentnotificationdate IS NOT NULL then 'SENT'
 				 when sds.currentState = 'DELETED' then 'CANCELLED'
-				 when sds.currentState IS NOT NULL then 'RECEIVED'
+                 when isp.CANCELLATIONTYPE = 'REFUND' then 'CANCELLED'
+				 else 'RECEIVED'
 			end
 		, '"')), ''), 
 		
 		IFNULL(CONCAT(',"firstName": ', CONCAT('"', r.firstname, '"')), ''), 
 		IFNULL(CONCAT(',"lastName": ', CONCAT('"', r.lastname, '"')), ''), 
-		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', 'DeliveryType.STANDARD', '"')), ''), 
+		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', 'POSTAL', '"')), ''),
 		
 		',"address": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
@@ -131,7 +169,7 @@ SELECT
 												IFNULL(CONCAT(',"postcode": ', CONCAT('"', case when a.ID IS NOT NULL then a.zippostalcode else a2.zippostalcode end, '"')), ''),   
 												IFNULL(CONCAT(',"country": ', CONCAT('"', case when a.ID IS NOT NULL then c.ENGLISHCOUNTRYNAME else c2.ENGLISHCOUNTRYNAME end, '"')), ''),   
 												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', cea.email, '"')), ''),
-												IFNULL(CONCAT(',"isMyAddress": ', case when a.ID IS NOT NULL then 'false' when a2.ID IS NOT NULL then 'true' end), ''),
+												IFNULL(CONCAT(',"isMyAddress": ', case when a2.ID IS NOT NULL then 'true' else 'false' end), ''),
 												'}'), 'null'),
 			
 
@@ -170,25 +208,48 @@ SELECT
 												'}'), 'null'),
 
 		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(sds.deliveredTime AS DATE) AS VARCHAR(50)), '"')), ''), 
-		-- estimatedDispatchDate
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
-		IFNULL(CONCAT(',"promisedDeliveredDate": ', CONCAT('"', cast(cast(dp.deliveryDate AS DATE) AS VARCHAR(50)), '"')), ''), 
+		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(
+																	IFNULL(dp.deliveryDate, case when productcode like 'wallet%' then o.created + INTERVAL 1 day end) 
+																AS DATE) AS VARCHAR(50)), '"')), ''),
 		
 		',"orderItems": ',	concat('[',
 						group_concat(
 							CONCAT('{',
 							   '"id": ', o.ol_id,
-							    ',"previewImages": null',
-							    ',"S3ImagePrefix": ', S3ImagePrefix, 
+                                ',"previewImages": []',
+							    ',"s3ImagePrefixes": ', IFNULL(s3ImagePrefixes, s3ImagePrefixes_2), 
 							--	   '"lineItemId": ', o.ORDERLINEIDX,
-							    IFNULL(CONCAT(',"title": ', CONCAT('"', o.nl_product_name, '"')), ''),  
+							    IFNULL(CONCAT(',"title": ', CONCAT('"', case 
+																		when o.productTypeKey = 'greetingcard' then 'Kaart' 
+																		when env.code IS NOT NULL then env.name
+																		else o.nl_product_name 
+																		end, '"')), ''),  
 							--    IFNULL(CONCAT(',"titleEn": ', CONCAT('"', o.en_product_name, '"')), ''), 
 							   ',"quantity": ', o.productamount,
 							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', cast(100 * o.totalwithvat AS INT), ', "currencyCode": "', o.currencycode, '"}')),  
 							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', cast(100 * o.totalwithvat/o.productamount as DECIMAL(10,2)), ', "currencyCode": "', o.currencycode, '"}')), 
 							--   ',"taxCategory": ',  CONCAT('"', concat('vat', o.vatcode), '"'),
-							   ',"productType": ', CONCAT('"', o.productTypeKey, '"'),
-							   ',"skuId": ', CONCAT('"', case o.productTypeKey when 'greetingcard' then concat('GRTZ', o.carddefinition, '-STANDARDCARD') else o.sku_id end, '"'), 
+							   ',"productType": ', CONCAT('"', o.productTypeKey, '"'),						   
+							   
+							   ',"sku": ', CONCAT('"',  case o.productTypeKey 
+															when 'greetingcard' then 
+																concat('GRTZ', 
+																		o.carddefinition, 
+																		'-',
+																		case 
+																			when lower(o.PRODUCTCODE) like '%standard%' then 'STANDARD'
+																			when lower(o.PRODUCTCODE) like '%square%large%' then 'STANDARD'
+																			when lower(o.PRODUCTCODE) like '%xxl%' then 'LARGE'
+																			when lower(o.PRODUCTCODE) like '%supersize%' then 'GIANT'
+																			else 'STANDARD'
+																		end,	
+																		case when lower(o.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
+																		'CARD') 
+															else o.sku_id 
+														end, '"'),
+							   
+							   
 							   ',"productSlug": ', CONCAT('"', case o.productTypeKey when 'greetingcard' then concat('GRTZ', o.carddefinition) else o.productKey end, '"'), 
 							   ',"productKey": ', CONCAT('"', case o.productTypeKey when 'greetingcard' then concat('GRTZ', o.carddefinition) else o.productKey end, '"'), 
 										'}')
@@ -199,7 +260,7 @@ SELECT
 										IFNULL(CONCAT('"deliveryMethodId": ', CONCAT('"', IFNULL(ct.id, 'NONE') , '"')), ''),
 										IFNULL(CONCAT(',"deliveryMethodName": ', CONCAT('"', IFNULL(ct.type, 'Standard'), '"')), ''),
 										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', isp.TRACKANDTRACECODE, '"')), ''),
-										',"fulfilmentCentre" : {"id" : "2", "countryCode": "NL"}',
+										',"fulfilmentCentre" : {"id" : "NL-GRTZ-AMS", "countryCode": "NL"}',
 										'}'),
 								   --		'deliveryType', dp.type,
 		
@@ -210,16 +271,7 @@ SELECT
 	o.currentorderstate
 
 FROM
-	cte_previwImages o
-   /*orders o
-   join orderline ol
-      on o.id = ol.orderid
-   join customerregistered cr
-      on o.customerid = cr.id
-   join tmp_dm_gift_product_variants gpv
-      on gpv.product_id = ol.productid
-   left join orderbillingaddress oba
-      on oba.id = o.billingaddress*/
+   cte_previwImages o
    left join individualshipping isp
        on o.individualshippingid = isp.id
    left join shipmentdeliverystatus sds
@@ -247,15 +299,18 @@ FROM
        on a2.countrycode = c2.TWOLETTERCOUNTRYCODE
    left join channel ch
 	  on o.channelid = ch.id
-   left join shoppingbasketprice sbp
+  /* left join shoppingbasketprice sbp
 	  on isp.INDIVIDUALSHIPPINGPRICEID = sbp.id
    left join vat v
-		on sbp.vatId = v.id
+		on sbp.vatId = v.id*/
    left join tmp_dm_mobileByContact mct
 		on mct.contactid = r.contactid
    left join tmp_dm_mobileByCustomer mcm
 		on mcm.customerid = o.customerid
-
+   left join tmp_dm_envelope_names env
+		on env.code = o.PRODUCTCODE
+		
+WHERE o.product_type != 'content'
 GROUP BY
 		 o.customerId,
 		 o.id,
@@ -267,10 +322,11 @@ AS
 (
 SELECT  o.id,
 		o.id_str,
-		sum(ol.WITHVAT) AS subTotalPrice,
-		sum(ol.WITHOUTVAT) AS totalTaxExclusive,
-		abs(sum(ol.DISCOUNTWITHVAT)) AS totalDiscount,
-		sum(ol.productamount) AS totalItems
+		sum(case when ol.productcode != 'shipment_generic' then ol.TOTALWITHVAT else 0 end) AS subTotalPrice,
+		sum(case when ol.productcode != 'shipment_generic' then ol.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
+		abs(sum(case when ol.productcode != 'shipment_generic' then ol.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
+		sum(case when ol.productcode != 'shipment_generic' then ol.productamount else 0 end) AS totalItems,
+		sum(case when ol.productcode = 'shipment_generic' then ol.WITHVAT + ol.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 FROM
 	(SELECT DISTINCT id, id_str FROM cte_Individualshipping) o 
 	 JOIN orderline ol ON o.id = ol.orderid
@@ -290,13 +346,13 @@ SELECT
    -- subTotalPrice
    CONCAT('{"centAmount": ', cast(p.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
    -- totalPrice = subTotalPrice + totalShippingAmount
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
    -- totalItemPrice = totalPrice + totalDiscount - totalShippingAmount
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice + p.totalDiscount - i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice + p.totalDiscount - p.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
    -- subTotalIncTax = totalItemPrice + totalShippingPrice
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + i.totalShippingPrice + p.totalDiscount /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice + p.totalDiscount /* - p.totalShippingPrice + p.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
    -- totalShippingPrice
-   CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
+   CONCAT('{"centAmount": ', cast(p.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
    -- totalTaxExclusive
    CONCAT('{"centAmount": ', cast(p.totalTaxExclusive * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
   -- CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
