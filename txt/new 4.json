@@ -61,7 +61,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba0319d1-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb711d3b-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Alexander",
                "lastName":"Kolesnik",
                "houseNumber":"25",
@@ -74,7 +74,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba031897-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb711bd3-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Alexander",
                "lastName":"Kolesnik",
                "houseNumber":"25",
@@ -213,7 +213,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba032472-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb71314a-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -224,7 +224,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba03240f-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb7130e0-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -335,7 +335,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba0329fe-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb713870-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"2",
@@ -346,7 +346,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba032992-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb713801-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"2",
@@ -373,11 +373,11 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":50,
+                     "centAmount":0,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":50.00,
+                     "centAmount":0.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
@@ -506,7 +506,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba033191-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb714288-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -517,7 +517,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba033127-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb714214-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"3",
@@ -544,11 +544,11 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":50,
+                     "centAmount":0,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":50.00,
+                     "centAmount":0.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
@@ -654,7 +654,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba033893-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb714da4-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -665,7 +665,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba03382d-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb714d3a-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -692,11 +692,11 @@
                   "title":"Kaart",
                   "quantity":1,
                   "totalPrice":{
-                     "centAmount":50,
+                     "centAmount":0,
                      "currencyCode":"EUR"
                   },
                   "unitPrice":{
-                     "centAmount":50.00,
+                     "centAmount":0.00,
                      "currencyCode":"EUR"
                   },
                   "productType":"greetingcard",
@@ -802,7 +802,7 @@
             "lastName":"Kolesnik",
             "deliveryType":"POSTAL",
             "address":{
-               "id":"fake-ba033e50-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb715639-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",
@@ -814,7 +814,7 @@
                "isMyAddress":false
             },
             "recipientAddress":{
-               "id":"fake-ba033de6-26d5-11ed-9f6a-52540093f27c",
+               "id":"fake-cb7155ca-26e3-11ed-9f6a-52540093f27c",
                "firstName":"Sergey",
                "lastName":"Kolesnik",
                "houseNumber":"32",

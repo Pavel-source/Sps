@@ -356,9 +356,7 @@ FROM
    left join cte_content co
 		on co.id = o.id
 		   and o.product_type = 'productCardSingle'
-		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-WHERE 
-		o.product_type != 'content'					
+		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID				
 GROUP BY
 		 o.customerId,
 		 o.id,
