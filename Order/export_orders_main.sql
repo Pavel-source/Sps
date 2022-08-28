@@ -33,13 +33,18 @@ SELECT
    pn.nl_product_name,
    ol.id AS ol_id,
    ol.productamount,
-   ol.totalwithvat, -- + IFNULL(ol_2.totalwithvat, 0) AS totalwithvat,
+   ol.totalwithvat,
+   ol.TOTALWITHOUTVAT,
+   ol.DISCOUNTWITHVAT,
+   ol.WITHVAT,
    ol.individualshippingid,
    ol.PRODUCTITEMINBASKETID,
-   c.carddefinition,
+   c.carddefinition,   
  --  o.billingaddress,
 	CASE
-        WHEN gpv.`TYPE` NOT IN ('standardGift', 'gift_addon', 'cardpackaging', 'gift_surcharge', 'content') THEN 
+        WHEN gpv.`TYPE` NOT IN ('standardGift', 'gift_addon', 'cardpackaging', 'gift_surcharge', 'content',
+								'shipment',	'outerCarton', 'sound',	'packetToSelfSurcharge', 'trimoption') 
+		THEN 
 		   concat('[', 
 				IFNULL(
 					 group_concat(
@@ -227,8 +232,20 @@ SELECT
 																	IFNULL(dp.deliveryDate, case when productcode like 'wallet%' then o.created + INTERVAL 1 day end) 
 																AS DATE) AS VARCHAR(50)), '"')), ''),
 		
-		',"orderItems": ',	concat('[',
+		',"orderItems": ',	replace(concat('[',
 						group_concat(
+						
+							CASE
+							WHEN o.product_type NOT IN (
+														'content',
+														'shipment',
+														'outerCarton',
+														'sound',
+														'packetToSelfSurcharge',
+														'trimoption'
+														)
+							THEN
+						
 							CONCAT('{',
 							   '"id": ', o.ol_id,
                                 ',"previewImages": []',
@@ -266,9 +283,16 @@ SELECT
 							   
 							   ',"productSlug": ', CONCAT('"', case o.productTypeKey when 'greetingcard' then concat('GRTZ', o.carddefinition) else o.productKey end, '"'), 
 							   ',"productKey": ', CONCAT('"', case o.productTypeKey when 'greetingcard' then concat('GRTZ', o.carddefinition) else o.productKey end, '"'), 
-										'}')
+										'}'
 									)
-							, ']'),
+									
+							ELSE
+								'{}'
+							END
+									
+									
+							)
+							, ']'), ',{}', ''),
 		 							
 		',"deliveryInformation": ', 	CONCAT('{',
 										IFNULL(CONCAT('"deliveryMethodId": ', CONCAT('"', IFNULL(ct.id, 'NONE') , '"')), ''),
@@ -282,7 +306,13 @@ SELECT
 		'}'				
 		)
 	AS orderDelivery,
-	o.currentorderstate
+	o.currentorderstate,
+	
+	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHVAT else 0 end) AS subTotalPrice,
+	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
+	abs(sum(case when o.productcode != 'shipment_generic' then o.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
+	sum(case when o.productcode != 'shipment_generic' then o.productamount else 0 end) AS totalItems,
+	sum(case when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 
 FROM
    cte_previwImages o
@@ -335,7 +365,7 @@ GROUP BY
 		 o.individualshippingid
 ),
 
-cte_Prices
+/*cte_Prices
 AS
 (
 SELECT  o.id,
@@ -349,7 +379,7 @@ FROM
 	(SELECT DISTINCT id, id_str FROM cte_Individualshipping) o 
 	 JOIN orderline ol ON o.id = ol.orderid
 GROUP BY o.id	 
-),
+),*/
 
 cte_order 
 AS
@@ -362,23 +392,23 @@ SELECT
    i.customerId,
    i.customerEmail,
    -- subTotalPrice
-   CONCAT('{"centAmount": ', cast(p.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
+   CONCAT('{"centAmount": ', cast(i.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
    -- totalPrice = subTotalPrice + totalShippingAmount
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
    -- totalItemPrice = totalPrice + totalDiscount - totalShippingAmount
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice + p.totalDiscount - p.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice + i.totalDiscount - i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
    -- subTotalIncTax = totalItemPrice + totalShippingPrice
-   CONCAT('{"centAmount": ', cast((p.subTotalPrice + p.totalShippingPrice + p.totalDiscount /* - p.totalShippingPrice + p.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice + i.totalDiscount /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
    -- totalShippingPrice
-   CONCAT('{"centAmount": ', cast(p.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
+   CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
    -- totalTaxExclusive
-   CONCAT('{"centAmount": ', cast(p.totalTaxExclusive * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
-  -- CONCAT('{"centAmount": ', cast(p.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
+   CONCAT('{"centAmount": ', cast(i.totalTaxExclusive * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
+  -- CONCAT('{"centAmount": ', cast(i.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
    -- totalDiscount
-   CONCAT('{"centAmount": ', cast(p.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
+   CONCAT('{"centAmount": ', cast(i.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
    -- creditsUsed (const)
    CONCAT('{"centAmount": 0, "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
-   p.totalItems,
+   i.totalItems,
    
 	concat('[',
 	TRIM(LEADING ',' FROM CONCAT(
@@ -390,7 +420,7 @@ SELECT
    i.currentorderstate
 		
 FROM cte_Individualshipping i
-	 LEFT JOIN cte_Prices p ON i.id = p.id
+	-- LEFT JOIN cte_Prices p ON i.id = p.id
 GROUP BY
 		 i.customerId,
 		 i.id
