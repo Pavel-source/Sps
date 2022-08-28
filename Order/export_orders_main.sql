@@ -33,7 +33,9 @@ SELECT
    pn.nl_product_name,
    ol.id AS ol_id,
    ol.productamount,
+   ol.totalwithvat, -- + IFNULL(ol_2.totalwithvat, 0) AS totalwithvat,
    ol.individualshippingid,
+   ol.PRODUCTITEMINBASKETID,
    c.carddefinition,
  --  o.billingaddress,
 	CASE
@@ -52,17 +54,17 @@ SELECT
 		WHEN gpv.`TYPE` IN ('gift_addon', 'standardGift') THEN CONCAT('["/images/static/opt/greetz3/images/product/2/', gpv.productcode, '/','greetz.detail.1_', im.HEIGHT,'_', im.WIDTH,EXTENSION, '"]') 
 	ELSE
 		'[]'
-    END  as s3ImagePrefixes_2,
+    END  as s3ImagePrefixes_2
 	
-	case when gpv.TYPE = 'productCardSingle'
+	/*case when gpv.TYPE = 'productCardSingle'
 	then
-	  SUM(case gpv.TYPE in () then ol.TOTALWITHVAT else 0 end) 
+	  SUM(case gpv.TYPE in ('productCardSingle', 'content') then ol.TOTALWITHVAT else 0 end) 
 	  OVER (PARTITION BY o.id 
 	  ORDER BY case gpv.TYPE  when 'productCardSingle' then 1  when 'content' then 2 else 3 end 
 	  ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) 
 	else
 		 ol.TOTALWITHVAT
-	end  AS TOTALWITHVAT
+	end  AS TOTALWITHVAT*/
 	
 	
 FROM
@@ -82,6 +84,11 @@ FROM
 		ON pn.product_id = ol.productid
 	LEFT JOIN cte_productimage im 
 		ON gpv.product_id = im.PRODUCTID
+		
+	/*LEFT JOIN orderline ol_2 
+	JOIN tmp_dm_gift_product_variants gpv_2
+		ON gpv_2.product_id = ol_2.PRODUCTID AND gpv_2.type = 'content'
+		ON ol.orderid = ol_2.orderid AND gpv.type = 'productCardSingle' AND ol.PRODUCTITEMINBASKETID = ol_2.PRODUCTITEMINBASKETID*/
 	
 WHERE
    
@@ -104,9 +111,16 @@ WHERE
 			'PAID_ADYEN_PENDING_HELD',
 			'CANCELLED')
 	and o.CONTRAFORORDERID IS NULL
-	
-GROUP BY	o.id, 
-			ol.id
+	-- and gpv.type != 'content'
+GROUP BY 
+		ol.id
+),
+
+cte_content AS
+(
+SELECT id, PRODUCTITEMINBASKETID, totalwithvat
+FROM cte_previwImages o
+WHERE o.product_type = 'content'
 ),
 
 cte_Individualshipping AS
@@ -223,12 +237,12 @@ SELECT
 							    IFNULL(CONCAT(',"title": ', CONCAT('"', case 
 																		when o.productTypeKey = 'greetingcard' then 'Kaart' 
 																		when env.code IS NOT NULL then env.name
-																		else o.nl_product_name 
+																		else replace(o.nl_product_name, '"', '\\"')
 																		end, '"')), ''),  
 							--    IFNULL(CONCAT(',"titleEn": ', CONCAT('"', o.en_product_name, '"')), ''), 
 							   ',"quantity": ', o.productamount,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', cast(100 * o.totalwithvat AS INT), ', "currencyCode": "', o.currencycode, '"}')),  
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', cast(100 * o.totalwithvat/o.productamount as DECIMAL(10,2)), ', "currencyCode": "', o.currencycode, '"}')), 
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', cast(100 * (o.totalwithvat + IFNULL(co.totalwithvat, 0)) AS INT), ', "currencyCode": "', o.currencycode, '"}')),  
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', cast(100 * (o.totalwithvat + IFNULL(co.totalwithvat, 0))/o.productamount as DECIMAL(10,2)), ', "currencyCode": "', o.currencycode, '"}')), 
 							--   ',"taxCategory": ',  CONCAT('"', concat('vat', o.vatcode), '"'),
 							   ',"productType": ', CONCAT('"', o.productTypeKey, '"'),						   
 							   
@@ -309,8 +323,12 @@ FROM
 		on mcm.customerid = o.customerid
    left join tmp_dm_envelope_names env
 		on env.code = o.PRODUCTCODE
-		
-WHERE o.product_type != 'content'
+   left join cte_content co
+		on co.id = o.id
+		   and o.product_type = 'productCardSingle'
+		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
+WHERE 
+		o.product_type != 'content'					
 GROUP BY
 		 o.customerId,
 		 o.id,
