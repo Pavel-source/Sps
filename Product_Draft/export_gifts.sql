@@ -1,10 +1,60 @@
-WITH productList_0 AS
+WITH productList_withAttributes AS
+(
+SELECT  pl.ID, 
+		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
+		-- 'letterbox gifts', 'bloompost', 'brievenbuscadeau', 'Cardboxes L2', 'Cardboxes L3', 'Chocoladeletters', 'Chocolate telegram', 'Telegram'
+		SUM(case when (ci.contentcategoryid in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
+					   OR lower(ct.text) like '%letterbox%')
+					AND pl.ID != 1142812037			-- exception (suggested by Floris Janssen 2022-08-01)
+			then 1 else 0 end) as LetterboxAtr,
+			
+		SUM(case when lower(ct.text) = 'jewellery' then 1 else 0 end) as jewellery,
+		SUM(case when lower(ct.text) LIKE '%gadget%' then 1 else 0 end) as gadget
+FROM product pl
+	 JOIN contentinformation_category ci
+		  ON pl.contentinformationid = ci.contentinformationid
+	 JOIN contentcategory cc
+		  ON cc.id = ci.contentcategoryid
+	 JOIN contentcategorytype c
+	      ON cc.categorytypeid = c.id
+	 LEFT JOIN contentcategorytranslation ct
+		  ON ct.contentcategoryid = cc.id
+			AND ct.locale = 'en_EN'
+WHERE pl.TYPE IN ('standardGift', 'personalizedGift')
+	  AND c.INTERNALNAME != 'Keywords'   
+GROUP BY pl.ID		  
+),
+
+productList_0 AS
 (
 SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.AttributesTemplate, pt.CategoryCode,
 
 		case 
 			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
 			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
+			  
+when p.id IN (
+1142818523,
+1142818503,
+1142818508,
+1142818478,
+1142818518,
+1142781265,
+1142814538,
+1142818533,
+1142818063,
+1142818498,
+1142818488,
+1142818513,
+1142811901,
+1142818468,
+1142818483,
+1142818493,
+1142818528,
+1142818543,
+1142818463					
+					) then 'home-gift'			  
+			  
 			  when p.id IN (
 1142811995,
 1142811998,
@@ -58,10 +108,13 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 1142816933,
 1142818353)
 					then 'alcohol'
+					
 			  when pgt.internalname like 'Personalised%Merci%' OR pgt.internalname like 'Personalised_Australian%'  
 					OR pgt.internalname like 'Personalised_Tonys%' OR pgt.internalname like 'Personalised_Leonidas%' then 'personalised-chocolate'
 			  when lower(pgt.internalname) like '%balloon%' then 'balloon'
 			  when lower(pgt.internalname) = 'mug' and z.designProductId IS NOT NULL then 'personalised-mug'
+			  when pl_a.jewellery > 0 then 'jewellery'
+			  when pl_a.gadget > 0 then 'gadget-novelty'			  
 			  else pt.MPTypeCode 
 		end  
 		AS MPTypeCode, 	
@@ -106,9 +159,11 @@ FROM product p
 								when Addon_sq.AddonID IN (1142781710, 1142781707) AND lower(pt_0.MPTypeCode) NOT LIKE '%alco%' then 5  -- set "alcohol" type for some wrong cases
 								else pt_0.GreetzTypeID
 							 end*/
+	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
 
-WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL  OR  p.id IN (1142785824, 1142802984, 1142781710, 1142781707)) -- four Addons
-	   AND p.removed IS NULL
+WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL  
+		OR (:synchronization = FALSE AND  p.id IN (1142785824, 1142802984, 1142781710, 1142781707))) -- four Addons
+	  -- AND p.removed IS NULL
 	  /*p.channelid = '2'
 	   AND p.removed IS NULL
 	   AND p.endoflife != 'Y'
@@ -150,6 +205,9 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
 						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
 						]'			
+			when MPTypeCode IN ('home-gift', 'gadget-novelty') then 			
+						'[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'	
+						
 			else AttributesTemplate
 	   end
 	   AS AttributesTemplate,
@@ -217,6 +275,30 @@ WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised
 		   )
 		)
 ),
+
+Ignore_AgeCategory
+AS
+(
+SELECT DISTINCT pl.entityProduct_key
+FROM productList pl
+	 JOIN contentinformation_category ci
+		ON ci.contentinformationid = pl.contentinformationid 
+WHERE ci.contentcategoryid IN
+								(
+								1039192272,		-- Zusje
+								1143733843,		-- vrouw
+								1143750947,		-- Women
+								1143750956,		-- Men
+								1143754568,		-- Little sister
+								1143754571,		-- Little brother
+								1143758798,		-- Little niece
+								1143758803,		-- Little nephew
+								1143758818,		-- Little son
+								1143758823,		-- Little daughter
+								1143757863,		-- Little granddaughter
+								1143757858		-- Little grandson
+								)
+),	
 
 productTemplate
 AS
@@ -287,29 +369,6 @@ from special_skus ss
 group by ss.productId),
 
 -- ---------------------------------------------------------------------------------------
-
-productList_withAttributes AS
-(
-SELECT  pl.ID, 
-		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
-		-- 'letterbox gifts', 'bloompost', 'brievenbuscadeau', 'Cardboxes L2', 'Cardboxes L3', 'Chocoladeletters', 'Chocolate telegram', 'Telegram'
-		SUM(case when (ci.contentcategoryid in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
-					   OR lower(ct.text) like '%letterbox%')
-					AND pl.ID != 1142812037			-- exception (suggested by Floris Janssen 2022-08-01)
-			then 1 else 0 end) as LetterboxAtr
-FROM productList pl
-	 JOIN contentinformation_category ci
-		  ON pl.contentinformationid = ci.contentinformationid
-	 JOIN contentcategory cc
-		  ON cc.id = ci.contentcategoryid
-	 JOIN contentcategorytype c
-	      ON cc.categorytypeid = c.id
-	 LEFT JOIN contentcategorytranslation ct
-		  ON ct.contentcategoryid = cc.id
-			AND ct.locale = 'en_EN'
-WHERE c.INTERNALNAME != 'Keywords'   
-GROUP BY pl.ID		  
-),
 
 productList_withAttributes_2 AS
 (
@@ -497,9 +556,15 @@ AS
 		(SELECT * FROM productList WHERE designId IS NOT NULL) p
 		 JOIN contentinformation_category ci
               ON p.design_contentinformationid = ci.contentinformationid
+		 LEFT JOIN Ignore_AgeCategory ig
+			  ON ig.entityProduct_key = p.entityProduct_key	
          JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = ci.contentcategoryid
 				-- AND mc.MPTypeCode = p.MPTypeCode
+				AND (
+					 ig.entityProduct_key IS NULL  
+					 OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+					)
 	GROUP BY 
 			p.ID, 
 		    p.designId
@@ -675,9 +740,15 @@ FROM
               ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
 		 LEFT JOIN contentcategorytranslation ct2
               ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
+		 LEFT JOIN Ignore_AgeCategory ig
+			  ON ig.entityProduct_key = p.entityProduct_key			  
          LEFT JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = cc.id
 				 AND mc.MPTypeCode = p.MPTypeCode
+				 AND (
+					  ig.entityProduct_key IS NULL  
+					  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+					 )
 		 LEFT JOIN productList_withAttributes atr
 			  ON p.ID = atr.ID
 		 LEFT JOIN cte_ProductsWithImages pwi
@@ -689,7 +760,7 @@ FROM
 		 LEFT JOIN productList_withSize s
 			ON p.ID = s.ID
 		 LEFT JOIN cte_CategoriesForDesigns cats_d
-			ON p.ID = cats_d.ID AND p.designId = cats_d.designId
+			ON p.ID = cats_d.ID AND p.designId = cats_d.designId	
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM productgroupentry pge
@@ -748,6 +819,7 @@ SELECT pge.entityProduct_key AS entity_key,
 						 JOIN greetz_to_mnpq_categories_view mc 
 							ON mc.GreetzCategoryID = cc.id 
 							   AND mc.MPTypeCode = pt.MPTypeCode
+							   AND mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups')
 					 WHERE ci.contentinformationid = p.contentinformationid  
 					)  
 		   , pt.DefaultCategoryKey, '' ))	 
@@ -829,6 +901,8 @@ FROM
 			ON SKUs.productId = p.ID
 		 LEFT JOIN productList_withSize s
 			ON p.ID = s.ID
+		-- LEFT JOIN Ignore_AgeCategory ig
+		--	  ON ig.entityProduct_key = p.entityProduct_key	
 				 
 GROUP BY pge.entityProduct_key
 ORDER BY entity_key
