@@ -142,8 +142,8 @@ FROM product p
 		 FROM productpersonalizedgiftdesign ppd 				
 			 JOIN carddefinition cd 
 					ON cd.ID = ppd.GIFTDEFINITION
-						AND cd.ENABLED = 'Y'
-						AND cd.APPROVALSTATUS = 'APPROVED'
+					--	AND cd.ENABLED = 'Y'
+					--	AND cd.APPROVALSTATUS = 'APPROVED'
 						AND cd.CONTENTTYPE = 'STOCK'
 			 LEFT JOIN contentinformationfield cif_nl_title
 		  		ON cif_nl_title.contentinformationid = cd.contentinformationid
@@ -299,6 +299,30 @@ WHERE ci.contentcategoryid IN
 								1143757858		-- Little grandson
 								)
 ),	
+
+Ignore_AgeCategory_ForDesigned
+AS
+(
+SELECT DISTINCT pl.entityProduct_key
+FROM productList pl
+	 JOIN contentinformation_category ci
+		ON ci.contentinformationid = pl.design_contentinformationid 
+WHERE ci.contentcategoryid IN
+								(
+								1039192272,		-- Zusje
+								1143733843,		-- vrouw
+								1143750947,		-- Women
+								1143750956,		-- Men
+								1143754568,		-- Little sister
+								1143754571,		-- Little brother
+								1143758798,		-- Little niece
+								1143758803,		-- Little nephew
+								1143758818,		-- Little son
+								1143758823,		-- Little daughter
+								1143757863,		-- Little granddaughter
+								1143757858		-- Little grandson
+								)
+),
 
 productTemplate
 AS
@@ -556,7 +580,7 @@ AS
 		(SELECT * FROM productList WHERE designId IS NOT NULL) p
 		 JOIN contentinformation_category ci
               ON p.design_contentinformationid = ci.contentinformationid
-		 LEFT JOIN Ignore_AgeCategory ig
+		 LEFT JOIN Ignore_AgeCategory_ForDesigned ig
 			  ON ig.entityProduct_key = p.entityProduct_key	
          JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = ci.contentcategoryid
@@ -769,7 +793,7 @@ WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 WHERE pl.MPTypeCode = 'flower' 
 						   AND ppg.approvalStatus != 'DEACTIVATED')  
 						   
-	  AND (concat(:keys) IS NULL  OR  entityProduct_key in (:keys))
+	  AND (concat(:keys) IS NULL  OR  p.entityProduct_key in (:keys))
 --	AND pt.entity_key IN ('flower', 'alcohol', 'home-gift', 'chocolate', 'cake')
 GROUP BY p.entityProduct_key, 
 		 p.designId
