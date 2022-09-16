@@ -109,6 +109,8 @@ when p.id IN (
 1142818353)
 					then 'alcohol'
 					
+when p.id IN (1142809358) then 'personalised-sweets'					
+					
 			  when pgt.internalname like 'Personalised%Merci%' OR pgt.internalname like 'Personalised_Australian%'  
 					OR pgt.internalname like 'Personalised_Tonys%' OR pgt.internalname like 'Personalised_Leonidas%' then 'personalised-chocolate'
 			  when lower(pgt.internalname) like '%balloon%' then 'balloon'
@@ -117,7 +119,9 @@ when p.id IN (
 			  when pl_a.gadget > 0 then 'gadget-novelty'			  
 			  else pt.MPTypeCode 
 		end  
-		AS MPTypeCode, 	
+		AS MPTypeCode_ForMPType, 
+		
+		pt.MPTypeCode,
 				
 		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, 
 		IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,  nl_product_name_2,
@@ -175,7 +179,7 @@ WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL
 productList_CorrectedAttributesTemplate
 AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2,
 	   case when MPTypeCode = 'personalised-alcohol' then 
 			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
@@ -184,7 +188,7 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
 						]'		
 			when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
-			when MPTypeCode = 'personalised-chocolate' then 			
+			when MPTypeCode IN ('personalised-chocolate', 'personalised-sweets') then 			
 						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
 						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
 						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
@@ -207,7 +211,7 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 						]'			
 			when MPTypeCode IN ('home-gift', 'gadget-novelty') then 			
 						'[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'	
-						
+			when MPTypeCode = 'jewellery' then NULL		
 			else AttributesTemplate
 	   end
 	   AS AttributesTemplate,
@@ -228,7 +232,7 @@ FROM productList_0 p
 
 productList_with_Addonds AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, CategoryCode,
 		case 
 			  when Addon_sq.ID IS NOT NULL then REPLACE(p.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
@@ -251,7 +255,7 @@ FROM productList_CorrectedAttributesTemplate p
 
 productList AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2,
 	   p.CategoryCode
 FROM productList_with_Addonds p
@@ -462,7 +466,7 @@ WHERE concat(:keys) IS NULL
 
 grouped_product_types_0 AS
 (
-	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.DefaultCategoryKey, 
+	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.MPTypeCode_ForMPType, pl.DefaultCategoryKey, 
 		   ROW_NUMBER() OVER(PARTITION BY pge.productGroupId ORDER BY pge.productStandardGift) AS RN
 	FROM grouped_products pge
 		 JOIN productList pl ON pl.ID = pge.productStandardGift
@@ -579,14 +583,20 @@ AS
     FROM
 		(SELECT * FROM productList WHERE designId IS NOT NULL) p
 		 JOIN contentinformation_category ci
-              ON p.design_contentinformationid = ci.contentinformationid
+              ON p.design_contentinformationid = ci.contentinformationid OR p.contentinformationid = ci.contentinformationid
 		 LEFT JOIN Ignore_AgeCategory_ForDesigned ig
 			  ON ig.entityProduct_key = p.entityProduct_key	
+		 LEFT JOIN Ignore_AgeCategory ig_2
+			  ON ig_2.entityProduct_key = p.entityProduct_key	
          JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = ci.contentcategoryid
 				-- AND mc.MPTypeCode = p.MPTypeCode
 				AND (
 					 ig.entityProduct_key IS NULL  
+					 OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+					)
+				AND (
+					 ig_2.entityProduct_key IS NULL  
 					 OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
 					)
 	GROUP BY 
@@ -608,7 +618,7 @@ SELECT  p.entityProduct_key  AS entity_key,
 		end  AS nl_product_name,
 
        cif_en_title.text                                                                   AS en_product_name,
-       p.MPTypeCode                                                                        AS product_type_key,
+       p.MPTypeCode_ForMPType                                                              AS product_type_key,
 	   p.designId                                                                          AS design_id,
        p.entityProduct_key	             												   AS slug,
        

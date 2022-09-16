@@ -20,8 +20,17 @@ WHERE  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 ProductList_0
 AS
 (
-SELECT DISTINCT case when pc.AMOUNTOFPANELS = 2 then concat('GRTZ', cast(cd.ID as varchar(50))) else concat('GRTZ', cast(cd.ID as varchar(50)), '-P') end 
+SELECT DISTINCT 
+				concat( case when pc.AMOUNTOFPANELS = 2 
+							then concat('GRTZ', cast(cd.ID as varchar(50))) 
+							else concat('GRTZ', cast(cd.ID as varchar(50)), '-P') 
+						end,
+						case pc.cardratio when 'SQUARE' 
+							then '-SQ'
+							else ''
+						end)
 				AS entity_key, 
+				
 				cd.ID AS carddefinitionid,
 				cd.contentinformationid, pc.productid, 
 				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, 
@@ -75,7 +84,16 @@ FROM productcard pc
 	 JOIN carddefinition_channel cdc
 			ON cdc.CARDDEFINITIONID = cd.ID
 				AND pc.CARDSIZE = cdl.CARDSIZE
-				AND (i.carddefinitionid IS NULL  OR  cdc.CHANNELFLOWID = p.onlyAvailableForFlow) 
+				AND (cd.ID IN (
+3000087418,
+3000087433,
+3000090766,
+3000092146,
+3000092151,
+3000092176,
+3000092181,
+3000093491
+				) OR (i.carddefinitionid IS NULL  OR  cdc.CHANNELFLOWID = p.onlyAvailableForFlow)) 
 	 LEFT JOIN productavailability pa ON p.ID = pa.productid
      LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
 	 LEFT JOIN contentinformationfield cif_nl_title
@@ -86,20 +104,24 @@ FROM productcard pc
 			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
 	 LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid	 
 WHERE
-	  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
-	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
-	  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
-	  AND (r.id is null OR (r.orderablefrom <= current_date() AND current_date() <= r.shippableto))	 
-	  AND cdc.channelID = '2'
+	  cdc.channelID = '2'
 	  AND (
 			(pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'STANDARD'  AND pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'SQUARE' AND pc.CARDSIZE IN ('LARGE', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
-		  )	  
-	  AND bl.carddefinitionid IS NULL
-	  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
-	  AND concat(:designIds) IS NULL) 
-	  OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
+		  )	 
+	  AND
+	  (
+		  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
+		  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
+		  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
+		  AND (r.id is null OR (r.orderablefrom <= current_date() AND current_date() <= r.shippableto))	 
+		  AND bl.carddefinitionid IS NULL
+		  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
+		  AND concat(:designIds) IS NULL) 
+		 -- OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
+		 OR cast(cd.ID as varchar(50)) IN (:designIds)
+	  )
 ),
 
 Carddefinition_Grouped AS
@@ -107,6 +129,30 @@ Carddefinition_Grouped AS
 SELECT DISTINCT carddefinitionid, contentinformationid, CONTENTCOLLECTIONID
 FROM ProductList_0
 ),
+
+Ignore_AgeCategory
+AS
+(
+SELECT DISTINCT pl.carddefinitionid
+FROM Carddefinition_Grouped pl
+	 JOIN contentinformation_category ci
+		ON ci.contentinformationid = pl.contentinformationid 
+WHERE ci.contentcategoryid IN
+								(
+								1039192272,		-- Zusje
+								1143733843,		-- vrouw
+								1143750947,		-- Women
+								1143750956,		-- Men
+								1143754568,		-- Little sister
+								1143754571,		-- Little brother
+								1143758798,		-- Little niece
+								1143758803,		-- Little nephew
+								1143758818,		-- Little son
+								1143758823,		-- Little daughter
+								1143757863,		-- Little granddaughter
+								1143757858		-- Little grandson
+								)
+),					 
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
 attrs_0 AS
@@ -233,7 +279,7 @@ GROUP BY carddefinitionid
 )
 
 SELECT 
-		pl.entity_key,
+		pl.entity_key, 
 		nl_product_name,
 		en_product_name,
 		case when pl.AMOUNTOFPANELS = 2 then 'greetingcard' else 'postcard' end 		AS product_type_key,
@@ -277,9 +323,34 @@ SELECT
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = pl.contentinformationid)  					  AS keywords_en,
 		
-		 IFNULL(
+		concat(
+				IFNULL(
+				(
+					 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
+					 FROM contentinformation_category ci
+						 JOIN contentcategory cc
+							ON cc.id = ci.contentcategoryid
+						 JOIN contentcategorytype c
+							ON cc.categorytypeid = c.id	 
+						 JOIN greetz_to_mnpq_categories_cards_view mc 
+							ON mc.GreetzCategoryID = cc.id 
+					 WHERE ci.contentinformationid = pl.contentinformationid  
+							AND mc.MPCategoryKey IS NOT NULL
+							AND (
+								  ig.carddefinitionid IS NULL  
+								  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+								)				)  
+			   , 'greeting-cards')
+		, case when pl.numberofphotos > 0 then ', photo-cover-cards' else '' end)
+	   AS category_keys,
+	   
+		
+	/*	 IFNULL(
 		(
-			 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
+			 SELECT group_concat(DISTINCT(s.MPCategoryKey) separator ', ')
+			 FROM
+			 (
+			 SELECT mc.MPCategoryKey
 			 FROM contentinformation_category ci
 				 JOIN contentcategory cc
 					ON cc.id = ci.contentcategoryid
@@ -287,25 +358,30 @@ SELECT
 					ON mc.GreetzCategoryID = cc.id 
 			 WHERE ci.contentinformationid = pl.contentinformationid  
 					AND mc.MPCategoryKey IS NOT NULL
+			 UNION ALL
+			 SELECT 'photo-cover-cards' AS MPCategoryKey
+			 FROM product 
+			 WHERE pl.numberofphotos >= 0
+			 LIMIT 1
+			 ) s
+					
 		)  
-	   , 'greeting-cards')	 AS category_keys,
+	   , 'greeting-cards')	 AS category_keys,*/
 		
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
 		   'variantKey', concat(pl.entity_key, 
-						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						--   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'skuId', concat(pl.entity_key, 
-						   case pl.Attribute_Shape when 'square' then '-SQ' else '' end, 
 						   '-', 
 						   upper(pl.Attribute_Size), 
 						   case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
 						   'CARD'),
 		   'masterVariant', CASE WHEN pl.RN_MasterVariant = 1 THEN 1 ELSE 0 END,
-           'productCode', replace(pl.entity_key, 'GRTZ', ''),
+           'productCode', replace(replace(pl.entity_key, 'GRTZ', ''), '-SQ', ''),
 		   'images', CASE
 						WHEN pl.RN_MasterVariant = 1 THEN concat('[',
                         concat(JSON_OBJECT('cardDefinitionId', pl.carddefinitionid, 'panels', pl.AMOUNTOFPANELS, 'imageCode', 'front.jpg'), ',' ,
@@ -385,8 +461,10 @@ FROM ProductList pl
 		  ON a_oc_2.design_id = pl.carddefinitionid		
 	 LEFT JOIN Invitations inv
 		  ON inv.carddefinitionid = pl.carddefinitionid	
+	 LEFT JOIN Ignore_AgeCategory ig
+		  ON ig.carddefinitionid = pl.carddefinitionid	
 WHERE
-		(inv.carddefinitionid IS NULL  OR  Attribute_Size = 'standard')
+		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
 	/*	AND e_oc.entity_key IS NOT NULL 
 		AND e_des.entity_key IS NOT NULL */
 		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
