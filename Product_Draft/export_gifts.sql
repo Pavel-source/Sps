@@ -1,4 +1,28 @@
-WITH productList_withAttributes AS
+WITH 
+greetz_to_mnpq_categories_view AS
+(
+SELECT GreetzCategoryID, MPCategoryKey, MPTypeCode
+FROM greetz_to_mnpq_categories_view
+UNION ALL SELECT 1143765583, 'noia-jewellery', 'home-gift'
+UNION ALL SELECT 1143739107, 'done-by-deer', 'home-gift'
+UNION ALL SELECT 1143739125, 'whos-it-for-mum', 'balloon'
+UNION ALL SELECT 1143739704, 'whos-it-for-dad', 'balloon'
+UNION ALL SELECT 1143727832, 'missing-you', 'beauty'
+UNION ALL SELECT 1143766298, 'proud-of-you', 'beauty'
+UNION ALL SELECT 726316072, 'greetz', 'home-gift'
+UNION ALL SELECT 1143772898, 'alt-drinks', 'alcohol'
+UNION ALL SELECT 1143772943, 'weingut-apel', 'alcohol'
+UNION ALL SELECT 1143772938, 'kolonne-null', 'alcohol'
+UNION ALL SELECT 1143772933, 'abstinence', 'alcohol'
+UNION ALL SELECT 1143772928, 'lyre_s', 'alcohol'
+UNION ALL SELECT 1143772923, 'gnista', 'alcohol'
+UNION ALL SELECT 1143772918, 'nix-en-nix', 'alcohol'
+UNION ALL SELECT 1143772913, 'vinada', 'alcohol'
+UNION ALL SELECT 1143772908, 'brulo', 'alcohol'
+UNION ALL SELECT 1143772903, 'vandestreek', 'alcohol'
+),
+
+productList_withAttributes AS
 (
 SELECT  pl.ID, 
 		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
@@ -34,28 +58,44 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
 			  
 when p.id IN (
-1142818523,
-1142818503,
-1142818508,
-1142818478,
-1142818518,
+-- 1142818523,
+-- 1142818503,
+-- 1142818508,
+-- 1142818478,
+-- 1142818518,
 1142781265,
 1142814538,
-1142818533,
+-- 1142818533,
 1142818063,
-1142818498,
-1142818488,
-1142818513,
+-- 1142818498,
+-- 1142818488,
+-- 1142818513,
 1142811901,
-1142818468,
-1142818483,
-1142818493,
-1142818528,
+-- 1142818468,
+-- 1142818483,
+-- 1142818493,
+-- 1142818528,
 1142818543,
-1142818463					
+-- 1142818463,
+1142815458	,
+1142815453	,
+1142815638	,
+1142812815	,
+1142812809	,
+1142812824	,
+1142815483	,
+1142812818	,
+1142815468	,
+1142815473	,
+1142815478	,
+1142815463	,
+1142812827	,
+1142815548	,
+1142815438					
 					) then 'home-gift'			  
 			  
 			  when p.id IN (
+1142812722,			  
 1142811995,
 1142811998,
 1142812019,
@@ -106,7 +146,8 @@ when p.id IN (
 1142816918,
 1142816928,
 1142816933,
-1142818353)
+1142818353,
+1142818223)
 					then 'alcohol'
 					
 when p.id IN (1142809358) then 'personalised-sweets'					
@@ -119,9 +160,9 @@ when p.id IN (1142809358) then 'personalised-sweets'
 			  when pl_a.gadget > 0 then 'gadget-novelty'			  
 			  else pt.MPTypeCode 
 		end  
-		AS MPTypeCode_ForMPType, 
+		AS MPTypeCode, 
 		
-		pt.MPTypeCode,
+		pt.MPTypeCode AS MPTypeCode_ForCategories,
 				
 		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, 
 		IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,  nl_product_name_2,
@@ -179,7 +220,7 @@ WHERE  (p.id IN (:productIds) OR concat(:productIds) IS NULL
 productList_CorrectedAttributesTemplate
 AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2,
 	   case when MPTypeCode = 'personalised-alcohol' then 
 			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
@@ -216,7 +257,9 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 	   end
 	   AS AttributesTemplate,
 	   
-	   case when MPTypeCode like '%alcohol%' then 'Alcohol'
+	   case 
+			when MPTypeCode = 'jewellery' then 'Jewellery-Accessories'
+			when MPTypeCode like '%alcohol%' then 'Alcohol'
 			when MPTypeCode = 'personalised-mug' then 'Mugs'
 			when MPTypeCode = 'beauty' then 'Beauty'
 			when MPTypeCode = 'toy-game' and CategoryCode IS NULL then 'Toys-Games'
@@ -225,14 +268,31 @@ SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTyp
 			when MPTypeCode like '%balloon%' then 'Balloons'
 			else CategoryCode
 	   end
-	   AS CategoryCode
+	   AS CategoryCode,	   
+		
+		case 
+			when MPTypeCode = 'jewellery' then 'jewellery'
+			when MPTypeCode = 'flower' then 'flowers-plants'	
+			when MPTypeCode = 'alcohol' then 'alcohol'
+			when MPTypeCode = 'home-gift' then 'home-garden'
+			when MPTypeCode = 'chocolate' then 'chocolate'
+			when MPTypeCode = 'cake' then 'food-drink'
+			when MPTypeCode = 'balloon' then 'newia-balloons'
+			when MPTypeCode = 'beauty' then 'beauty-face-body'
+			when MPTypeCode = 'toy-game' then 'toys-kids-baby'
+			when MPTypeCode = 'book' then 'books-stationery'
+			when MPTypeCode = 'gift-card' then 'gift-cards'
+			when MPTypeCode = 'sweet' then 'sweets'
+			when MPTypeCode = 'personalised-mug' then 'mugs'
+			when MPTypeCode = 'postcard' then 'newia-gift-sets-hampers-letterbox'
+		end  as DefaultCategoryKey
 												
 FROM productList_0 p
 ),
 
 productList_with_Addonds AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, CategoryCode,
 		case 
 			  when Addon_sq.ID IS NOT NULL then REPLACE(p.AttributesTemplate, 'ValueForAddon', concat('GRTZ', cast(Addon_sq.AddonID as varchar(50)))) 
@@ -255,7 +315,7 @@ FROM productList_CorrectedAttributesTemplate p
 
 productList AS
 (
-SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForMPType, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
+SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2,
 	   p.CategoryCode
 FROM productList_with_Addonds p
@@ -466,7 +526,7 @@ WHERE concat(:keys) IS NULL
 
 grouped_product_types_0 AS
 (
-	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.MPTypeCode_ForMPType, pl.DefaultCategoryKey, 
+	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.MPTypeCode_ForCategories, pl.DefaultCategoryKey, 
 		   ROW_NUMBER() OVER(PARTITION BY pge.productGroupId ORDER BY pge.productStandardGift) AS RN
 	FROM grouped_products pge
 		 JOIN productList pl ON pl.ID = pge.productStandardGift
@@ -618,7 +678,7 @@ SELECT  p.entityProduct_key  AS entity_key,
 		end  AS nl_product_name,
 
        cif_en_title.text                                                                   AS en_product_name,
-       p.MPTypeCode_ForMPType                                                              AS product_type_key,
+       p.MPTypeCode			                                                               AS product_type_key,
 	   p.designId                                                                          AS design_id,
        p.entityProduct_key	             												   AS slug,
        
@@ -778,7 +838,7 @@ FROM
 			  ON ig.entityProduct_key = p.entityProduct_key			  
          LEFT JOIN greetz_to_mnpq_categories_view mc 
 			  ON mc.GreetzCategoryID = cc.id
-				 AND mc.MPTypeCode = p.MPTypeCode
+				 AND mc.MPTypeCode = p.MPTypeCode_ForCategories
 				 AND (
 					  ig.entityProduct_key IS NULL  
 					  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
@@ -852,7 +912,7 @@ SELECT pge.entityProduct_key AS entity_key,
 							ON cc.id = ci.contentcategoryid
 						 JOIN greetz_to_mnpq_categories_view mc 
 							ON mc.GreetzCategoryID = cc.id 
-							   AND mc.MPTypeCode = pt.MPTypeCode
+							   AND mc.MPTypeCode = pt.MPTypeCode_ForCategories
 							   AND mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups')
 					 WHERE ci.contentinformationid = p.contentinformationid  
 					)  

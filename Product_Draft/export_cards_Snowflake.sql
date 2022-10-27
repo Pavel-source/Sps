@@ -3,10 +3,109 @@ WITH greetz_to_mnpq_categories_cards_view AS
 SELECT GreetzCategoryID, MPCategoryKey
 FROM greetz_to_mnpq_categories_cards_view
 UNION ALL SELECT 1143774336, 'teacher'
-UNION ALL SELECT 1143735059, 'loesje-kerst'
+/*UNION ALL SELECT 1143735059, 'loesje-kerst'
 UNION ALL SELECT 1143735104, 'cute-as-a-button-kerst'
 UNION ALL SELECT 1143735113, 'blond-amsterdam-kerst'
-UNION ALL SELECT 1143773516, 'sandysign'
+UNION ALL SELECT 1143773516, 'sandysign'*/
+),
+
+greetz_to_mnpg_ranges_map_view AS
+(
+SELECT * FROM greetz_to_mnpg_ranges_map_view
+UNION ALL SELECT 1135862861, 'range-cheers-to-you-regular', 'Cheers to you - regular'
+UNION ALL SELECT 1135862866, 'range-cherry-on-top-regular', 'Cherry on top - regular'
+UNION ALL SELECT 1135862881, 'range-sandysign-regular', 'Sandysign - regular'
+UNION ALL SELECT 1135862886, 'range-ingrid-berendsen-regular', 'Ingrid Berendsen - regular'
+UNION ALL SELECT 1135862891, 'range-lizzarddesigns-regular', 'Lizzarddesigns - regular'
+UNION ALL SELECT 1135862896, 'range-lizzarddesigns-xmas--i-and-a', 'Lizzarddesigns - xmas / I&A'
+UNION ALL SELECT 1135862901, 'range-sandysign-xmas--i-and-a', 'Sandysign - xmas / I&A'
+UNION ALL SELECT 1135862906, 'range-ingrid-berendsen-xmas--i-and-a', 'Ingrid Berendsen - xmas / I&A'
+UNION ALL SELECT 1135862911, 'range-papercute-regular', 'Papercute - regular'
+UNION ALL SELECT 1135862916, 'range-papercute-xmas--i-and-a', 'Papercute - xmas / I&A'
+UNION ALL SELECT 1135862921, 'range-pink-stories-regular', 'Pink Stories - regular'
+UNION ALL SELECT 1135862926, 'range-pink-stories-xmas--i-and-a', 'Pink Stories - xmas / I&A'
+UNION ALL SELECT 1135862931, 'range-moniek-peek-regular', 'Moniek Peek - regular'
+UNION ALL SELECT 1135862936, 'range-moniek-peek-xmas--i-and-a', 'Moniek Peek - xmas / I&A'
+UNION ALL SELECT 1135862941, 'range-zusss-regular', 'Zusss - regular'
+UNION ALL SELECT 1135862946, 'range-zusss-xmas--i-and-a', 'Zusss - xmas / I&A'
+UNION ALL SELECT 1135862951, 'range-little-dutch-regular', 'Little Dutch - regular'
+UNION ALL SELECT 1135862956, 'range-little-dutch-xmas--i-and-a', 'Little Dutch - xmas / I&A'
+UNION ALL SELECT 1135862961, 'range-frits-regular', 'Frits - regular'
+UNION ALL SELECT 1135862966, 'range-frits-xmas--i-and-a', 'Frits - xmas / I&A'
+UNION ALL SELECT 1135862971, 'range-days-of-bloom-regular', 'Days of bloom - regular'
+UNION ALL SELECT 1135862976, 'range-days-of-bloom-xmas--i-and-a', 'Days of bloom - xmas / I&A'
+UNION ALL SELECT 1135862981, 'range-saskia-rasink-regular', 'Saskia Rasink - regular'
+UNION ALL SELECT 1135862986, 'range-saskia-rasink-xmas--i-and-a', 'Saskia Rasink - xmas / I&A'
+UNION ALL SELECT 1135862991, 'range-vreemde-vogels-regular', 'Vreemde vogels - regular'
+UNION ALL SELECT 1135862996, 'range-vreemde-vogels-xmas--i-and-a', 'Vreemde vogels - xmas / I&A'
+UNION ALL SELECT 1135863001, 'range-fabienne-chapot-regular', 'Fabienne Chapot - regular'
+UNION ALL SELECT 1135863006, 'range-fabienne-chapot-xmas--i-and-a', 'Fabienne Chapot - xmas / I&A'
+UNION ALL SELECT 1135863011, 'range-nijntje-regular', 'Nijntje - regular'
+UNION ALL SELECT 1135863016, 'range-nijntje-xmas--i-and-a', 'Nijntje - xmas / I&A'
+UNION ALL SELECT 1135863021, 'range-judith-stam-regular', 'Judith Stam - regular'
+UNION ALL SELECT 1135863026, 'range-judith-stam-xmas--i-and-a', 'Judith Stam - xmas / I&A'
+UNION ALL SELECT 1135863031, 'range-haori-regular', 'Haori - regular'
+UNION ALL SELECT 1135863036, 'range-haori-xmas--i-and-a', 'Haori - xmas / I&A'
+UNION ALL SELECT 1135863056, 'range-mp-disney-regular', 'MP - Disney - Regular'
+UNION ALL SELECT 1135863061, 'range-mp-disney-xmasia', 'MP - Disney - xmas/IA'
+UNION ALL SELECT 1135863066, 'range-jem-and-jack-regular', 'Jem&Jack - regular'
+UNION ALL SELECT 1135863071, 'range-jem-and-jack-xmas--i-and-a', 'Jem&Jack - xmas / I&A'
+UNION ALL SELECT 1135863076, 'range-melli-mello-regular', 'Melli Mello - regular'
+UNION ALL SELECT 1135863081, 'range-melli-mello-xmas--i-and-a', 'Melli Mello - xmas / I&A'
+UNION ALL SELECT 1135863086, 'range-endless-mae-regular', 'Endless Mae - regular'
+UNION ALL SELECT 1135863091, 'range-endless-mae-xmas--i-and-a', 'Endless Mae - xmas / I&A'
+UNION ALL SELECT 1135863106, 'range-mp-despicable-me-regular', 'MP - Despicable me - Regular'
+UNION ALL SELECT 1135863126, 'range-mp-the-avengers-regular', 'MP - The Avengers - Regular'
+UNION ALL SELECT 1135863131, 'range-mp-the-avengers-xmasia', 'MP - The Avengers - xmas/IA'
+UNION ALL SELECT 1135863136, 'range-mp-disney-princesses-regular', 'MP - Disney Princesses - Regular'
+UNION ALL SELECT 1135863141, 'range-mp-disney-princesses-xmasia', 'MP - Disney Princesses - xmas/IA'
+UNION ALL SELECT 1135863146, 'range-mp-winnie-the-pooh-regular', 'MP - Winnie-the-pooh - Regular'
+UNION ALL SELECT 1135863151, 'range-mp-winnie-the-pooh-xmasia', 'MP - Winnie-the-pooh - xmas/IA'
+UNION ALL SELECT 1135863156, 'range-mp-mickey-mouse-regular', 'MP - Mickey Mouse - Regular'
+UNION ALL SELECT 1135863161, 'range-mp-mickey-mouse-xmasia', 'MP - Mickey Mouse - xmas/IA'
+UNION ALL SELECT 1135863166, 'range-mp-minnie-mouse-regular', 'MP - Minnie Mouse - Regular'
+UNION ALL SELECT 1135863171, 'range-mp-minnie-mouse-xmasia', 'MP - Minnie Mouse - xmas/IA'
+UNION ALL SELECT 1135863176, 'range-mp-moana-regular', 'MP - Moana - Regular'
+UNION ALL SELECT 1135863181, 'range-mp-moana-xmasia', 'MP - Moana - xmas/IA'
+UNION ALL SELECT 1135863186, 'range-mp-marvel-regular', 'MP - Marvel - Regular'
+UNION ALL SELECT 1135863191, 'range-mp-marvel-xmasia', 'MP - Marvel - xmas/IA'
+UNION ALL SELECT 1135863196, 'range-mp-universal-regular', 'MP - Universal - Regular'
+UNION ALL SELECT 1135863201, 'range-mp-universal-xmasia', 'MP - Universal - xmas/IA'
+UNION ALL SELECT 1135863206, 'range-later-alligator-regular', 'Later Alligator - regular'
+UNION ALL SELECT 1135863211, 'range-sweet-and-salty-regular', 'Sweet and Salty - regular'
+UNION ALL SELECT 1135863216, 'range-let_s-go-crazy-regular', 'Let’s go crazy - regular'
+UNION ALL SELECT 1135863221, 'range-fiesta-regular', 'Fiesta - regular'
+UNION ALL SELECT 1135863226, 'range-magic-monday-regular', 'Magic Monday - regular'
+UNION ALL SELECT 1135863231, 'range-dance-it-out-regular', 'Dance it out - regular'
+UNION ALL SELECT 1135863236, 'range-funky-vibes-regular', 'Funky Vibes - regular'
+UNION ALL SELECT 1135863241, 'range-hello-gorgeous-regular', 'Hello Gorgeous - regular'
+UNION ALL SELECT 1135863251, 'range-unconditional-fun-regular', 'Unconditional Fun - regular'
+UNION ALL SELECT 1135863256, 'range-you_ve-got-this-regular', 'You’ve Got This - regular'
+UNION ALL SELECT 1135863261, 'range-dreams-come-true-regular', 'Dreams come true - regular'
+UNION ALL SELECT 1135863266, 'range-tequila-regular', 'Tequila - regular'
+UNION ALL SELECT 1135863271, 'range-rain--and--sunshine-regular', 'Rain & Sunshine - regular'
+UNION ALL SELECT 1135863276, 'range-fresh-start-regular', 'Fresh Start - regular'
+UNION ALL SELECT 1135863281, 'range-self-love-club-regular', 'Self Love Club - regular'
+UNION ALL SELECT 1135863286, 'range-embrace-the-magic-regular', 'Embrace the Magic - regular'
+UNION ALL SELECT 1135863291, 'range-the-good-gets-better-regular', 'The Good gets Better - regular'
+UNION ALL SELECT 1135863296, 'range-sweet-sunrise-regular', 'Sweet sunrise - regular'
+UNION ALL SELECT 1135863306, 'range-sweet-lollipop-regular', 'Sweet Lollipop - regular'
+UNION ALL SELECT 1135863316, 'range-oh-baby-regular', 'Oh baby - regular'
+UNION ALL SELECT 1135863326, 'range-very-good-very-nice-regular', 'Very good very nice - regular'
+UNION ALL SELECT 1135863331, 'range-dogs-don_t-lie-regular', 'Dogs don''t lie - regular'
+UNION ALL SELECT 1135863336, 'range-it_s-a-wrap-regular', 'It''s a wrap - regular'
+UNION ALL SELECT 1135863341, 'range-flip-side-regular', 'Flip side - regular'
+UNION ALL SELECT 1135863346, 'range-it_s-a-zoo-out-there-regular', 'It''s a zoo out there - regular'
+UNION ALL SELECT 1135863351, 'range-snowflake-regular', 'Snowflake - regular'
+UNION ALL SELECT 1135863356, 'range-merry-everything-regular', 'Merry everything - regular'
+UNION ALL SELECT 1135863361, 'range-happy-always-regular', 'Happy always - regular'
+UNION ALL SELECT 1135863366, 'range-wonderful-wishes-regular', 'Wonderful wishes - regular'
+UNION ALL SELECT 1135863371, 'range-shine-bright-regular', 'Shine bright - regular'
+UNION ALL SELECT 1135863376, 'range-falalala-regular', 'Falalala - regular'
+UNION ALL SELECT 1135863381, 'range-joy-to-the-world-regular', 'Joy to the world - regular'
+UNION ALL SELECT 1135863386, 'range-naughty-or-nice-regular', 'Naughty or nice - regular'
+UNION ALL SELECT 1135863406, 'range-jan-van-haasteren-junior-xmas--i-and-a', 'Jan van Haasteren Junior - xmas / I&A'
+
 ),
 
 Invitations
@@ -81,9 +180,6 @@ FROM productcard pc
 			AND pc.enabled = 'Y' 
 			AND p.removed is null
 			AND p.endoflife != 'Y'
-   --  join productphysicalproperty ppp 
-	--	ON p.PRODUCTPHYSICALPROPERTIESID = ppp.ID 
-	--		AND ppp.PAPERTYPE in ('DEFAULT', 'InvercoteCreato300')
      JOIN productcardprice pcp 
 		ON PRODUCTCARDID = p.ID 
 			AND current_date() between pcp.availableFrom AND pcp.availableTill 
@@ -121,7 +217,7 @@ WHERE
 			OR (pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'SQUARE' AND pc.CARDSIZE IN ('LARGE', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
 		  )	 
-	  AND
+	/*  AND
 	  (
 		  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 		  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
@@ -130,9 +226,10 @@ WHERE
 		  AND bl.carddefinitionid IS NULL
 		  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
 		  AND concat(:designIds) IS NULL) 
-		 -- OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
-		 OR cast(cd.ID as varchar(50)) IN (:designIds)
-	  )
+
+		 cast(cd.ID as varchar(50)) IN (:designIds)
+		 OR (concat(:designIds) IS NULL  AND  concat(:keys) IS NOT NULL)
+	  )*/
 ),
 
 Carddefinition_Grouped AS
@@ -290,7 +387,134 @@ GROUP BY carddefinitionid
 )
 
 SELECT 
-		pl.entity_key, 
+pl.carddefinitionid	AS	PRODUCT_ID,
+ROW_NUMBER() OVER(GROUP BY carddefinitionid ORDER BY pl.Attribute_Size DESC) 	AS	VARIANT_ID	,
+CONCAT(carddefinitionid, '-', ROW_NUMBER() OVER(GROUP BY carddefinitionid ORDER BY pl.Attribute_Size DESC))	AS	PRODUCT_VARIANT_ID	,
+pl.entity_key	AS	SKU	,
+
+concat(pl.entity_key, 
+'-', 
+upper(pl.Attribute_Size), 
+case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
+'CARD')	AS	SKU_VARIANT	,
+
+current_timestamp()	AS	PRODUCT_CREATED_AT	,
+current_timestamp()	AS	VARIANT_CREATED_AT	,
+FALSE	AS	IS_PUBLISHED	,
+NULL	AS	FIRST_PUBLISHED_DATE_TIME	,
+nl_product_name	AS	PRODUCT_TITLE	,
+
+	case 
+			when (cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL)
+			then concat(IFNULL(concat(cif_nl_descr_2.text, '\n\n'), ''), IFNULL(cif_nl_descr.text, '')) 
+			else cif_nl_descr.text												           
+	end		AS	PRODUCT_DESCRIPTION	,
+		
+NULL		AS	CATEGORY_NAME	,
+NULL		AS	CATEGORY_PARENT	,
+NULL		AS	HIERARCHY_RANK_1	,
+NULL		AS	HIERARCHY_RANK_2	,
+NULL		AS	HIERARCHY_RANK_3	,
+NULL		AS	HIERARCHY_RANK_4	,
+NULL		AS	HIERARCHY_RANK_5	,
+NULL		AS	UNIQUE_PRODUCT_CODE	,
+case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end	AS	PHOTO_COUNT	,
+NULL	AS	DELIVERY_TYPE	,
+NULL	AS	LETTERBOX_FRIENDLY	,
+case pl.Attribute_Shape when 'square' then 'Square' else 'Rectangular' end	AS	SHAPE	,
+-1	AS	IMAGE_HEIGHT	,
+-1	AS	IMAGE_WIDTH	,
+case pl.Attribute_Shape when 'square' then 'square' else 'portrait' end	AS	ORIENTATION	,
+NULL	AS	PRODUCT_BRAND	,
+IFNULL(pr.product_range_text,'Tangled')	AS	RANGE	,
+NULL	AS	ARENA_ID	,
+IFNULL(pr.product_range_key,'range-tangled')	AS	PRODUCT_RANGE	,
+NULL	AS	NOTES	,
+COALESCE(a_oc.Val_Name, a_oc_2.occasion_name, "General > General")	AS	REPORTING_OCCASION	,
+IFNULL(a_des.Val_Name, "Design > General")	AS	REPORTING_STYLE	,
+IFNULL(a_rl_2.MP_Code, "Non relations")	AS	REPORTING_RELATION	,
+'Anonymous'	AS	REPORTING_ARTIST	,
+NULL	AS	REPORTING_SUPPLIER	,
+NULL	AS	REPORTING_SUPPLIER_NO	,
+case Attribute_Size when 'standard' then 'Standard' when 'large' then 'Large' when 'giant' then 'Giant' end AS	SIZE,	
+case Attribute_Size when 'standard' then 'Standard Card' when 'large' then 'Large Card' when 'giant' then 'Giant Card' end  AS	MCD_SIZE	,
+
+concat('[',
+				IFNULL(
+				(
+					 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
+					 FROM contentinformation_category ci
+						 JOIN contentcategory cc
+							ON cc.id = ci.contentcategoryid
+						 JOIN contentcategorytype c
+							ON cc.categorytypeid = c.id	 
+						 JOIN greetz_to_mnpq_categories_cards_view mc 
+							ON mc.GreetzCategoryID = cc.id 
+					 WHERE ci.contentinformationid = pl.contentinformationid  
+							AND mc.MPCategoryKey IS NOT NULL
+							AND (
+								  ig.carddefinitionid IS NULL  
+								  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+								)				)  
+			   , 'greeting-cards')
+		, case when pl.numberofphotos > 0 then ', photo-cover-cards' else '' end,
+		']')
+	   AS	CATEGORIES	,
+	 
+CONCAT('{',
+IFNULL(
+		CONCAT(
+			'en:[',
+		  (  SELECT group_concat(ct2.text separator ', ')
+			 FROM contentinformation_category ci
+				 JOIN contentcategory cc
+						   ON cc.id = ci.contentcategoryid
+				 LEFT JOIN contentcategorytranslation ct2
+						   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
+			 WHERE ci.contentinformationid = pl.contentinformationid),
+			'],'
+		)
+, ''),	
+IFNULL(
+	CONCAT(
+	 'nl:[',
+		(SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
+	     FROM contentinformation_category ci
+			 JOIN contentcategory cc
+					   ON cc.id = ci.contentcategoryid
+			 LEFT JOIN contentcategorytranslation ct
+					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
+			 LEFT JOIN contentcategorytranslation ct2
+					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
+		 WHERE ci.contentinformationid = pl.contentinformationid),
+	']'
+	)
+, ''),		 		 
+'}')
+AS	SEARCH_KEYWORDS	,
+	
+'Wenskaarten'	AS	PRODUCT_TYPE_NAME	,
+'greetingcard'	AS	PRODUCT_KEY	,
+'Cards'	AS	PRODUCT_FAMILY	,
+FALSE	AS	IS_PRODUCT_VARIANT_DELETED	,
+NULL	AS	PRODUCT_VARIANT_DELETED_TIMESTAMP	,
+FALSE	AS	IS_PRODUCT_DELETED	,
+NULL	AS	PRODUCT_DELETED_TIMESTAMP	,
+spl.channel_key	AS	SUPPLIER_NAME	,
+NULL	AS	LEGACY_SUPPLIER_ID	,
+NULL	AS	SUPPLIER_CITY	,
+NULL	AS	SUPPLIER_COUNTRY	,
+NULL	AS	MCD_FINANCE_CATEGORY	,
+NULL	AS	MCD_FINANCE_SUBCATEGORY	,
+current_timestamp()	AS	MESSAGE_TIMESTAMP	,
+'grtz'	AS	BRAND	,
+IFNULL(pr.product_range_key,'range-tangled')	AS	RANGE_ID	,
+NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
+'Greetz'	AS	BRAND_DESCRIPTION	
+
+
+
+	/*	pl.entity_key, 
 		nl_product_name,
 		en_product_name,
 		case when pl.AMOUNTOFPANELS = 2 then 'greetingcard' else 'postcard' end 		AS product_type_key,
@@ -354,31 +578,7 @@ SELECT
 			   , 'greeting-cards')
 		, case when pl.numberofphotos > 0 then ', photo-cover-cards' else '' end)
 	   AS category_keys,
-	   
-		
-	/*	 IFNULL(
-		(
-			 SELECT group_concat(DISTINCT(s.MPCategoryKey) separator ', ')
-			 FROM
-			 (
-			 SELECT mc.MPCategoryKey
-			 FROM contentinformation_category ci
-				 JOIN contentcategory cc
-					ON cc.id = ci.contentcategoryid
-				 JOIN greetz_to_mnpq_categories_cards_view mc 
-					ON mc.GreetzCategoryID = cc.id 
-			 WHERE ci.contentinformationid = pl.contentinformationid  
-					AND mc.MPCategoryKey IS NOT NULL
-			 UNION ALL
-			 SELECT 'photo-cover-cards' AS MPCategoryKey
-			 FROM product 
-			 WHERE pl.numberofphotos >= 0
-			 LIMIT 1
-			 ) s
-					
-		)  
-	   , 'greeting-cards')	 AS category_keys,*/
-		
+	   		
 		replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(concat('[', 
 		group_concat(JSON_OBJECT(
 		   'variantKey', concat(pl.entity_key, 
@@ -435,7 +635,9 @@ SELECT
 				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_des.Val_Code, "design>general"), '", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
-	    AS product_variants	
+	    AS product_variants	*/
+
+
 	   
 FROM ProductList pl	
 	 LEFT JOIN vat v
@@ -474,6 +676,8 @@ FROM ProductList pl
 		  ON inv.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN Ignore_AgeCategory ig
 		  ON ig.carddefinitionid = pl.carddefinitionid	
+	 LEFT JOIN export_productranges_view spl
+			ON pr.product_range_key = spl.entity_key
 WHERE
 		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
 	/*	AND e_oc.entity_key IS NOT NULL 
@@ -481,7 +685,8 @@ WHERE
 		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
 		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
 		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
-GROUP BY 
-		pl.entity_key
-LIMIT :limit		
+ GROUP BY 
+ pl.entity_key,
+ pl.Attribute_Size
+-- LIMIT :limit		
 
