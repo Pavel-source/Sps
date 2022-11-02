@@ -143,7 +143,7 @@ SELECT DISTINCT
 				
 				cd.ID AS carddefinitionid,
 				cd.contentinformationid, pc.productid, 
-				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, 
+				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pc.cardratio, cd.ORIENTATION, 
 				cd.CONTENTCOLLECTIONID, numberofphotos,
 				cif_nl_title.text  		AS nl_product_name,
 				cif_en_title.text  		AS en_product_name,
@@ -165,14 +165,14 @@ SELECT DISTINCT
 				end  									AS  NumberForSorting,
                 pc.AMOUNTOFPANELS                     
 				
-FROM productcard pc
-	 JOIN carddefinition cd 
+FROM "RAW_GREETZ"."GREETZ3".productcard pc
+	 JOIN "RAW_GREETZ"."GREETZ3".carddefinition cd 
 			ON cd.CARDRATIO = pc.CARDRATIO 
 				AND cd.OBLONG = pc.OBLONG 
 				AND (cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS 
 					 OR (pc.AMOUNTOFPANELS = 1 AND cd.NUMBEROFPANELS = 2 AND cd.allowsinglepanel = 'Y'))
 	 LEFT JOIN Invitations i ON cd.ID = i.carddefinitionid
-     JOIN product p 
+     JOIN "RAW_GREETZ"."GREETZ3".product p 
 		ON pc.PRODUCTID = p.ID 
 			AND p.TYPE = 'productCardSingle' 
 			AND p.CHANNELID = 2 
@@ -180,15 +180,11 @@ FROM productcard pc
 			AND pc.enabled = 'Y' 
 			AND p.removed is null
 			AND p.endoflife != 'Y'
-     JOIN productcardprice pcp 
-		ON PRODUCTCARDID = p.ID 
-			AND current_date() between pcp.availableFrom AND pcp.availableTill 
-			AND pcp.amountFrom = 1
      
-     JOIN carddefinition_limitedcardsize cdl 
+     JOIN "RAW_GREETZ"."GREETZ3".carddefinition_limitedcardsize cdl 
 		ON cdl.CARDDEFINITIONID = cd.ID 
 			AND pc.CARDSIZE = cdl.CARDSIZE
-	 JOIN carddefinition_channel cdc
+	 JOIN "RAW_GREETZ"."GREETZ3".carddefinition_channel cdc
 			ON cdc.CARDDEFINITIONID = cd.ID
 				AND pc.CARDSIZE = cdl.CARDSIZE
 				AND (cd.ID IN (
@@ -201,15 +197,15 @@ FROM productcard pc
 3000092181,
 3000093491
 				) OR (i.carddefinitionid IS NULL  OR  cdc.CHANNELFLOWID = p.onlyAvailableForFlow)) 
-	 LEFT JOIN productavailability pa ON p.ID = pa.productid
-     LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
-	 LEFT JOIN contentinformationfield cif_nl_title
+--	 LEFT JOIN productavailability pa ON p.ID = pa.productid
+ --    LEFT JOIN productavailabilityrange r ON pa.id = r.productavailabilityid
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_title
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
-	 LEFT JOIN contentinformationfield cif_en_title
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_en_title
 		  ON cif_en_title.contentinformationid = cd.contentinformationid
 			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN'
-	 LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid	 
+	-- LEFT JOIN black_list_for_cards bl ON cd.ID = bl.carddefinitionid	 
 WHERE
 	  cdc.channelID = '2'
 	  AND (
@@ -243,7 +239,7 @@ AS
 (
 SELECT DISTINCT pl.carddefinitionid
 FROM Carddefinition_Grouped pl
-	 JOIN contentinformation_category ci
+	 JOIN "RAW_GREETZ"."GREETZ3".contentinformation_category ci
 		ON ci.contentinformationid = pl.contentinformationid 
 WHERE ci.contentcategoryid IN
 								(
@@ -267,10 +263,10 @@ attrs_0 AS
 (
 SELECT DISTINCT cct.INTERNALNAME, cd.carddefinitionid, cd.contentinformationid, ct.TEXT AS Val, ci.CONTENTCATEGORYID AS catID, cc.parentcategoryid
 FROM Carddefinition_Grouped cd
-	JOIN contentinformation_category ci ON ci.CONTENTINFORMATIONID = cd.CONTENTINFORMATIONID
-	JOIN contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
-	JOIN contentcategorytype cct ON cct.ID = cc.categorytypeid 
-	JOIN contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
+	JOIN "RAW_GREETZ"."GREETZ3".contentinformation_category ci ON ci.CONTENTINFORMATIONID = cd.CONTENTINFORMATIONID
+	JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
+	JOIN "RAW_GREETZ"."GREETZ3".contentcategorytype cct ON cct.ID = cc.categorytypeid 
+	JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
 WHERE cct.INTERNALNAME IN ('Occasion', 'Design Style', 'Target Group')
 	 AND (cct.INTERNALNAME != 'Design Style' OR lower(ct.TEXT) NOT IN ('hip' ,'with flowers', 'cute', 'english cards', 'dutch cards'))
 ),
@@ -298,9 +294,14 @@ attr_3 AS
 (
 SELECT cte.INTERNALNAME, 
 	cte.carddefinitionid, 
-	GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_2,  -- parents only
-	GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 
+	-- GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
+	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_2,  -- parents only
+	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 
+	
+	(SELECT LISTAGG(Val, ' - ') FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID) AS Concat_1,
+	(SELECT LISTAGG(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END, '') FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME  ORDER BY catID) AS Concat_2,
+	(SELECT LISTAGG(DISTINCT case when parentcategoryid IS NULL then '' else Val END, '') FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME  ORDER BY catID) AS Concat_3,
+	
 	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs, amount
 	COUNT(*) AS cnt
 	-- ,COUNT(DISTINCT CatID) AS cnt_for_check
@@ -309,6 +310,18 @@ FROM attrs_0 AS cte
 GROUP BY cte.INTERNALNAME,
 		 cte.carddefinitionid 
 ),
+
+/*
+attr_3 AS 
+(
+SELECT INTERNALNAME, 
+	carddefinitionid,
+	parents_cnt, 
+	cnt,
+	(SELECT LISTAGG(Val) FROM attr_3_0 )
+FROM  attr_3_0	
+	
+),*/
 
 /* attr_4 AS 
 (
@@ -349,8 +362,8 @@ attr AS
 (
 SELECT DISTINCT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
 FROM attr_6
-	 LEFT JOIN export_occasions_view e_oc ON attr_6.Val_Code = e_oc.entity_key AND attr_6.INTERNALNAME = 'Occasion'
-	 LEFT JOIN export_styles_view e_st ON attr_6.Val_Code = e_st.entity_key AND attr_6.INTERNALNAME = 'Design Style'
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".export_occasions_view e_oc ON attr_6.Val_Code = e_oc.entity_key AND attr_6.INTERNALNAME = 'Occasion'
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".export_styles_view e_st ON attr_6.Val_Code = e_st.entity_key AND attr_6.INTERNALNAME = 'Design Style'
 WHERE (attr_6.INTERNALNAME != 'Occasion' OR e_oc.entity_key IS NOT NULL)
 	   AND
 	  (attr_6.INTERNALNAME != 'Design Style' OR e_st.entity_key IS NOT NULL)
@@ -380,7 +393,7 @@ AS
 (
 SELECT carddefinitionid, MAX(i.WIDTH) AS WIDTH, MAX(i.HEIGHT) AS HEIGHT
 FROM ProductList pl
-	JOIN imagepreviewsetting i 
+	JOIN "RAW_GREETZ"."GREETZ3".imagepreviewsetting i 
 		ON i.CARDRATIOCODE = pl.cardratio AND i.ORIENTATION = pl.ORIENTATION
 WHERE i.TYPE = 'DESIGN_DEFINITION' AND i.side = 'BACKSIDE' 
 GROUP BY carddefinitionid
@@ -388,8 +401,8 @@ GROUP BY carddefinitionid
 
 SELECT 
 pl.carddefinitionid	AS	PRODUCT_ID,
-ROW_NUMBER() OVER(GROUP BY carddefinitionid ORDER BY pl.Attribute_Size DESC) 	AS	VARIANT_ID	,
-CONCAT(carddefinitionid, '-', ROW_NUMBER() OVER(GROUP BY carddefinitionid ORDER BY pl.Attribute_Size DESC))	AS	PRODUCT_VARIANT_ID	,
+ROW_NUMBER() OVER(PARTITION BY pl.carddefinitionid ORDER BY pl.Attribute_Size DESC) 	AS	VARIANT_ID	,
+CONCAT(pl.carddefinitionid, '-', ROW_NUMBER() OVER(PARTITION BY pl.carddefinitionid ORDER BY pl.Attribute_Size DESC))	AS	PRODUCT_VARIANT_ID	,
 pl.entity_key	AS	SKU	,
 
 concat(pl.entity_key, 
@@ -443,12 +456,12 @@ concat('[',
 				IFNULL(
 				(
 					 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
-					 FROM contentinformation_category ci
-						 JOIN contentcategory cc
+					 FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
+						 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
 							ON cc.id = ci.contentcategoryid
-						 JOIN contentcategorytype c
+						 JOIN "RAW_GREETZ"."GREETZ3".contentcategorytype c
 							ON cc.categorytypeid = c.id	 
-						 JOIN greetz_to_mnpq_categories_cards_view mc 
+						 JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpq_categories_cards_view mc 
 							ON mc.GreetzCategoryID = cc.id 
 					 WHERE ci.contentinformationid = pl.contentinformationid  
 							AND mc.MPCategoryKey IS NOT NULL
@@ -466,10 +479,10 @@ IFNULL(
 		CONCAT(
 			'en:[',
 		  (  SELECT group_concat(ct2.text separator ', ')
-			 FROM contentinformation_category ci
-				 JOIN contentcategory cc
+			 FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
+				 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
 						   ON cc.id = ci.contentcategoryid
-				 LEFT JOIN contentcategorytranslation ct2
+				 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct2
 						   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 			 WHERE ci.contentinformationid = pl.contentinformationid),
 			'],'
@@ -479,12 +492,12 @@ IFNULL(
 	CONCAT(
 	 'nl:[',
 		(SELECT group_concat(IFNULL(ct.text, ct2.text) separator ', ')
-	     FROM contentinformation_category ci
-			 JOIN contentcategory cc
+	     FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
+			 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
 					   ON cc.id = ci.contentcategoryid
-			 LEFT JOIN contentcategorytranslation ct
+			 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct
 					   ON ct.contentcategoryid = cc.id AND ct.locale = 'nl_NL'
-			 LEFT JOIN contentcategorytranslation ct2
+			 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = pl.contentinformationid),
 	']'
@@ -637,21 +650,20 @@ NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	*/
 
-
-	   
+   
 FROM ProductList pl	
-	 LEFT JOIN vat v
-		  ON pl.vatid = v.id AND v.countrycode = 'NL'
-	 LEFT JOIN contentinformationfield cif_nl_descr
+	-- LEFT JOIN vat v
+	--	  ON pl.vatid = v.id AND v.countrycode = 'NL'
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_descr
 		  ON cif_nl_descr.contentinformationid = pl.contentinformationid
 			 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
-	 LEFT JOIN contentinformationfield cif_nl_descr_2
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_descr_2
 		  ON cif_nl_descr_2.contentinformationid = pl.contentinformationid
 			 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
-	 LEFT JOIN contentinformationfield cif_en_descr
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_en_descr
 		  ON cif_en_descr.contentinformationid = pl.contentinformationid
 			 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'	
-	 LEFT JOIN contentinformationfield cif_en_descr_2
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_en_descr_2
 		  ON cif_en_descr_2.contentinformationid = pl.contentinformationid
 			 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'	
 	 LEFT JOIN Image_BackSize i
@@ -666,25 +678,22 @@ FROM ProductList pl
 		  ON a_des.Val_Code = e_des.entity_key*/		  
 	 LEFT JOIN attr a_tgt	
 		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'			  
-	 LEFT JOIN greetz_to_mnpg_relations_view a_rl_2
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_relations_view a_rl_2
 		  ON a_rl_2.Greetz_Name = a_tgt.Val_Name		  
-	 LEFT JOIN greetz_to_mnpg_ranges_map_view pr
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_ranges_map_view pr
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
-	 LEFT JOIN greetz_to_mnpg_multioccasions_view a_oc_2
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_multioccasions_view a_oc_2
 		  ON a_oc_2.design_id = pl.carddefinitionid		
 	 LEFT JOIN Invitations inv
 		  ON inv.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN Ignore_AgeCategory ig
 		  ON ig.carddefinitionid = pl.carddefinitionid	
-	 LEFT JOIN export_productranges_view spl
+	 LEFT JOIN "RAW_GREETZ"."GREETZ3".export_productranges_view spl
 			ON pr.product_range_key = spl.entity_key
 WHERE
 		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
 	/*	AND e_oc.entity_key IS NOT NULL 
 		AND e_des.entity_key IS NOT NULL */
-		AND (pl.entity_key > :migrateFromId OR :migrateFromId IS NULL)
-		AND	(pl.entity_key <= :migrateToId OR :migrateToId IS NULL)
-		AND (concat(:keys) IS NULL  OR  pl.entity_key IN (:keys))
  GROUP BY 
  pl.entity_key,
  pl.Attribute_Size
