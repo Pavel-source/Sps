@@ -577,8 +577,11 @@ SELECT
 				  )
 	   end	 AS	PRODUCT_DESCRIPTION	,
 		
-		NULL	AS	CATEGORY_NAME	,
-		NULL	AS	CATEGORY_PARENT	,
+		(SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode)	AS	CATEGORY_NAME	
+		,
+		(SELECT MIN(t1.Name) 
+		 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+		 WHERE t2.Code = p.ProductCategoryCode)	AS	CATEGORY_PARENT	,
 		
 		CASE p.Level
 			WHEN 1 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
@@ -605,10 +608,46 @@ SELECT
 						 WHERE t5.Code = p.ProductCategoryCode) 						 
 		END  AS	HIERARCHY_RANK_1,
 		
-		NULL	AS	HIERARCHY_RANK_2	,
-		NULL	AS	HIERARCHY_RANK_3	,
-		NULL	AS	HIERARCHY_RANK_4	,
-		NULL	AS	HIERARCHY_RANK_5	,
+		CASE p.Level
+			WHEN 2 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 3 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+						 WHERE t4.Code = p.ProductCategoryCode)  						 
+		END  AS	HIERARCHY_RANK_2,
+		
+		CASE p.Level
+			WHEN 3 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_3,
+		
+		CASE p.Level
+			WHEN 4 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_4,
+		
+		CASE p.Level
+			WHEN 5 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_5,
 		
 		NULL	AS	UNIQUE_PRODUCT_CODE	,
 		NULL	AS	PHOTO_COUNT	,
@@ -751,13 +790,79 @@ SELECT
 		NULL	AS	FIRST_PUBLISHED_DATE_TIME	,
 		COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))	AS	PRODUCT_TITLE	,
 		cif_nl_descr.text AS	PRODUCT_DESCRIPTION	,
-		NULL	AS	CATEGORY_NAME	,
-		NULL	AS	CATEGORY_PARENT	,
-		NULL	AS	HIERARCHY_RANK_1	,
-		NULL	AS	HIERARCHY_RANK_2	,
-		NULL	AS	HIERARCHY_RANK_3	,
-		NULL	AS	HIERARCHY_RANK_4	,
-		NULL	AS	HIERARCHY_RANK_5	,
+		
+		(SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode)	AS	CATEGORY_NAME,
+		
+		(SELECT MIN(t1.Name) 
+		 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+		 WHERE t2.Code = p.ProductCategoryCode)	AS	CATEGORY_PARENT	,
+		
+		CASE p.Level
+			WHEN 1 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 2 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 3 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+						 WHERE t4.Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name)  
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t5 ON t4.CATEGORYID = t5.Parent
+						 WHERE t5.Code = p.ProductCategoryCode) 						 
+		END  AS	HIERARCHY_RANK_1,
+		
+		CASE p.Level
+			WHEN 2 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 3 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+						 WHERE t4.Code = p.ProductCategoryCode)  						 
+		END  AS	HIERARCHY_RANK_2,
+		
+		CASE p.Level
+			WHEN 3 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_3,
+		
+		CASE p.Level
+			WHEN 4 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_4,
+		
+		CASE p.Level
+			WHEN 5 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 				
+		END  AS	HIERARCHY_RANK_5,
+		
 		NULL	AS	UNIQUE_PRODUCT_CODE	,
 		NULL	AS	PHOTO_COUNT	,
 		NULL	AS	DELIVERY_TYPE	,
@@ -888,7 +993,9 @@ GROUP BY pge.entityProduct_key,
 		cif_nl_descr.text,
 		atr.LargeAtr,
 		pt.MPTypeCode,
-		p.removed 
+		p.removed,
+		p.Level,
+		p.ProductCategoryCode		
 
 		
 -- ORDER BY entity_key
