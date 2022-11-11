@@ -682,9 +682,26 @@ SELECT
 		LISTAGG(DISTINCT IFNULL(ct.text, ct2.text) , ', ') 					AS keywords_nl,
 	    LISTAGG(DISTINCT ct2.text , ', ') 									AS keywords_en,
 
-		p.MPTypeCode	AS	PRODUCT_TYPE_NAME	, -- ?
+		CASE p.MPTypeCode	
+			WHEN 'flower' THEN 'Flowers & Plants'
+			WHEN 'gadget-novelty' THEN 'Gadget / Novelty'
+			WHEN 'gift-card' THEN 'Gift Cards'
+			WHEN 'home-gift' THEN 'Gift for Home'
+			WHEN 'personalised-chocolate' THEN 'Gepersonaliseerde chocolade'
+			WHEN 'personalised-sweets' THEN 'Gepersonaliseerd snoep'
+			WHEN 'sweet' THEN 'Snoep'
+			WHEN 'toy-game' THEN 'Toy / Game'
+			ELSE initcap(replace(p.MPTypeCode, '-', ' ')) 
+		END  AS PRODUCT_TYPE_NAME, -- ?				
+		
 		p.MPTypeCode  	AS	PRODUCT_KEY	,
-		NULL	AS	PRODUCT_FAMILY	,			 -- ?
+		
+		CASE p.MPTypeCode 
+			WHEN 'flower' THEN 'Flowers' 	
+			WHEN 'addon' THEN 'Add-on' 
+			ELSE 'Gifts'
+		END	 AS	PRODUCT_FAMILY	,			 -- ?
+		
 		IFF(p.removed IS NULL, False, True) 	AS IS_PRODUCT_VARIANT_DELETED	,
 		p.removed	AS	PRODUCT_VARIANT_DELETED_TIMESTAMP	,
 		IFF(p.removed IS NULL, False, True)	AS	IS_PRODUCT_DELETED	,
@@ -942,9 +959,28 @@ SELECT
 		 WHERE ci.contentinformationid = p.contentinformationid  
 	  )  AS keywords_en,
 	 
-		pt.MPTypeCode	AS	PRODUCT_TYPE_NAME	, -- ?
+		CASE p.MPTypeCode	
+			WHEN 'flower' THEN 'Flowers & Plants'
+			WHEN 'gadget-novelty' THEN 'Gadget / Novelty'
+			WHEN 'gift-card' THEN 'Gift Cards'
+			WHEN 'home-gift' THEN 'Gift for Home'
+			WHEN 'personalised-chocolate' THEN 'Gepersonaliseerde chocolade'
+			WHEN 'personalised-sweets' THEN 'Gepersonaliseerd snoep'
+			WHEN 'sweet' THEN 'Snoep'
+			WHEN 'toy-game' THEN 'Toy / Game'
+			ELSE initcap(replace(p.MPTypeCode, '-', ' ')) 
+		END  AS PRODUCT_TYPE_NAME, -- ?				
+		
+		p.MPTypeCode  	AS	PRODUCT_KEY	,
+		
 		pt.MPTypeCode  	AS	PRODUCT_KEY	,
-		NULL	AS	PRODUCT_FAMILY	,			 -- ?
+		
+		CASE p.MPTypeCode 
+			WHEN 'flower' THEN 'Flowers' 	
+			WHEN 'addon' THEN 'Add-on' 
+			ELSE 'Gifts'
+		END	 AS	PRODUCT_FAMILY	,
+		
 		IFF(p.removed IS NULL, False, True) 	AS IS_PRODUCT_VARIANT_DELETED	,
 		p.removed	AS	PRODUCT_VARIANT_DELETED_TIMESTAMP	,
 		IFF(p.removed IS NULL, False, True)	AS	IS_PRODUCT_DELETED	,
