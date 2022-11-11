@@ -221,7 +221,9 @@ when p.id IN (1142818268) then 'chocolate'
 		IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,  nl_product_name_2,
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
-		AS entityProduct_key
+		AS entityProduct_key,
+		
+		pt.GreetzTypeID
 
 FROM "RAW_GREETZ"."GREETZ3".product p  
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg 
@@ -259,7 +261,7 @@ productList_CorrectedAttributesTemplate
 AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, p.removed,
+	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, p.removed, p.GreetzTypeID,
 	   case when MPTypeCode = 'personalised-alcohol' then 
 			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
 						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
@@ -333,8 +335,13 @@ productList AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
 	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2,
-	   p.CategoryCode, p.removed
+	   p.CategoryCode, p.removed, pc.Code AS ProductCategoryCode, pc.Level
+	   
 FROM productList_CorrectedAttributesTemplate p
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".type_to_category_view tc
+		ON tc.GreetzTypeID = p.GreetzTypeID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".Product_Category pc
+		ON pc.Code = tc.CategoryCode
 WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
 ),
 
@@ -498,7 +505,7 @@ AS
 		   
 		    CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
 			   COALESCE(
-					LISTAGG(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) , ', ')   
+					LISTAGG(DISTINCT IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey) , ', ')   
 			   , p.DefaultCategoryKey, ''))	
 			AS category_keys
     FROM
@@ -572,11 +579,37 @@ SELECT
 		
 		NULL	AS	CATEGORY_NAME	,
 		NULL	AS	CATEGORY_PARENT	,
-		NULL	AS	HIERARCHY_RANK_1	,
+		
+		CASE p.Level
+			WHEN 1 THEN (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) 
+			WHEN 2 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+						 WHERE t2.Code = p.ProductCategoryCode) 
+			WHEN 3 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+						 WHERE t3.Code = p.ProductCategoryCode) 				
+			WHEN 4 THEN (SELECT MIN(t1.Name) 
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+						 WHERE t4.Code = p.ProductCategoryCode) 
+			WHEN 5 THEN (SELECT MIN(t1.Name)  
+						 FROM "RAW_GREETZ"."GREETZ3".Product_Category t1 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t2 ON t1.CATEGORYID = t2.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t3 ON t2.CATEGORYID = t3.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t4 ON t3.CATEGORYID = t4.Parent 
+							JOIN "RAW_GREETZ"."GREETZ3".Product_Category t5 ON t4.CATEGORYID = t5.Parent
+						 WHERE t5.Code = p.ProductCategoryCode) 						 
+		END  AS	HIERARCHY_RANK_1,
+		
 		NULL	AS	HIERARCHY_RANK_2	,
 		NULL	AS	HIERARCHY_RANK_3	,
 		NULL	AS	HIERARCHY_RANK_4	,
 		NULL	AS	HIERARCHY_RANK_5	,
+		
 		NULL	AS	UNIQUE_PRODUCT_CODE	,
 		NULL	AS	PHOTO_COUNT	,
 		NULL	AS	DELIVERY_TYPE	,
@@ -602,13 +635,13 @@ SELECT
 	    IFNULL( cats_d.category_keys,		
 				CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
 					   COALESCE(
-							LISTAGG(DISTINCT(IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey)) , ', ')   
+							LISTAGG(DISTINCT IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey) , ', ')   
 					   , p.DefaultCategoryKey, '')))	
 	    AS CATEGORIES,
 
 	--	LISTAGG(DISTINCT(IFNULL(ct.text, ct2.text)) , ', ') 			--	AS SEARCH_KEYWORDS,
-		LISTAGG(DISTINCT(IFNULL(ct.text, ct2.text)) , ', ') 					AS keywords_nl,
-	    LISTAGG(DISTINCT(ct2.text) , ', ') 									AS keywords_en,
+		LISTAGG(DISTINCT IFNULL(ct.text, ct2.text) , ', ') 					AS keywords_nl,
+	    LISTAGG(DISTINCT ct2.text , ', ') 									AS keywords_en,
 
 		p.MPTypeCode	AS	PRODUCT_TYPE_NAME	, -- ?
 		p.MPTypeCode  	AS	PRODUCT_KEY	,
@@ -659,7 +692,10 @@ FROM
 			  ON ig.entityProduct_key = p.entityProduct_key			  
          LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpq_categories_view_2 mc 
 			  ON mc.GreetzCategoryID = cc.id
-				 AND mc.MPTypeCode = p.MPTypeCode_ForCategories
+				 AND (
+					  mc.MPTypeCode = p.MPTypeCode_ForCategories 
+					  OR mc.MPTypeCode = 'ALL'
+					  )
 				 AND (
 					  ig.entityProduct_key IS NULL  
 					  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
@@ -667,9 +703,9 @@ FROM
 		 LEFT JOIN productList_withAttributes atr
 			  ON p.ID = atr.ID
 		 LEFT JOIN productList_withSize s
-			ON p.ID = s.ID
+			  ON p.ID = s.ID
 		 LEFT JOIN cte_CategoriesForDesigns cats_d
-			ON p.ID = cats_d.ID AND p.designId = cats_d.designId	
+			  ON p.ID = cats_d.ID AND p.designId = cats_d.designId	
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM "RAW_GREETZ"."GREETZ3".productgroupentry pge
@@ -696,7 +732,9 @@ GROUP BY p.ID,
 		 p.removed,
 		 p.DefaultCategoryKey,
 		 s.Size,
-		 dfd.product_nl_description
+		 dfd.product_nl_description,
+		 p.Level,
+		 p.ProductCategoryCode
 		 
 
 UNION ALL
@@ -742,18 +780,39 @@ SELECT
 		NULL 	AS	SIZE,	
 		NULL  	AS	MCD_SIZE	,
 		
-	 CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+		CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
 			 COALESCE(
 					(
-					 SELECT LISTAGG(DISTINCT(mc.MPCategoryKey) , ', ')
+					 SELECT LISTAGG(DISTINCT mc.MPCategoryKey , ', ')
 					 FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
 						 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
 							ON cc.id = ci.contentcategoryid
+						/* LEFT JOIN Ignore_AgeCategory ig
+							ON ig.entityProduct_key = p.entityProduct_key	*/
 						 JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpq_categories_view_2 mc 
-							ON mc.GreetzCategoryID = cc.id 
-							   AND mc.MPTypeCode = pt.MPTypeCode_ForCategories
-							   AND mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups')
-					 WHERE ci.contentinformationid = p.contentinformationid  
+							 ON  (
+								  mc.MPTypeCode =  pt.MPTypeCode_ForCategories
+								  OR mc.MPTypeCode = 'ALL'
+								  )
+							 AND (								
+                                ci.contentcategoryid NOT IN
+								(
+								1039192272,		-- Zusje
+								1143733843,		-- vrouw
+								1143750947,		-- Women
+								1143750956,		-- Men
+								1143754568,		-- Little sister
+								1143754571,		-- Little brother
+								1143758798,		-- Little niece
+								1143758803,		-- Little nephew
+								1143758818,		-- Little son
+								1143758823,		-- Little daughter
+								1143757863,		-- Little granddaughter
+								1143757858		-- Little grandson
+								)
+								  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
+								 )					 
+                      WHERE ci.contentinformationid = p.contentinformationid  
 					)  
 		   , pt.DefaultCategoryKey, '' ))	 
 	   AS category_keys,
@@ -815,11 +874,12 @@ FROM
 				 AND cif_nl_descr.type = 'DESCRIPTION' 
 				 AND cif_nl_descr.locale = 'nl_NL'
 		 LEFT JOIN productList_withSize s
-			ON p.ID = s.ID
+			ON p.ID = s.ID		 
 				 
 GROUP BY pge.entityProduct_key,
 		 p.ID,
 		 p.PRODUCTCODE,
+		 p.entityProduct_key,
 		 p.CategoryCode,
 		 p.contentinformationid,
 		 pt.DefaultCategoryKey,
