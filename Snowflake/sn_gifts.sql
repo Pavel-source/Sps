@@ -2,7 +2,7 @@ WITH
 productList_withAttributes AS
 (
 SELECT  pl.ID, 
-		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,		
+		SUM(case when c.INTERNALNAME = 'Size' AND lower(ct.text) = 'large' then 1 else 0 end) as LargeAtr,	
 		SUM(case when (ci.contentcategoryid in (1143763303, 1143763773, 1143731608, 1143732596, 1143737611, 1143735338, 1143730173, 1143730254) 
 					   OR lower(ct.text) like '%letterbox%')
 					AND pl.ID != 1142812037			-- exception (suggested by Floris Janssen 2022-08-01)
@@ -27,7 +27,7 @@ GROUP BY pl.ID
 
 productList_0 AS
 (
-SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.AttributesTemplate, pt.CategoryCode,
+SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.CategoryCode,
 		p.removed,
 
 		case 
@@ -217,8 +217,7 @@ when p.id IN (1142818268) then 'chocolate'
 		
 		pt.MPTypeCode AS MPTypeCode_ForCategories,
 				
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, 
-		IFNULL(pgp.vatid, pgp_a.vatid) AS vatid,  nl_product_name_2,
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, nl_product_name_2,
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
 		AS entityProduct_key,
@@ -228,10 +227,6 @@ when p.id IN (1142818268) then 'chocolate'
 FROM "RAW_GREETZ"."GREETZ3".product p  
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg 
 		ON pg.productid = p.id
-	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgiftprice pgp 
-		ON pgp.productgiftid = p.id
-	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgiftaddonprice pgp_a 
-		ON pgp_a.productgiftaddonid = p.id AND p.id IN (1142785824, 1142802984, 1142781710, 1142781707)
 	LEFT JOIN 
 		(
 		 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product, cd.contentinformationid AS design_contentinformationid,
@@ -261,42 +256,7 @@ productList_CorrectedAttributesTemplate
 AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.nl_product_name_2, p.removed, p.GreetzTypeID,
-	   case when MPTypeCode = 'personalised-alcohol' then 
-			 '[{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}
-						]'		
-			when MPTypeCode	= 'alcohol' then '[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
-			when MPTypeCode IN ('personalised-chocolate', 'personalised-sweets') then 			
-						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
-						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
-						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
-						]'		
-			when MPTypeCode = 'personalised-mug' then  
-						'[{"attributeName": "range", "attributeValue": "tangled", "attributeType": "enum"}, 
-						{"attributeName": "product-range", "attributeValue": "range-tangled", "attributeType": "category-reference"},
-						{"attributeName": "product-range-text", "attributeValue": "Tangled", "attributeType": "text"},
-						{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},
-						{"attributeName": "reporting-occasion", "attributeValue": "general>general", "attributeType": "enum"},
-						{"attributeName": "reporting-relation", "attributeValue": "nonrelations", "attributeType": "enum"},
-						{"attributeName": "reporting-style", "attributeValue": "design>general", "attributeType": "enum"},
-						{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}
-						]'			
-			when MPTypeCode IN ('home-gift', 'gadget-novelty', 'beauty', 'toy-game', 'jewellery', 'chocolate') then 			
-						'[{"attributeName": "letterbox-friendly", "attributeValue": "false", "attributeType": "boolean"}]'	
-			when MPTypeCode IN ('jewellery', 'balloon', 'soft-toy', 'fruit') then NULL
-            when MPTypeCode = 'flower' then '[{"attributeName": "size", "attributeValue": "standard", "attributeType": "enum"},
-						{"attributeName": "oddsize", "attributeValue": "false", "attributeType": "boolean"},{"attributeName": "addons", "attributeValue": "ValueForAddon", "attributeType": "product-reference"}]'
-            else AttributesTemplate
-	   end
-	   AS AttributesTemplate,
+	   p.showonstore, p.designId, p.design_contentinformationid, p.entityProduct_key, p.nl_product_name_2, p.removed, p.GreetzTypeID,	  
 	   
 	   case 
 			when MPTypeCode = 'jewellery' then 'Jewellery-Accessories'
@@ -334,7 +294,7 @@ FROM productList_0 p
 productList AS
 (
 SELECT p.ID, p.entity_key, p.contentinformationid, p.DefaultCategoryKey, p.MPTypeCode, p.MPTypeCode_ForCategories, p.channelid, p.PRODUCTCODE, 	p.INTERNALNAME, 
-	   p.showonstore, p.designId, p.design_contentinformationid, p.vatid, p.entityProduct_key, p.AttributesTemplate, p.nl_product_name_2,
+	   p.showonstore, p.designId, p.design_contentinformationid, p.entityProduct_key, p.nl_product_name_2,
 	   p.CategoryCode, p.removed, pc.Code AS ProductCategoryCode, pc.Level
 	   
 FROM productList_CorrectedAttributesTemplate p
@@ -393,24 +353,6 @@ WHERE ci.contentcategoryid IN
 								)
 ),
 
-productList_withAttributes_2 AS
-(
-SELECT  pl.ID,
-		ct.text as BrandAttr
-FROM productList pl
-	 JOIN "RAW_GREETZ"."GREETZ3".contentinformation_category ci
-		  ON pl.contentinformationid = ci.contentinformationid
-	 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
-		  ON cc.id = ci.contentcategoryid
-	 JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct
-		  ON ct.contentcategoryid = cc.id
-			AND ct.locale = 'en_EN'
-	 JOIN "RAW_GREETZ"."GREETZ3".contentcategorytype c
-	      ON cc.categorytypeid = c.id
-WHERE pl.MPTypeCode = 'gift-card'
-	  AND c.INTERNALNAME = 'Brand/Designer'   		  	  
-),
-
 productList_withSize AS
 (
 SELECT  pl.ID,
@@ -426,7 +368,6 @@ FROM productList pl
 	 JOIN "RAW_GREETZ"."GREETZ3".contentcategorytype c
 	      ON cc.categorytypeid = c.id
 WHERE c.INTERNALNAME = 'Size'  
-	  AND lower(ct.text) LIKE '%personen%' 
 GROUP BY pl.ID		  	  
 ),
 
@@ -443,12 +384,12 @@ grouped_products AS
 	FROM "RAW_GREETZ"."GREETZ3".productgroupentry AS pge
 		JOIN "RAW_GREETZ"."GREETZ3".productgroup ppg ON pge.productGroupId = ppg.id 
 	 	JOIN productList pl ON pl.ID = pge.productStandardGift		
-	WHERE ppg.approvalStatus != 'DEACTIVATED'			
+--	WHERE ppg.approvalStatus != 'DEACTIVATED'			
 ),
 
 grouped_product_types_0 AS
 (
-	SELECT pge.productGroupId, pl.entity_key, pl.AttributesTemplate, pl.MPTypeCode, pl.MPTypeCode_ForCategories, pl.DefaultCategoryKey, 
+	SELECT pge.productGroupId, pl.entity_key, pl.MPTypeCode, pl.MPTypeCode_ForCategories, pl.DefaultCategoryKey, 
 		   ROW_NUMBER() OVER(PARTITION BY pge.productGroupId ORDER BY pge.productStandardGift) AS RN
 	FROM grouped_products pge
 		 JOIN productList pl ON pl.ID = pge.productStandardGift
@@ -549,7 +490,7 @@ SELECT
 		NULL	AS	FIRST_PUBLISHED_DATE_TIME	,
 		
 		case 
-			when s.Size IS NOT NULL  AND p.MPTypeCode IN ('cake', 'biscuit')
+			when lower(s.Size) LIKE '%personen%'  AND p.MPTypeCode IN ('cake', 'biscuit')
 			then
 				 case 
 					  when lower(IFNULL(concat(cif_nl_title.text, IFNULL(concat(' ', p.nl_product_name_2), '')), replace(p.INTERNALNAME, '_', ' '))) NOT LIKE '%personen%'
@@ -652,7 +593,7 @@ SELECT
 		NULL	AS	UNIQUE_PRODUCT_CODE	,
 		NULL	AS	PHOTO_COUNT	,
 		NULL	AS	DELIVERY_TYPE	,
-		IFF(atr.LargeAtr > 0, True, False)	AS	LETTERBOX_FRIENDLY	,
+		IFF(atr.LetterboxAtr > 0, True, False)	AS	LETTERBOX_FRIENDLY	,
 		NULL	AS	SHAPE	,
 		NULL	AS	IMAGE_HEIGHT	,
 		NULL	AS	IMAGE_WIDTH	,
@@ -668,19 +609,41 @@ SELECT
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
-		NULL 	AS	SIZE,	
-		NULL  	AS	MCD_SIZE	,
+		s.Size 	AS	SIZE,	
+		s.Size  	AS	MCD_SIZE	,
 	   
+	   CONCAT('{"categories":[',
 	    IFNULL( cats_d.category_keys,		
 				CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
 					   COALESCE(
 							LISTAGG(DISTINCT IFNULL(mc.MPCategoryKey, p.DefaultCategoryKey) , ', ')   
 					   , p.DefaultCategoryKey, '')))	
+		, ']}')
 	    AS CATEGORIES,
 
 	--	LISTAGG(DISTINCT(IFNULL(ct.text, ct2.text)) , ', ') 			--	AS SEARCH_KEYWORDS,
-		LISTAGG(DISTINCT IFNULL(ct.text, ct2.text) , ', ') 					AS keywords_nl,
-	    LISTAGG(DISTINCT ct2.text , ', ') 									AS keywords_en,
+	
+CONCAT('{',
+IFNULL(
+		CONCAT(
+			'"en":[',
+		LISTAGG(DISTINCT IFNULL(ct.text, ct2.text) , ', ') 					
+ ,
+			'],'
+		)
+, ''),	
+IFNULL(
+	CONCAT(
+	 '"nl":[',		
+		LISTAGG(DISTINCT ct2.text , ', ')
+										
+		
+		,
+	']'
+	)
+, ''),		 		 
+'}')
+AS	SEARCH_KEYWORDS	,
 
 		CASE p.MPTypeCode	
 			WHEN 'flower' THEN 'Flowers & Plants'
@@ -719,10 +682,7 @@ SELECT
 		'Greetz'	AS	BRAND_DESCRIPTION	
 
 FROM 
-         productList p
-      /*   LEFT JOIN "RAW_GREETZ"."GREETZ3".vat v
-              ON p.vatid = v.id AND v.countrycode = 'NL'*/
-			  
+         productList p		  
          LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_title
 			  ON cif_nl_title.contentinformationid = p.contentinformationid
 				 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
@@ -767,7 +727,8 @@ WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM "RAW_GREETZ"."GREETZ3".productgroupentry pge
 						  JOIN "RAW_GREETZ"."GREETZ3".productgroup ppg ON pge.productGroupId = ppg.id 
 						  JOIN productList pl ON pge.productstandardgift = pl.ID
-					 WHERE ppg.approvalStatus != 'DEACTIVATED')  
+				--	 WHERE ppg.approvalStatus != 'DEACTIVATED'
+					 )  
 						   
 GROUP BY p.ID,
 		 p.entityProduct_key, 
@@ -782,7 +743,7 @@ GROUP BY p.ID,
 		 p.design_contentinformationid,
 		 cif_nl_descr.text,
 		 cif_nl_descr_2.text,
-		 atr.LargeAtr,
+		 atr.LetterboxAtr,
 		 cats_d.category_keys,
 		 p.CategoryCode,
 		 p.removed,
@@ -805,7 +766,18 @@ SELECT
 		current_timestamp()	AS	VARIANT_CREATED_AT	,
 		FALSE	AS	IS_PUBLISHED	,
 		NULL	AS	FIRST_PUBLISHED_DATE_TIME	,
-		COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))	AS	PRODUCT_TITLE	,
+		
+		case 
+			when lower(s.Size) LIKE '%personen%'  AND p.MPTypeCode IN ('cake', 'biscuit')
+			then
+				 case 
+					  when lower(COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))) NOT LIKE '%personen%'
+					  then concat(COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' ')), ' | ', s.Size)
+					  else COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))
+				 end
+		else COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))
+		end 	AS	PRODUCT_TITLE	,
+		
 		cif_nl_descr.text AS	PRODUCT_DESCRIPTION	,
 		
 		(SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode)	AS	CATEGORY_NAME,
@@ -883,7 +855,7 @@ SELECT
 		NULL	AS	UNIQUE_PRODUCT_CODE	,
 		NULL	AS	PHOTO_COUNT	,
 		NULL	AS	DELIVERY_TYPE	,
-		IFF(atr.LargeAtr > 0, True, False)	AS	LETTERBOX_FRIENDLY	,
+		IFF(atr.LetterboxAtr > 0, True, False)	AS	LETTERBOX_FRIENDLY	,
 		NULL	AS	SHAPE	,
 		NULL	AS	IMAGE_HEIGHT	,
 		NULL	AS	IMAGE_WIDTH	,
@@ -899,10 +871,11 @@ SELECT
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
-		NULL 	AS	SIZE,	
-		NULL  	AS	MCD_SIZE	,
-		
-		CONCAT( IFNULL(CONCAT(p.CategoryCode, ', '), ''),
+		s.Size 	AS	SIZE,	
+		s.Size  	AS	MCD_SIZE	,
+			
+		CONCAT('{"categories":[', 
+			IFNULL(CONCAT(p.CategoryCode, ', '), ''),
 			 COALESCE(
 					(
 					 SELECT LISTAGG(DISTINCT mc.MPCategoryKey , ', ')
@@ -936,9 +909,14 @@ SELECT
 								 )					 
                       WHERE ci.contentinformationid = p.contentinformationid  
 					)  
-		   , pt.DefaultCategoryKey, '' ))	 
-	   AS category_keys,
+		   , pt.DefaultCategoryKey, '' )
+		   , ']}')	 
+	   AS CATEGORIES,
 
+CONCAT('{',
+IFNULL(
+		CONCAT(
+			'"en":[',
   	  (  SELECT LISTAGG(IFNULL(ct.text, ct2.text) , ', ')
 	     FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
 			 JOIN "RAW_GREETZ"."GREETZ3".contentcategory cc
@@ -948,7 +926,13 @@ SELECT
 			 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = p.contentinformationid  
-	  )  AS keywords_nl,
+	  ),
+			'],'
+		)
+, ''),	
+IFNULL(
+	CONCAT(
+	 '"nl":[',	
 
   	  (  SELECT LISTAGG(ct2.text , ', ')
 	     FROM "RAW_GREETZ"."GREETZ3".contentinformation_category ci
@@ -957,9 +941,13 @@ SELECT
 			 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct2
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = p.contentinformationid  
-	  )  AS keywords_en,
+	  ),
+	']')
+, ''),		 		 
+'}')
+AS	SEARCH_KEYWORDS	,
 	 
-		CASE p.MPTypeCode	
+		CASE pt.MPTypeCode	
 			WHEN 'flower' THEN 'Flowers & Plants'
 			WHEN 'gadget-novelty' THEN 'Gadget / Novelty'
 			WHEN 'gift-card' THEN 'Gift Cards'
@@ -968,14 +956,12 @@ SELECT
 			WHEN 'personalised-sweets' THEN 'Gepersonaliseerd snoep'
 			WHEN 'sweet' THEN 'Snoep'
 			WHEN 'toy-game' THEN 'Toy / Game'
-			ELSE initcap(replace(p.MPTypeCode, '-', ' ')) 
+			ELSE initcap(replace(pt.MPTypeCode, '-', ' ')) 
 		END  AS PRODUCT_TYPE_NAME, -- ?				
 		
-		p.MPTypeCode  	AS	PRODUCT_KEY	,
-		
 		pt.MPTypeCode  	AS	PRODUCT_KEY	,
-		
-		CASE p.MPTypeCode 
+				
+		CASE pt.MPTypeCode 
 			WHEN 'flower' THEN 'Flowers' 	
 			WHEN 'addon' THEN 'Add-on' 
 			ELSE 'Gifts'
@@ -1005,9 +991,6 @@ FROM
 			ON pge.productGroupId = ppg.id
 		 JOIN grouped_product_types pt 
 			ON pt.productGroupId = pge.productGroupId 
-         LEFT JOIN "RAW_GREETZ"."GREETZ3".vat v 
-			ON p.vatid = v.id 
-				AND v.countrycode = 'NL'
 		 LEFT JOIN productList_withAttributes atr 
 			ON p.ID = atr.ID
          LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_descr
@@ -1023,15 +1006,15 @@ GROUP BY pge.entityProduct_key,
 		 p.entityProduct_key,
 		 p.CategoryCode,
 		 p.contentinformationid,
+		 p.MPTypeCode,
 		 pt.DefaultCategoryKey,
 		 pt.MPTypeCode_ForCategories,
 		 COALESCE(ppg.title, replace(ppg.productGroupCode, '_', ' '))	,
 		cif_nl_descr.text,
-		atr.LargeAtr,
+		atr.LetterboxAtr,
 		pt.MPTypeCode,
 		p.removed,
 		p.Level,
-		p.ProductCategoryCode		
+		p.ProductCategoryCode,
+		s.Size
 
-		
--- ORDER BY entity_key
