@@ -11,9 +11,9 @@ FROM RAW_GREETZ.GREETZ3.carddefinition cd
 		ON cct.ID = cc.categorytypeid
 	JOIN RAW_GREETZ.GREETZ3.contentcategorytranslation ct
 		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
-WHERE  (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
-	  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
-	  AND cct.INTERNALNAME = 'Occasion'
+WHERE -- (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
+	  -- AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
+	  cct.INTERNALNAME = 'Occasion'
 	  AND lower(ct.TEXT) LIKE '%invit%'
 ),
 
@@ -36,23 +36,12 @@ SELECT DISTINCT
 				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pc.cardratio, cd.ORIENTATION, 
 				cd.CONTENTCOLLECTIONID, numberofphotos,
 				cif_nl_title.text  		AS nl_product_name,
-				cif_en_title.text  		AS en_product_name,
 
 				case pc.cardratio
 					when 'STANDARD' then 'rectangular'
 					when 'SQUARE'   then 'square'
 				end  									AS  Attribute_Shape,
 
-				case pc.CARDSIZE
-					when 'MEDIUM' then 1	
-					when 'LARGE' then 2
-					when 'XXL' then 3
-					when 'XL' then 4
-					when 'SUPERSIZE' then 5
-					when 'XS' then 6		
-					when 'SMALL' then 7 	
-					when 'MINI' then 8
-				end  									AS  NumberForSorting,
                 pc.AMOUNTOFPANELS                     
 				
 FROM RAW_GREETZ.GREETZ3.productcard pc
@@ -87,9 +76,7 @@ FROM RAW_GREETZ.GREETZ3.productcard pc
 	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_title
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
-	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_en_title
-		  ON cif_en_title.contentinformationid = cd.contentinformationid
-			 AND cif_en_title.type = 'TITLE' AND cif_en_title.locale = 'en_EN' 
+
 WHERE
      cd.ID
   IN
@@ -120,6 +107,7 @@ WHERE
 			OR (pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'SQUARE' AND pc.CARDSIZE IN ('LARGE', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
 		  )	 
+	-- AND cif_nl_title.text IS NOT NULL
 ),
 
 Carddefinition_Grouped AS
@@ -165,9 +153,6 @@ WHERE cct.INTERNALNAME IN ('Occasion', 'Design Style', 'Target Group')
 	 AND (cct.INTERNALNAME != 'Design Style' OR lower(ct.TEXT) NOT IN ('hip' ,'with flowers', 'cute', 'english cards', 'dutch cards'))
 )
 
-/* select *
- from attrs_0 a_oc	
-    where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME in ('Occasion'); */
 ,
 attr_Single_Val AS
 (
@@ -192,20 +177,13 @@ attr_3 AS
 (
 SELECT cte.INTERNALNAME, 
 	cte.carddefinitionid, 
+	
 	-- GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
 	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_2,  -- parents only
-	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 
-	
-	-- (SELECT LISTAGG(Val, ' - ') WITHIN GROUP(ORDER BY ID) FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID) AS Concat_1,
-	-- (SELECT LISTAGG(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END, '') FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME  ORDER BY catID) AS Concat_2,
-	-- (SELECT LISTAGG(DISTINCT case when parentcategoryid IS NULL then '' else Val END, '') FROM attrs_0 WHERE carddefinitionid = cte.carddefinitionid AND INTERNALNAME = cte.INTERNALNAME  ORDER BY catID) AS Concat_3,
-
+	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 	
     LISTAGG(Val, ' - ') within group (ORDER BY parentcategoryid DESC, case when Val like '%years%' then 1 else 0 end, cte.catID) AS Concat_1, 		-- just concatination	
-  --  listagg(Val, ' - ') within group (ORDER BY parentcategoryid) AS Concat_1,  
-   --  '' AS Concat_2,
-	 LISTAGG(case when parentcategoryid IS NOT NULL then '' else Val END, '') within group (ORDER BY cte.catID) AS Concat_2,  -- parents only
+	LISTAGG(case when parentcategoryid IS NOT NULL then '' else Val END, '') within group (ORDER BY cte.catID) AS Concat_2,  -- parents only
 	LISTAGG(case when parentcategoryid IS NULL then '' else Val END, '') within group(ORDER BY cte.catID) AS Concat_3,  -- childs only 
-    --   '' AS Concat_3,
 	
 	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs, amount
 	COUNT(*) AS cnt
@@ -231,7 +209,7 @@ SELECT INTERNALNAME, carddefinitionid, Val
 FROM attr_Single_Val
 ),
 
-attr_6 AS
+attr AS
 (
 SELECT INTERNALNAME,
 	   carddefinitionid,
@@ -240,12 +218,9 @@ SELECT INTERNALNAME,
 FROM attr_5
 GROUP BY INTERNALNAME,
 	   carddefinitionid
-)
+),
 
-
-,
-
-attr AS
+/*attr AS
 (
 SELECT DISTINCT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
 FROM attr_6
@@ -254,16 +229,7 @@ FROM attr_6
 WHERE (attr_6.INTERNALNAME != 'Occasion' OR e_oc.entity_key IS NOT NULL)
 	   AND
 	  (attr_6.INTERNALNAME != 'Design Style' OR e_st.entity_key IS NOT NULL)
-)
-
--- select *
--- from attr a_oc	
-  -- where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME in ('Occasion');
-
--- select * from attr where Val_Code = 'birthday-birthday-with-age';
-
-,
-
+),*/
 
 -- ----------------------------------------------------------
 
@@ -283,52 +249,6 @@ SELECT *,
 FROM ProductList_0
 )
 
--- select *
- -- from attr a_oc	;
-
-/* select *
- from attr a_oc	
-   where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME in ('Occasion'); 
-*/
-
- --  where a_oc.carddefinitionid = 106384381 AND a_oc.INTERNALNAME in ('Occasion'); 
- 
- -- where a_oc.carddefinitionid = 1081631421 AND collate(a_oc.INTERNALNAME, 'en-ci') in (collate('Occasion', 'en-ci'));
- 
--- where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME like '%ccasi%';
- 
--- collate(col1 , 'en-ci')
-/* 
-select *
-from 
-    (select 'Occasion' as a) s
-where  a = 'Occasion' ;
- 
- 
-  where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME like '%Occasion%';
- -- where a_oc.carddefinitionid = 1081631421 AND upper(a_oc.INTERNALNAME) in (upper('Occasion'));
- 
- 
- where a_oc.carddefinitionid = 1081631421 AND a_oc.INTERNALNAME in ('Occasion'); -- in ('Occasion', 'Target Group', 'Design Style'); -- 'Occasion';
-*/
-/*
-select pl.carddefinitionid, a_oc.*
-FROM ProductList pl	
-	 LEFT JOIN attr a_oc	
-		  ON a_oc.carddefinitionid = pl.carddefinitionid AND a_oc.INTERNALNAME = 'Occasion' -- in ('Occasion', 'Target Group', 'Design Style') -- = 'Occasion'
-where pl.carddefinitionid = 1081631558;
-*/
-
-/*Image_BackSize
-AS
-(
-SELECT carddefinitionid, MAX(i.WIDTH) AS WIDTH, MAX(i.HEIGHT) AS HEIGHT
-FROM ProductList pl
-	JOIN RAW_GREETZ.GREETZ3.imagepreviewsetting i 
-		ON i.CARDRATIOCODE = pl.cardratio AND i.ORIENTATION = pl.ORIENTATION
-WHERE i.TYPE = 'DESIGN_DEFINITION' AND i.side = 'BACKSIDE' 
-GROUP BY carddefinitionid
-)*/
 
 SELECT 
 pl.carddefinitionid	AS	PRODUCT_ID,
@@ -376,7 +296,7 @@ IFNULL(pr.product_range_key,'range-tangled')	AS	PRODUCT_RANGE	,
 NULL	AS	NOTES	,
 COALESCE(a_oc.Val_Name, a_oc_2.occasion_name, 'General > General')	AS	REPORTING_OCCASION	,
 IFNULL(a_des.Val_Name, 'Design > General')	AS	REPORTING_STYLE	,
-IFNULL(a_rl_2.MP_Code, 'Non relations')	AS	REPORTING_RELATION	,
+IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 'Anonymous'	AS	REPORTING_ARTIST	,
 NULL	AS	REPORTING_SUPPLIER	,
 NULL	AS	REPORTING_SUPPLIER_NO	,
@@ -468,20 +388,14 @@ FROM ProductList pl
 			 AND cif_nl_descr.type = 'DESCRIPTION' AND cif_nl_descr.locale = 'nl_NL'
 	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_descr_2
 		  ON cif_nl_descr_2.contentinformationid = pl.contentinformationid
-			 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'
-	/* LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_en_descr
-		  ON cif_en_descr.contentinformationid = pl.contentinformationid
-			 AND cif_en_descr.type = 'DESCRIPTION' AND cif_en_descr.locale = 'en_EN'	
-	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_en_descr_2
-		  ON cif_en_descr_2.contentinformationid = pl.contentinformationid
-			 AND cif_en_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_en_descr_2.locale = 'en_EN'*/	
+			 AND cif_nl_descr_2.type = 'PRODUCT_DESCRIPTION' AND cif_nl_descr_2.locale = 'nl_NL'	
 	 LEFT JOIN attr a_oc	
 		  ON a_oc.carddefinitionid = pl.carddefinitionid AND a_oc.INTERNALNAME = 'Occasion'
 	 LEFT JOIN attr a_des	
 		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'			  
 	 LEFT JOIN attr a_tgt	
 		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'			  
-	 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
+	LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 		  ON a_rl_2.Greetz_Name = a_tgt.Val_Name		  
 	 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_ranges_map_view_2 pr
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
@@ -494,10 +408,10 @@ FROM ProductList pl
 	 LEFT JOIN RAW_GREETZ.GREETZ3.export_productranges_view_2 spl
 			ON pr.product_range_key = spl.entity_key
 WHERE
- -- pl.carddefinitionid = 1081631558 AND
 
 		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
- GROUP BY 
+		AND (nl_product_name IS NOT NULL  OR cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL  OR pl.contentinformationid IS NOT NULL)
+GROUP BY 
 	pl.entity_key,
 	 pl.Attribute_Size,
 	 pl.carddefinitionid,
@@ -510,8 +424,11 @@ WHERE
 	pr.product_range_text,
 	pr.product_range_key,
 	a_oc.Val_Name, 
+	a_des.Val_Name, 
+	a_rl_2.MP_Name, 
 	a_oc_2.occasion_name,
-	a_des.Val_Name,
-	a_rl_2.MP_Code,
 	ig.carddefinitionid,
 	spl.channel_key	
+ORDER BY 
+	pl.entity_key,
+	pl.Attribute_Size
