@@ -609,8 +609,8 @@ SELECT
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
-		s.Size 	AS	SIZE,	
-		s.Size  	AS	MCD_SIZE	,
+		IFF(atr.LetterboxAtr > 0, 'Letterbox', s.Size) 		AS	SIZE,	
+		IFF(atr.LetterboxAtr > 0, 'Letterbox', s.Size)  	AS	MCD_SIZE	,
 	   
 	   CONCAT('{"categories":[',
 	    IFNULL( cats_d.category_keys,		
@@ -871,8 +871,8 @@ SELECT
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
-		s.Size 	AS	SIZE,	
-		s.Size  	AS	MCD_SIZE	,
+		IFF(atr.LetterboxAtr > 0, 'Letterbox', s.Size) 		AS	SIZE,	
+		IFF(atr.LetterboxAtr > 0, 'Letterbox', s.Size)  	AS	MCD_SIZE	,
 			
 		CONCAT('{"categories":[', 
 			IFNULL(CONCAT(p.CategoryCode, ', '), ''),
