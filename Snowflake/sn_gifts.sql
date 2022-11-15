@@ -252,6 +252,94 @@ WHERE p.TYPE IN ('standardGift', 'personalizedGift')
 	  AND p.channelid = '2'	
 ),
 
+-- -------------- attributes Occasion, Style, Relation   ---------------------------
+attrs_0 AS
+(
+SELECT DISTINCT cct.INTERNALNAME, p.ID, p.designId, p.contentinformationid, ct.TEXT AS Val, ci.CONTENTCATEGORYID AS catID, cc.parentcategoryid
+FROM productList_0 p
+	JOIN RAW_GREETZ.GREETZ3.contentinformation_category ci ON ci.CONTENTINFORMATIONID = IFNULL(p.design_contentinformationid, p.CONTENTINFORMATIONID)
+	JOIN RAW_GREETZ.GREETZ3.contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
+	JOIN RAW_GREETZ.GREETZ3.contentcategorytype cct ON cct.ID = cc.categorytypeid 
+	JOIN RAW_GREETZ.GREETZ3.contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
+WHERE cct.INTERNALNAME IN ('Occasion', 'Design Style', 'Target Group')
+	 AND (cct.INTERNALNAME != 'Design Style' OR lower(ct.TEXT) NOT IN ('hip' ,'with flowers', 'cute', 'english cards', 'dutch cards'))
+)
+
+,
+attr_Single_Val AS
+(
+SELECT INTERNALNAME, ID, designId, MIN(Val) AS Val
+FROM attrs_0
+GROUP BY INTERNALNAME, ID, designId
+HAVING COUNT(*) = 1
+),
+
+attr_2 AS 
+(
+SELECT DISTINCT INTERNALNAME, ID, designId 
+FROM attrs_0 AS cte1
+WHERE EXISTS (SELECT 1 
+			  FROM attrs_0 AS cte2 
+			  WHERE cte1.INTERNALNAME = cte2.INTERNALNAME 
+					AND cte1.ID = cte2.ID 
+					AND cte1.designId = cte2.designId 
+					AND cte1.parentcategoryid = cte2.catID)
+),
+
+attr_3 AS 
+(
+SELECT  cte.INTERNALNAME, 
+		cte.ID, 
+		cte.designId, 
+	
+	-- GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1, 		-- just concatination	
+	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NOT NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_2,  -- parents only
+	-- GROUP_CONCAT(DISTINCT case when parentcategoryid IS NULL then '' else Val END  ORDER BY catID SEPARATOR '') AS Concat_3,  -- childs only 	
+    LISTAGG(Val, ' - ') within group (ORDER BY parentcategoryid DESC, case when Val like '%years%' then 1 else 0 end, cte.catID) AS Concat_1, 		-- just concatination	
+	LISTAGG(case when parentcategoryid IS NOT NULL then '' else Val END, '') within group (ORDER BY cte.catID) AS Concat_2,  -- parents only
+	LISTAGG(case when parentcategoryid IS NULL then '' else Val END, '') within group(ORDER BY cte.catID) AS Concat_3,  -- childs only 
+	
+	SUM(case when parentcategoryid IS NULL then 1 ELSE 0 end) AS parents_cnt,		-- with out childs, amount
+	COUNT(*) AS cnt
+	-- ,COUNT(DISTINCT CatID) AS cnt_for_check
+FROM attrs_0 AS cte 
+	JOIN attr_2 AS cte_2 ON cte_2.INTERNALNAME = cte.INTERNALNAME AND cte_2.ID = cte.ID  AND cte_2.designId = cte.designId 
+GROUP BY cte.INTERNALNAME,
+		 cte.ID,
+		 cte.designId 
+),
+
+attr_5 AS
+(
+SELECT INTERNALNAME,
+	   ID, 
+	   designId, 
+	   case 
+			when INTERNALNAME = 'Occasion' then Concat_1 
+			else IFNULL(Concat_3, Concat_2)
+	   end  AS Val
+FROM attr_3 
+WHERE parents_cnt = 1 AND (cnt = 2 OR INTERNALNAME = 'Occasion')
+UNION ALL
+SELECT INTERNALNAME, ID, designId, Val
+FROM attr_Single_Val
+),
+
+attr AS
+(
+SELECT INTERNALNAME,
+	   ID, 
+	   designId,
+	   MIN(lower(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(Val, ' - ' , '-'), ' ' , '-'), '&' , '-and-'), '+' , 'plus'), '?' , ''),     '''' , '_'), '(' , ''), ')' , ''), '%', ''), '.', ''), '/', ''), '!', ''), 'ë', 'e'), '’', '_'), '*', '')))	AS Val_Code,
+	   MIN(concat(UPPER(LEFT(Val, 1)), SUBSTRING(Val ,2)))  AS Val_Name	   
+FROM attr_5
+GROUP BY INTERNALNAME,
+	   ID, 
+	   designId
+),
+
+-- ----------------------------------------------------------
+
 productList_CorrectedAttributesTemplate
 AS
 (
@@ -603,9 +691,9 @@ SELECT
 		NULL	AS	ARENA_ID	,
 		NULL	AS	PRODUCT_RANGE	,
 		NULL	AS	NOTES	,
-		NULL	AS	REPORTING_OCCASION	,
-		NULL	AS	REPORTING_STYLE	,
-		NULL	AS	REPORTING_RELATION	,
+		IFNULL(a_oc.Val_Name, 'General > General')	AS	REPORTING_OCCASION	,
+		'Design > General'	AS	REPORTING_STYLE	,
+		IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
@@ -722,6 +810,13 @@ FROM
 			  ON p.ID = s.ID
 		 LEFT JOIN cte_CategoriesForDesigns cats_d
 			  ON p.ID = cats_d.ID AND p.designId = cats_d.designId	
+			  
+		 LEFT JOIN attr a_oc	
+			  ON a_oc.ID = p.ID AND IFNULL(a_oc.designId, 0) = IFNULL(p.designId, 0) AND a_oc.INTERNALNAME = 'Occasion'			  
+		 LEFT JOIN attr a_tgt	
+			  ON a_tgt.ID = p.ID AND IFNULL(a_tgt.designId, 0) = IFNULL(p.designId, 0) AND a_tgt.INTERNALNAME = 'Target Group'			  
+		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
+			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
 			
 WHERE p.id NOT IN 	(SELECT pge.productstandardgift
 					 FROM "RAW_GREETZ"."GREETZ3".productgroupentry pge
@@ -751,7 +846,9 @@ GROUP BY p.ID,
 		 s.Size,
 		 dfd.product_nl_description,
 		 p.Level,
-		 p.ProductCategoryCode
+		 p.ProductCategoryCode,
+		 a_oc.Val_Name,
+		 a_rl_2.MP_Name
 		 
 
 UNION ALL
@@ -865,9 +962,9 @@ SELECT
 		NULL	AS	ARENA_ID	,
 		NULL	AS	PRODUCT_RANGE	,
 		NULL	AS	NOTES	,
-		NULL	AS	REPORTING_OCCASION	,
-		NULL	AS	REPORTING_STYLE	,
-		NULL	AS	REPORTING_RELATION	,
+		IFNULL(a_oc.Val_Name, 'General > General')	AS	REPORTING_OCCASION	,
+		'Design > General'	AS	REPORTING_STYLE	,
+		IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
 		NULL	AS	REPORTING_SUPPLIER_NO	,
@@ -998,7 +1095,14 @@ FROM
 				 AND cif_nl_descr.type = 'DESCRIPTION' 
 				 AND cif_nl_descr.locale = 'nl_NL'
 		 LEFT JOIN productList_withSize s
-			ON p.ID = s.ID		 
+			ON p.ID = s.ID	
+
+		 LEFT JOIN attr a_oc	
+			  ON a_oc.ID = p.ID AND IFNULL(a_oc.designId, 0) = IFNULL(p.designId, 0) AND a_oc.INTERNALNAME = 'Occasion'			  
+		 LEFT JOIN attr a_tgt	
+			  ON a_tgt.ID = p.ID AND IFNULL(a_tgt.designId, 0) = IFNULL(p.designId, 0) AND a_tgt.INTERNALNAME = 'Target Group'			  
+		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
+			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
 				 
 GROUP BY pge.entityProduct_key,
 		 p.ID,
@@ -1016,5 +1120,7 @@ GROUP BY pge.entityProduct_key,
 		p.removed,
 		p.Level,
 		p.ProductCategoryCode,
-		s.Size
+		s.Size,
+		a_oc.Val_Name,
+		a_rl_2.MP_Name
 

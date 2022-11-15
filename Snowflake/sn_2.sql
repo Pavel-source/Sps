@@ -395,7 +395,7 @@ FROM ProductList pl
 		  ON a_des.carddefinitionid = pl.carddefinitionid AND a_des.INTERNALNAME = 'Design Style'			  
 	 LEFT JOIN attr a_tgt	
 		  ON a_tgt.carddefinitionid = pl.carddefinitionid AND a_tgt.INTERNALNAME = 'Target Group'			  
-	LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
+	 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 		  ON a_rl_2.Greetz_Name = a_tgt.Val_Name		  
 	 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_ranges_map_view_2 pr
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
