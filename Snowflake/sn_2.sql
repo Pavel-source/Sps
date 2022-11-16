@@ -78,29 +78,6 @@ FROM RAW_GREETZ.GREETZ3.productcard pc
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 
 WHERE
-     cd.ID
-  IN
-  (
-  106384381	,
-106384387	,
-1076892919	,
-1076893699	,
-1076894253	,
-1076894290	,
-1076896358	,
-1076896381	,
-1076896586	,
-1077024314	,
-1081631178	,
-1081631421	,
-1081631558	,
-1081631606	,
-1081631703	,
-1083044595	,
-1083222578	,
-1084278066	
-)
-  AND
 	  cdc.channelID = '2'
 	  AND (
 			(pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'STANDARD'  AND pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE')) 
@@ -219,17 +196,6 @@ FROM attr_5
 GROUP BY INTERNALNAME,
 	   carddefinitionid
 ),
-
-/*attr AS
-(
-SELECT DISTINCT INTERNALNAME, carddefinitionid, Val_Code, Val_Name
-FROM attr_6
-	 LEFT JOIN RAW_GREETZ.GREETZ3.export_occasions_view_2 e_oc ON attr_6.Val_Code = e_oc.entity_key AND attr_6.INTERNALNAME = 'Occasion'
-	 LEFT JOIN RAW_GREETZ.GREETZ3.export_styles_view_2 e_st ON attr_6.Val_Code = e_st.entity_key AND attr_6.INTERNALNAME = 'Design Style'
-WHERE (attr_6.INTERNALNAME != 'Occasion' OR e_oc.entity_key IS NOT NULL)
-	   AND
-	  (attr_6.INTERNALNAME != 'Design Style' OR e_st.entity_key IS NOT NULL)
-),*/
 
 -- ----------------------------------------------------------
 

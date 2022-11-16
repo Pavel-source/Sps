@@ -20,7 +20,7 @@ FROM "RAW_GREETZ"."GREETZ3".product pl
 	 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentcategorytranslation ct
 		  ON ct.contentcategoryid = cc.id
 			AND ct.locale = 'en_EN'
-WHERE pl.TYPE IN ('standardGift', 'personalizedGift')
+WHERE pl.TYPE IN ('standardGift', 'personalizedGift', 'gift_addon')
 	  AND c.INTERNALNAME != 'Keywords'   
 GROUP BY pl.ID		  
 ),
@@ -31,7 +31,7 @@ SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryK
 		p.removed,
 
 		case 
-			  when p.id IN (1142785824, 1142802984, 1142781710, 1142781707) then 'addon' 
+			  when p.TYPE = 'gift_addon' then 'addon' 
 			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
 			  
 when p.id IN (
@@ -217,7 +217,7 @@ when p.id IN (1142818268) then 'chocolate'
 		
 		pt.MPTypeCode AS MPTypeCode_ForCategories,
 				
-		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, z.designId, z.design_contentinformationid, nl_product_name_2,
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, IFNULL(z.designId, 0) AS designId, z.design_contentinformationid, nl_product_name_2,
 		
 		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
 		AS entityProduct_key,
@@ -248,7 +248,7 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view_2 pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
 
-WHERE p.TYPE IN ('standardGift', 'personalizedGift')  
+WHERE p.TYPE IN ('standardGift', 'personalizedGift', 'gift_addon')  
 	  AND p.channelid = '2'	
 ),
 
@@ -261,7 +261,7 @@ FROM productList_0 p
 	JOIN RAW_GREETZ.GREETZ3.contentcategory cc ON cc.ID = ci.CONTENTCATEGORYID
 	JOIN RAW_GREETZ.GREETZ3.contentcategorytype cct ON cct.ID = cc.categorytypeid 
 	JOIN RAW_GREETZ.GREETZ3.contentcategorytranslation ct ON ct.CONTENTCATEGORYID = cc.ID  AND ct.LOCALE = 'en_EN'
-WHERE cct.INTERNALNAME IN ('Occasion', 'Design Style', 'Target Group')
+WHERE cct.INTERNALNAME IN ('Occasion', 'Target Group')
 	 AND (cct.INTERNALNAME != 'Design Style' OR lower(ct.TEXT) NOT IN ('hip' ,'with flowers', 'cute', 'english cards', 'dutch cards'))
 )
 
@@ -282,7 +282,7 @@ WHERE EXISTS (SELECT 1
 			  FROM attrs_0 AS cte2 
 			  WHERE cte1.INTERNALNAME = cte2.INTERNALNAME 
 					AND cte1.ID = cte2.ID 
-					AND cte1.designId = cte2.designId 
+					AND cte1.designId = cte2.designId
 					AND cte1.parentcategoryid = cte2.catID)
 ),
 
@@ -303,7 +303,10 @@ SELECT  cte.INTERNALNAME,
 	COUNT(*) AS cnt
 	-- ,COUNT(DISTINCT CatID) AS cnt_for_check
 FROM attrs_0 AS cte 
-	JOIN attr_2 AS cte_2 ON cte_2.INTERNALNAME = cte.INTERNALNAME AND cte_2.ID = cte.ID  AND cte_2.designId = cte.designId 
+	JOIN attr_2 AS cte_2 
+		ON cte_2.INTERNALNAME = cte.INTERNALNAME 
+			AND cte_2.ID = cte.ID  
+			AND cte_2.designId = cte.designId
 GROUP BY cte.INTERNALNAME,
 		 cte.ID,
 		 cte.designId 
@@ -509,7 +512,7 @@ AS
 		   end	AS product_en_description																		   
 
 	FROM
-		(SELECT * FROM productList WHERE designId IS NOT NULL) p
+		(SELECT * FROM productList WHERE designId != 0) p
 		 LEFT JOIN "RAW_GREETZ"."GREETZ3".contentinformationfield cif_nl_descr_design
 			  ON cif_nl_descr_design.contentinformationid = p.design_contentinformationid
 				 AND cif_nl_descr_design.type = 'DESCRIPTION' AND cif_nl_descr_design.locale = 'nl_NL'	
@@ -538,7 +541,7 @@ AS
 			   , p.DefaultCategoryKey, ''))	
 			AS category_keys
     FROM
-		(SELECT * FROM productList WHERE designId IS NOT NULL) p
+		(SELECT * FROM productList WHERE designId != 0) p
 		 JOIN "RAW_GREETZ"."GREETZ3".contentinformation_category ci
               ON p.design_contentinformationid = ci.contentinformationid OR p.contentinformationid = ci.contentinformationid
 		 LEFT JOIN Ignore_AgeCategory_ForDesigned ig
@@ -692,7 +695,7 @@ SELECT
 		NULL	AS	PRODUCT_RANGE	,
 		NULL	AS	NOTES	,
 		IFNULL(a_oc.Val_Name, 'General > General')	AS	REPORTING_OCCASION	,
-		'Design > General'	AS	REPORTING_STYLE	,
+		NULL	AS	REPORTING_STYLE	,
 		IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
@@ -812,9 +815,9 @@ FROM
 			  ON p.ID = cats_d.ID AND p.designId = cats_d.designId	
 			  
 		 LEFT JOIN attr a_oc	
-			  ON a_oc.ID = p.ID AND IFNULL(a_oc.designId, 0) = IFNULL(p.designId, 0) AND a_oc.INTERNALNAME = 'Occasion'			  
+			  ON a_oc.ID = p.ID AND a_oc.designId = p.designId AND a_oc.INTERNALNAME = 'Occasion'			  
 		 LEFT JOIN attr a_tgt	
-			  ON a_tgt.ID = p.ID AND IFNULL(a_tgt.designId, 0) = IFNULL(p.designId, 0) AND a_tgt.INTERNALNAME = 'Target Group'			  
+			  ON a_tgt.ID = p.ID AND a_tgt.designId = p.designId AND a_tgt.INTERNALNAME = 'Target Group'			  
 		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
 			
@@ -963,7 +966,7 @@ SELECT
 		NULL	AS	PRODUCT_RANGE	,
 		NULL	AS	NOTES	,
 		IFNULL(a_oc.Val_Name, 'General > General')	AS	REPORTING_OCCASION	,
-		'Design > General'	AS	REPORTING_STYLE	,
+		NULL	AS	REPORTING_STYLE	,
 		IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 		NULL	AS	REPORTING_ARTIST	,
 		NULL	AS	REPORTING_SUPPLIER	,
@@ -1098,9 +1101,9 @@ FROM
 			ON p.ID = s.ID	
 
 		 LEFT JOIN attr a_oc	
-			  ON a_oc.ID = p.ID AND IFNULL(a_oc.designId, 0) = IFNULL(p.designId, 0) AND a_oc.INTERNALNAME = 'Occasion'			  
+			  ON a_oc.ID = p.ID AND a_oc.designId = p.designId AND a_oc.INTERNALNAME = 'Occasion'			  
 		 LEFT JOIN attr a_tgt	
-			  ON a_tgt.ID = p.ID AND IFNULL(a_tgt.designId, 0) = IFNULL(p.designId, 0) AND a_tgt.INTERNALNAME = 'Target Group'			  
+			  ON a_tgt.ID = p.ID AND a_tgt.designId = p.designId AND a_tgt.INTERNALNAME = 'Target Group'			  
 		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
 				 
