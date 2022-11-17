@@ -1,0 +1,17 @@
+I'm ready to present you the first versions of the scripts for filling Product_Variants table: raw_greetz_gifts_backfill.sql, raw_greetz_cards_backfill.sql.
+I want to highlight some points, if they are not disirable I would be happy to correct or you can do it yourself.
+
+Script for gifts:
+This conditions is applied: product.type IN ('standardGift', 'personalizedGift', 'gift_addon'). Do we need envelopes (we have not migrated them into CT) ?
+For all rows: REPORTING_STYLE = NULL (gifts don't have "Design Style" category (unlike cards), so I don't know how to fill it).
+REPORTING_OCCASION has "default" value "General > General" for most of records, because 7.4K gifts have multiple "occasions" and it's not clear what one should be choosen.
+IS_PRODUCT_DELETED, IS_PRODUCT_VARIANT_DELETED are filled depending on product.removed field, but maybe product.removed in GreetzDB is too outdated now ?
+For flowers I see now in Product_Variants table, in the SIZE field the values: "Standard Card", "Large Card" - obviously not correct ? 
+1.8K records (from 10.7K) have CATEGORY = NULL
+
+Script for cards:
+PRODUCT_RANGE, REPORTING_OCCASION may contain values, not existing in CT
+
+For the both scripts:
+For all rows: IS_PUBLISHED = FALSE
+

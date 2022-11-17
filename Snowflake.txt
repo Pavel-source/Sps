@@ -1,0 +1,72 @@
+PAVEL_SADOVSKY, +
+
+Access to Snowflake has been set up. https://moonpig.eu-west-1.snowflakecomputing.com/
+Tables list:
+https://docs.google.com/spreadsheets/d/1py1CCeocYQGBCjfAKk-nl2nBlYYRIGwv/edit#gid=449909436
+Questions:
+https://docs.google.com/spreadsheets/d/1elCFj16M0zPSxbkBdRib-AWps1kqPghFew3SvE5IKEM/edit#gid=45784431
+CT:
+https://mc.europe-west1.gcp.commercetools.com/moonpig-prod/customers
+
+select * from "RAW_GREETZ"."GREETZ3".
+
+
+Questions
+----------------------------------------
+cards: FALSE	AS	IS_PRODUCT_DELETED	
+FALSE	AS	IS_PRODUCT_VARIANT_DELETED	,
+FALSE	AS	IS_PUBLISHED	,
+select distinct PRODUCT_FAMILY from PROD.DW_CORE.PRODUCT_VARIANTS; - всё нужно ? Нужны Envelope? есть additionalEnvelope, cardpackaging
+	REPORTING - all NULL ?
+	PRODUCT_TYPE_NAME
+for flowers I see SIZE: Standard Card, Large Card
+Нет CATEGORY, напр.: 797056576 - 1853 из 10087
+	SKU_Variant unique, but in lowcase not: gift_beauty_rituals_fragrancesticks_Sakura
+
+
+Notify: first_column - carddefinition, productId (for grouped)
+cards ranges: values don't exist in CT
+Occasion for Gifts: default value (General > General) for 7.4K gifts
+Design Style is not applied to gifts, so REPORTING_STYLE = NULL
+
+Remember:
+vat
+check NULL types
+
+----------------------------------------
+
+Important locations in SnowFlake:
+Database RAW_GREETZ, schema GREETZ3. This is a currently old copy of the GAP data. It is missing some essential tables. Action DPT: Get the copy up to date and complete.
+Database PROD, schema GREETZ_CORE_BACKFILLS. The landing place of the transformed migrated data.
+
+Other things discussed:
+We are starting with the Customer tables
+
+select IFF(NULL IS NULL, 'to_them', 'to_me') 
+
+Ansichtkaart	postcard
+Wenskaarten		greetingcard
+
+-----------------------
+
+current_timestamp()	AS	PRODUCT_CREATED_AT	,
+current_timestamp()	AS	VARIANT_CREATED_AT	,
+
+
+вместо GROUP_CONCAT(Val ORDER BY parentcategoryid, case when Val like '%years%' then 1 else 0 end, catID  SEPARATOR ' - ') AS Concat_1
+select LISTAGG(a, '-')
+from 
+(select 'a' as a union all select 'c' union all select 'b' order by a) s
+
+При сортировке - NULL последний
+select a
+from
+(
+select 1 as a union all select null
+) a
+order by a desc;
+
+не работает подзапрос:
+ (SELECT Name FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) AS	HIERARCHY_RANK_1
+работает:
+ (SELECT MIN(Name) FROM "RAW_GREETZ"."GREETZ3".Product_Category WHERE Code = p.ProductCategoryCode) AS	HIERARCHY_RANK_1
