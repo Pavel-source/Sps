@@ -1,12 +1,180 @@
-WITH greetz_to_mnpq_categories_cards_view AS
+WITH 
+ListWithDefaultAttributes
+AS
+(
+
+SELECT	3000096701 AS ID
+UNION ALL SELECT	3000096711
+UNION ALL SELECT	3000096721
+UNION ALL SELECT	3000096726
+UNION ALL SELECT	3000096731
+UNION ALL SELECT	3000096746
+UNION ALL SELECT	3000096751
+UNION ALL SELECT	3000096256
+UNION ALL SELECT	3000096276
+UNION ALL SELECT	3000096281
+UNION ALL SELECT	3000096286
+UNION ALL SELECT	3000096291
+UNION ALL SELECT	3000096296
+UNION ALL SELECT	3000096301
+UNION ALL SELECT	3000096306
+UNION ALL SELECT	3000096311
+UNION ALL SELECT	3000096316
+UNION ALL SELECT	3000096321
+UNION ALL SELECT	3000096326
+UNION ALL SELECT	3000096331
+UNION ALL SELECT	3000096336
+UNION ALL SELECT	3000096341
+UNION ALL SELECT	3000096346
+UNION ALL SELECT	3000096351
+UNION ALL SELECT	3000096356
+UNION ALL SELECT	3000096361
+UNION ALL SELECT	3000096366
+UNION ALL SELECT	3000096371
+UNION ALL SELECT	3000096261
+UNION ALL SELECT	3000096266
+UNION ALL SELECT	3000096376
+UNION ALL SELECT	3000096161
+UNION ALL SELECT	3000096181
+UNION ALL SELECT	3000096191
+UNION ALL SELECT	3000096196
+UNION ALL SELECT	3000096201
+UNION ALL SELECT	3000096206
+UNION ALL SELECT	3000096211
+UNION ALL SELECT	3000096216
+UNION ALL SELECT	3000096221
+UNION ALL SELECT	3000096226
+UNION ALL SELECT	3000096231
+UNION ALL SELECT	3000096236
+UNION ALL SELECT	3000096241
+UNION ALL SELECT	3000096246
+UNION ALL SELECT	3000096251
+UNION ALL SELECT	3000096381
+UNION ALL SELECT	3000096386
+UNION ALL SELECT	3000095911
+UNION ALL SELECT	3000095931
+UNION ALL SELECT	3000095936
+UNION ALL SELECT	3000095941
+UNION ALL SELECT	3000095951
+UNION ALL SELECT	3000095956
+UNION ALL SELECT	3000095966
+UNION ALL SELECT	3000095976
+UNION ALL SELECT	3000095986
+UNION ALL SELECT	3000095996
+UNION ALL SELECT	3000096006
+UNION ALL SELECT	3000096011
+UNION ALL SELECT	3000096016
+UNION ALL SELECT	3000096021
+UNION ALL SELECT	3000096061
+UNION ALL SELECT	3000096071
+UNION ALL SELECT	3000095921
+UNION ALL SELECT	3000096026
+UNION ALL SELECT	3000096036
+UNION ALL SELECT	3000096076
+UNION ALL SELECT	3000096601
+UNION ALL SELECT	3000096606
+UNION ALL SELECT	3000096611
+UNION ALL SELECT	3000096616
+UNION ALL SELECT	3000096621
+UNION ALL SELECT	3000096626
+UNION ALL SELECT	3000096631
+UNION ALL SELECT	3000096636
+UNION ALL SELECT	3000096641
+UNION ALL SELECT	3000096646
+UNION ALL SELECT	3000096651
+UNION ALL SELECT	3000096656
+UNION ALL SELECT	3000096661
+UNION ALL SELECT	3000095631
+UNION ALL SELECT	3000095636
+UNION ALL SELECT	3000095641
+UNION ALL SELECT	3000095646
+UNION ALL SELECT	3000095651
+UNION ALL SELECT	3000095656
+UNION ALL SELECT	3000095661
+UNION ALL SELECT	3000095666
+UNION ALL SELECT	3000095671
+UNION ALL SELECT	3000095676
+UNION ALL SELECT	3000095681
+UNION ALL SELECT	3000095686
+UNION ALL SELECT	3000095691
+UNION ALL SELECT	3000095696
+UNION ALL SELECT	3000095701
+UNION ALL SELECT	3000095706
+UNION ALL SELECT	3000095711
+UNION ALL SELECT	3000095716
+UNION ALL SELECT	3000095721
+UNION ALL SELECT	3000095726
+UNION ALL SELECT	3000095731
+UNION ALL SELECT	3000095736
+UNION ALL SELECT	3000095741
+UNION ALL SELECT	3000095746
+UNION ALL SELECT	3000095751
+UNION ALL SELECT	3000095756
+UNION ALL SELECT	3000095761
+UNION ALL SELECT	3000095766
+UNION ALL SELECT	3000095771
+UNION ALL SELECT	3000096666
+UNION ALL SELECT	3000096671
+UNION ALL SELECT	3000096771
+UNION ALL SELECT	3000096776
+UNION ALL SELECT	3000096781
+UNION ALL SELECT	3000096786
+UNION ALL SELECT	3000096791
+UNION ALL SELECT	3000096796
+UNION ALL SELECT	3000096801
+UNION ALL SELECT	3000096806
+UNION ALL SELECT	3000096811
+UNION ALL SELECT	3000096816
+UNION ALL SELECT	3000096821
+UNION ALL SELECT	3000096826
+UNION ALL SELECT	3000096831
+UNION ALL SELECT	3000096836
+UNION ALL SELECT	3000096841
+UNION ALL SELECT	3000096846
+UNION ALL SELECT	3000096851
+UNION ALL SELECT	3000096856
+UNION ALL SELECT	3000096861
+UNION ALL SELECT	3000096866
+UNION ALL SELECT	3000096871
+UNION ALL SELECT	3000096876
+UNION ALL SELECT	3000096881
+UNION ALL SELECT	3000096926
+UNION ALL SELECT	3000096931
+UNION ALL SELECT	3000096936
+UNION ALL SELECT	3000096941
+UNION ALL SELECT	3000096946
+UNION ALL SELECT	3000096951
+UNION ALL SELECT	3000096956
+UNION ALL SELECT	3000096961
+UNION ALL SELECT	3000096966
+UNION ALL SELECT	3000096971
+UNION ALL SELECT	3000096976
+UNION ALL SELECT	3000096986
+UNION ALL SELECT	3000096991
+UNION ALL SELECT	3000096996
+UNION ALL SELECT	3000097001
+UNION ALL SELECT	3000097006
+UNION ALL SELECT	3000097011
+UNION ALL SELECT	3000097016
+UNION ALL SELECT	3000095856
+UNION ALL SELECT	3000095861
+UNION ALL SELECT	3000095866
+UNION ALL SELECT	3000095871
+UNION ALL SELECT	3000095876
+UNION ALL SELECT	3000095881
+UNION ALL SELECT	3000095891
+UNION ALL SELECT	3000095896
+UNION ALL SELECT	3000097026
+),
+greetz_to_mnpq_categories_cards_view AS
 (
 SELECT GreetzCategoryID, MPCategoryKey
 FROM greetz_to_mnpq_categories_cards_view
 UNION ALL SELECT 1143774336, 'teacher'
-UNION ALL SELECT 1143735059, 'loesje-kerst'
+/*UNION ALL SELECT 1143735059, 'loesje-kerst'
 UNION ALL SELECT 1143735104, 'cute-as-a-button-kerst'
 UNION ALL SELECT 1143735113, 'blond-amsterdam-kerst'
-UNION ALL SELECT 1143773516, 'sandysign'
+UNION ALL SELECT 1143773516, 'sandysign'*/
 ),
 
 Invitations
@@ -46,7 +214,8 @@ SELECT DISTINCT
 				cd.contentinformationid, pc.productid, 
 				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pcp.vatid, pc.cardratio, cd.ORIENTATION, 
 				cd.CONTENTCOLLECTIONID, numberofphotos,
-				cif_nl_title.text  		AS nl_product_name,
+				case when RIGHT(cif_nl_title.text, 2) = ' |'  then trim(LEFT(cif_nl_title.text, LENGTH(cif_nl_title.text) - 2)) ELSE cif_nl_title.text end  AS nl_product_name,
+				-- cif_nl_title.text  		AS nl_product_name,
 				cif_en_title.text  		AS en_product_name,
 
 				case pc.cardratio
@@ -123,15 +292,16 @@ WHERE
 		  )	 
 	  AND
 	  (
-		  ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
+		 /* ((cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
 		  AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
 		  AND ((cd.EXCLUDEFROMSEARCHINDEX = 'N' AND cif_nl_title.TYPE IS NOT NULL) OR cd.EXCLUDEFROMSEARCHINDEX IS NULL)
 		  AND (r.id is null OR (r.orderablefrom <= current_date() AND current_date() <= r.shippableto))	 
 		  AND bl.carddefinitionid IS NULL
 		  AND (cif_nl_title.text IS NOT NULL  OR  cif_en_title.text IS NOT NULL)
-		  AND concat(:designIds) IS NULL) 
-		 -- OR case when pc.AMOUNTOFPANELS = 2 then cast(cd.ID as varchar(50)) else concat(cast(cd.ID as varchar(50)), '-P') end  IN (:designIds)
-		 OR cast(cd.ID as varchar(50)) IN (:designIds)
+		  AND concat(:designIds) IS NULL) */
+
+		 cast(cd.ID as varchar(50)) IN (:designIds)
+		 OR (concat(:designIds) IS NULL  AND  concat(:keys) IS NOT NULL)
 	  )
 ),
 
@@ -334,10 +504,13 @@ SELECT
 					   ON ct2.contentcategoryid = cc.id AND ct2.locale = 'en_EN'
 		 WHERE ci.contentinformationid = pl.contentinformationid)  					  AS keywords_en,
 		
+		
 		concat(
 				IFNULL(
-				(
-					 SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
+				
+					IF(da.ID IS NOT NULL, NULL, 
+					
+					 (SELECT group_concat(DISTINCT(mc.MPCategoryKey) separator ', ')
 					 FROM contentinformation_category ci
 						 JOIN contentcategory cc
 							ON cc.id = ci.contentcategoryid
@@ -350,9 +523,12 @@ SELECT
 							AND (
 								  ig.carddefinitionid IS NULL  
 								  OR (mc.MPCategoryKey NOT LIKE '%years-old' AND mc.MPCategoryKey NOT IN ('all-kids', 'age-other', 'age-unspecified', 'age-groups'))
-								)				)  
+								))									  
+								
+					 )		
 			   , 'greeting-cards')
-		, case when pl.numberofphotos > 0 then ', photo-cover-cards' else '' end)
+		, case when pl.numberofphotos > 0 then ', photo-cover-cards' else '' end
+		)
 	   AS category_keys,
 	   
 		
@@ -425,14 +601,14 @@ SELECT
 				case when pl.AMOUNTOFPANELS = 2 then CONCAT('{"attributeName": "size", "attributeValue": "', pl.Attribute_Size, 
 				'", "attributeType": "enum"}, {"attributeName": "shape", "attributeValue": "', pl.Attribute_Shape, '", "attributeType": "enum"}, ') 
 				else '' end,
-				'{"attributeName": "range", "attributeValue": "', IFNULL(replace(pr.product_range_key, 'range-', ''),'tangled'),						
-				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', IFNULL(pr.product_range_key,'range-tangled'), '", "attributeType": "category-reference"},',
-				'{"attributeName": "product-range-text", "attributeValue": "', IFNULL(pr.product_range_text,'Tangled'), '", "attributeType": "text"},',
+				'{"attributeName": "range", "attributeValue": "', IF(da.ID IS NOT NULL, 'tangled', IFNULL(replace(pr.product_range_key, 'range-', ''),'tangled')),						
+				'", "attributeType": "enum"}, {"attributeName": "product-range", "attributeValue": "', IF(da.ID IS NOT NULL, 'range-tangled', IFNULL(pr.product_range_key,'range-tangled')), '", "attributeType": "category-reference"},',
+				'{"attributeName": "product-range-text", "attributeValue": "', IF(da.ID IS NOT NULL, 'Tangled', IFNULL(pr.product_range_text,'Tangled')), '", "attributeType": "text"},',
 				'{"attributeName": "photo-count", "attributeValue": "', case when pl.numberofphotos >= 0 then pl.numberofphotos else 0 end, '", "attributeType": "number"},',
 				'{"attributeName": "reporting-artist", "attributeValue": "anonymous", "attributeType": "enum"},',
-				'{"attributeName": "reporting-occasion", "attributeValue": "' , COALESCE(a_oc.Val_Code, a_oc_2.occasion_code, "general>general"), '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-relation", "attributeValue": "' , IFNULL(a_rl_2.MP_Code, "nonrelations"), '", "attributeType": "enum"},',
-				'{"attributeName": "reporting-style", "attributeValue": "' , IFNULL(a_des.Val_Code, "design>general"), '", "attributeType": "enum"}]')
+				'{"attributeName": "reporting-occasion", "attributeValue": "' , IF(da.ID IS NOT NULL, "general>general", COALESCE(a_oc.Val_Code, a_oc_2.occasion_code, "general>general")), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-relation", "attributeValue": "' , IF(da.ID IS NOT NULL, "nonrelations", IFNULL(a_rl_2.MP_Code, "nonrelations")), '", "attributeType": "enum"},',
+				'{"attributeName": "reporting-style", "attributeValue": "' , IF(da.ID IS NOT NULL, "design>general", IFNULL(a_des.Val_Code, "design>general")), '", "attributeType": "enum"}]')
 			
 		   ) SEPARATOR ','), ']'), '"[{\\"', '[{"'), '\"}]"}', '"}]}'), '\\', ''), '}]",', '}],'), '"{"', '{"'), '"}"', '"}'), 'rntttt', ''), ']"}]', ']}]'), '}]"}', '}]}'), '"[]"', '[]')
 	    AS product_variants	
@@ -474,6 +650,8 @@ FROM ProductList pl
 		  ON inv.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN Ignore_AgeCategory ig
 		  ON ig.carddefinitionid = pl.carddefinitionid	
+	 LEFT JOIN ListWithDefaultAttributes da
+		  ON da.ID = pl.carddefinitionid	
 WHERE
 		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
 	/*	AND e_oc.entity_key IS NOT NULL 
