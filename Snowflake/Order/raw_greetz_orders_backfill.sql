@@ -1,4 +1,4 @@
-
+-- WITH cte_GrouppedByOrderLine
 SELECT 
 	o.ID AS ORDER_ID,
 	CAST(o.CREATED AS DATE) AS ORDER_DATE,
@@ -12,8 +12,14 @@ SELECT
 	NULL AS	PLATFORM	,										-- to do later
 	concat('LEGO-', o.ORDERCODE) AS	ORDER_NUMBER	,
 	IFF(o.currentorderstate = 'CANCELLED', 'Cancelled', 'Confirmed') AS	ORDER_STATE	,
+	sum(case when ol.packettoselfid IS NULL then 1 else 0 end)  AS not_toself_count	,
+	sum(case when ol.packettoselfid IS NOT NULL then 1 else 0 end)  AS toself_count	,
 	--	NUMBER_OF_ADDRESSES	,
-	--	ORDER_ADDRESS_TYPE	,
+	case 
+		when not_toself_count > 0 AND toself_count = 0 then 'DIRECT'
+		when not_toself_count = 0 AND toself_count > 0 then 'CUSTOMER'
+		when not_toself_count > 0 AND toself_count > 0 then 'SPLIT'
+	end 	AS ORDER_ADDRESS_TYPE	,
 	--	SINGLE_ADDRESS_FLAG	,
 	'LineItemLevel' AS ORDER_TAX_CALCULATION	,
 	True AS ORDER_TRANSACTION_FEE	,
@@ -52,7 +58,7 @@ SELECT
 	abs(sum(case when o.productcode != 'shipment_generic' then o.DISCOUNTWITHVAT else 0 end)) AS TOTAL_DISCOUNT	,
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,
 	sum(ol.TOTALWITHVAT) AS ORDER_ISIV	,
---	ORDER_CASH_PAID	,
+	sum(ol.TOTALWITHVAT) ORDER_CASH_PAID	,
 --	PRODUCT_UNIT_PRICE_GBP	,
 	sum(case when gpv.productcode != 'shipment_generic' then ex.avg_rate * ol.TOTALWITHOUTVAT else 0 end)  AS ORDER_ESEV_GBP	,
 --	POSTAGE_UNIT_PRICE_GBP	,
@@ -67,7 +73,7 @@ SELECT
 	abs(sum(case when o.productcode != 'shipment_generic' then ex.avg_rate * o.DISCOUNTWITHVAT else 0 end))  AS TOTAL_DISCOUNT_GBP	,
 	sum(ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT))  AS TOTAL_TAX_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHVAT)  AS ORDER_ISIV_GBP	,
-	ORDER_CASH_PAID_GBP	,
+	sum(ex.avg_rate * ol.TOTALWITHVAT) AS ORDER_CASH_PAID_GBP	,
 	GROSS_PRODUCT_MARGIN	,
 	GROSS_SHIPPING_MARGIN	,
 	TOTAL_GROSS_MARGIN	,
@@ -209,8 +215,8 @@ SELECT
 
 FROM
 --	(SELECT * FROM orders WHERE ordercode = '1-4RKXKMFYL1' /*id = 1337079006*/ ORDER BY id DESC LIMIT 1000) o
-    orders o
-    INNER JOIN orderline AS ol 
+    "RAW_GREETZ"."GREETZ3".orders o
+    INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
 	LEFT JOIN PROD.dw_lookup.exchange_rate_history AS ex
 		ON ex.month = concat(year(o.CREATED), iff(month(o.CREATED) < 10, '0',''), month(o.CREATED))
@@ -220,14 +226,16 @@ FROM
 		ON ex_2.month = concat(year(o.CREATED), iff(month(o.CREATED) < 10, '0',''), month(o.CREATED))
 			AND ex_2.local_currency = 'GBP'
 			AND ex_2.destination_currency = 'EUR'
-	LEFT JOIN productiteminbasket p 
-		ON p.ID = ol.PRODUCTITEMINBASKETID
-	LEFT JOIN customercreatedcard c 
-		ON p.CONTENTSELECTIONID = c.ID
-	LEFT JOIN tmp_dm_gift_product_variants gpv 
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket pib 
+		ON pib.ID = ol.PRODUCTITEMINBASKETID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard c 
+		ON pib.CONTENTSELECTIONID = c.ID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
 		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
 		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".product AS p
+		ON ol.productid = p.ID
 			
 GROUP BY 
 	o.ID
