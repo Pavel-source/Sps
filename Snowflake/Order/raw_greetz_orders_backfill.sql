@@ -109,6 +109,7 @@ SELECT
 	SUM(IFF(p.TYPE = 'productCardSingle', 1, 0))  AS cards,
 	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND gpv.productTypeKey != 'flower', 1, 0))  AS gifts,
 	SUM(IFF(gpv.productTypeKey = 'flower', 1, 0))  AS flowers,
+	SUM(IFF(p.TYPE = 'productCardSingle', ol.productamount, 0))  AS cards_total_amount,
 	
 	IFF(cards > 0, True, False)  AS IS_CARD_ORDER	,
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
@@ -138,36 +139,46 @@ SELECT
 	IFF(gifts > 0 OR flowers > 0, True, False)  AS IS_GIFT_OR_FLOWER_ORDER	,
 	IFF(cards > 0 AND gifts > 0, True, False)  AS IS_GIFT_ATTACH_ORDER	,
 	IFF(cards > 0 AND flowers > 0, True, False)  AS IS_FLOWER_ATTACH_ORDER	,
-	IFF(IS_CARD_ORDER = True AND IS_FLOWER_UPSELL_ORDER = True, True, False)  AS IS_CARD_ONLY_ORDER	,
+	IFF(IS_CARD_ORDER = True AND IS_FLOWER_UPSELL_ORDER = True, True, False)  AS IS_LARGE_FLOWER_ATTACH_ORDER	,
 	
 	IFF(cards > 0 AND gifts = 0 AND flowers = 0, True, False)  AS IS_CARD_ONLY_ORDER	,
 	IFF(cards = 0 AND gifts = 0 AND flowers > 0, True, False)  AS IS_FLOWER_ONLY_ORDER	,
 	IFF(cards = 0 AND gifts > 0 AND flowers = 0, True, False)  AS IS_GIFT_ONLY_ORDER	,
+	
+	-- TRUE of order has IS_GIFT_ORDER = TRUE and IS_FLOWER_ORDER = TRUE (and not IS_CARD_ORDER)		??
 	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_FLOWER_OR_GIFT_ONLY_ORDER	,
-	IFF(cards = 0, True, False)  AS IS_NON_CARD_ORDER	,
-	IS_MULTI_CARD_ORDER	,
-	IS_XSELL_ORDER	,
-	IS_FLOWER_XSELL_ORDER	,
-	IS_GIFT_XSELL_ORDER	,
+	
+	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_NON_CARD_ORDER	,
+	
+	 
+	IFF(cards_total_amount > 1, True, False)  AS IS_MULTI_CARD_ORDER	,
+	 
+	False  AS IS_XSELL_ORDER	,
+	False  AS IS_FLOWER_XSELL_ORDER	,
+	False  AS IS_GIFT_XSELL_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0, True, False)  AS IS_DISCOUNTED_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_CARD_DISCOUNTED_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_GIFT_DISCOUNTED_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_PHOTO_UPLOAD_ORDER	,
-	IS_LOW_EFFORT_ORDER	,
-	IS_HIGH_EFFORT_ORDER	,
-	IS_LOW_EFFORT_CARD_ORDER	,
-	IS_HIGH_EFFORT_CARD_ORDER	,
-	IFF(gifts > 0, True, False)  AS IS_CUSTOMER_ADDRESS_TYPE_ORDER_ONLY	,
-	IFF(gifts > 0, True, False)  AS IS_DIRECT_ADDRESS_TYPE_ORDER_ONLY	,
+	IFF(TOTAL_DISCOUNT > 0 AND cards > 0, True, False)  AS IS_CARD_DISCOUNTED_ORDER	,
+	IFF(TOTAL_DISCOUNT > 0 AND gifts > 0, True, False)  AS IS_GIFT_DISCOUNTED_ORDER	,
+	IFF(TOTAL_DISCOUNT > 0 AND flowers > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
+	IFF(TOTAL_DISCOUNT > 0 AND IS_NON_CARD_ORDER = True, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
+	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR gpv.productKey LIKE 'GRTZD%', 1, 0))  AS sum_IS_PHOTO_UPLOAD_ORDER	,
+	IFF(sum_IS_PHOTO_UPLOAD_ORDER > 0, True, False)  AS IS_PHOTO_UPLOAD_ORDER	,
+	IFF(IS_PHOTO_UPLOAD_ORDER = True, False, True)  AS IS_LOW_EFFORT_ORDER	,
+	IS_PHOTO_UPLOAD_ORDER  AS IS_HIGH_EFFORT_ORDER	,
+	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS sum_IS_PHOTO_UPLOAD_ORDER_card_only	,
+	IFF(sum_IS_PHOTO_UPLOAD_ORDER_card_only > 0, False, True)  AS IS_LOW_EFFORT_CARD_ORDER	,
+	IFF(sum_IS_PHOTO_UPLOAD_ORDER_card_only > 0, True, False)  AS IS_HIGH_EFFORT_CARD_ORDER	,
+	
+	IFF(toself_count > 0 AND not_toself_count = 0, True, False)  AS IS_CUSTOMER_ADDRESS_TYPE_ORDER_ONLY	,
+	IFF(toself_count = 0 AND not_toself_count > 0, True, False)  AS IS_DIRECT_ADDRESS_TYPE_ORDER_ONLY	,
 	IS_EMAIL_ADDRESS_TYPE_ORDER_ONLY	,
 	IFF(gifts > 0, True, False)  AS IS_SPLIT_ADDRESS_TYPE_ORDER	,
-	IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER	,
-	CARD_QUANTITY	,
-	GIFT_QUANTITY	,
-	FLOWER_QUANTITY	,
-	CARD_FLOWER_QUANTITY	,
+	False  AS IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER	,
+	cards_total_amount AS CARD_QUANTITY	,
+	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.productamount, 0))  AS GIFT_QUANTITY,
+	SUM(IFF(gpv.productTypeKey = 'flower', ol.productamount, 0))  AS FLOWER_QUANTITY,
+	
+	CARD_QUANTITY + FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
 	CARD_QUANTITY_BANDS	,
 	CARD_UPSELL_QUANTITY	,
 	FLOWER_UPSELL_QUANTITY	,
@@ -259,6 +270,8 @@ FROM
 		ON pib.ID = ol.PRODUCTITEMINBASKETID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c 
 		ON pib.CONTENTSELECTIONID = c.ID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".carddefinition AS cd
+		ON cd.ID = c.carddefinition
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants AS gpv 
 		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
 		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		
