@@ -99,27 +99,47 @@ SELECT
 	ORDER_ISIV  AS EVE_ORDER_TOTAL_NET	,
 	POSTAGE_SUBTOTAL  AS EVE_TOTAL_POSTAGE	,
 	ORDER_ESEV  AS EVE_TOTAL_LINE_ITEM	,
-	DIFF_TOTAL_GROSS	,
-	DIFF_PRODUCT_SUBTOTAL	,
-	DIFF_POSTAGE_SUBTOTAL	,
+	
+	-- total cardgiftback fee (incl tax)
+	-- DIFF_TOTAL_GROSS	,							??
+		
+	-- DIFF_PRODUCT_SUBTOTAL	,					??
+	0  AS DIFF_POSTAGE_SUBTOTAL	,
 	
 	SUM(IFF(p.TYPE = 'productCardSingle', 1, 0))  AS cards,
-	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), 1, 0))  AS gifts,
+	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND gpv.productTypeKey != 'flower', 1, 0))  AS gifts,
 	SUM(IFF(gpv.productTypeKey = 'flower', 1, 0))  AS flowers,
 	
 	IFF(cards > 0, True, False)  AS IS_CARD_ORDER	,
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
 	IFF(flowers > 0, True, False)  AS IS_FLOWER_ORDER	,
-	IS_CARD_UPSELL_ORDER	,
-	IS_FLOWER_UPSELL_ORDER	,
-	IS_UPSELL_ORDER	,
-	IS_ECARD_ORDER	,
+	
+	IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%xl%' 
+		 OR lower(gpv.productcode)  like '%large%' 
+		 OR lower(gpv.productcode)  like '%supersize%'
+		 )
+	, True, False) AS IS_CARD_UPSELL_ORDER	,
+	
+	IFF(IS_FLOWER_ORDER = True 
+	   AND 
+	   (
+	    lower(gpv.productcode) like '%large%' 
+	    OR lower(gpv.productcode) like '%groot%'
+	   )
+	, True, False) AS IS_FLOWER_UPSELL_ORDER	,
+	
+	IFF(IS_CARD_UPSELL_ORDER = True OR IS_FLOWER_UPSELL_ORDER = True, True, False)  AS IS_UPSELL_ORDER	,
+	False  AS IS_ECARD_ORDER	,
 	IFF(cards > 0 AND flowers > 0, True, False)  AS IS_CARD_FLOWER_ORDER	,
-	IS_ATTACH_ORDER	,
+	IFF(IS_CARD_ORDER = True AND (IS_FLOWER_ORDER = True OR IS_GIFT_ORDER = True), True, False) AS IS_ATTACH_ORDER	,
 	IFF(gifts > 0 OR flowers > 0, True, False)  AS IS_GIFT_OR_FLOWER_ORDER	,
-	IS_GIFT_ATTACH_ORDER	,
-	IS_FLOWER_ATTACH_ORDER	,
-	IS_LARGE_FLOWER_ATTACH_ORDER	,
+	IFF(cards > 0 AND gifts > 0, True, False)  AS IS_GIFT_ATTACH_ORDER	,
+	IFF(cards > 0 AND flowers > 0, True, False)  AS IS_FLOWER_ATTACH_ORDER	,
+	IFF(IS_CARD_ORDER = True AND IS_FLOWER_UPSELL_ORDER = True, True, False)  AS IS_CARD_ONLY_ORDER	,
+	
 	IFF(cards > 0 AND gifts = 0 AND flowers = 0, True, False)  AS IS_CARD_ONLY_ORDER	,
 	IFF(cards = 0 AND gifts = 0 AND flowers > 0, True, False)  AS IS_FLOWER_ONLY_ORDER	,
 	IFF(cards = 0 AND gifts > 0 AND flowers = 0, True, False)  AS IS_GIFT_ONLY_ORDER	,
