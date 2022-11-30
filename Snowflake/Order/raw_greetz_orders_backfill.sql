@@ -115,14 +115,16 @@ SELECT
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
 	IFF(flowers > 0, True, False)  AS IS_FLOWER_ORDER	,
 	
-	IFF(IS_CARD_ORDER = True 
+	SUM(IFF(IS_CARD_ORDER = True 
 		AND 
 		(
 		 lower(gpv.productcode) like '%xl%' 
 		 OR lower(gpv.productcode)  like '%large%' 
 		 OR lower(gpv.productcode)  like '%supersize%'
 		 )
-	, True, False) AS IS_CARD_UPSELL_ORDER	,
+	   , ol.productamount, 0)) AS sum_IS_CARD_UPSELL_ORDER	,
+	
+	IFF(sum_IS_CARD_UPSELL_ORDER > 0, True, False)  AS IS_CARD_UPSELL_ORDER,
 	
 	IFF(IS_FLOWER_ORDER = True 
 	   AND 
@@ -130,7 +132,9 @@ SELECT
 	    lower(gpv.productcode) like '%large%' 
 	    OR lower(gpv.productcode) like '%groot%'
 	   )
-	, True, False) AS IS_FLOWER_UPSELL_ORDER	,
+	, ol.productamount, 0) AS sum_IS_FLOWER_UPSELL_ORDER	,
+	
+	IFF(sum_IS_FLOWER_UPSELL_ORDER > 0, True, False)  AS IS_FLOWER_UPSELL_ORDER,
 	
 	IFF(IS_CARD_UPSELL_ORDER = True OR IS_FLOWER_UPSELL_ORDER = True, True, False)  AS IS_UPSELL_ORDER	,
 	False  AS IS_ECARD_ORDER	,
@@ -177,19 +181,64 @@ SELECT
 	cards_total_amount AS CARD_QUANTITY	,
 	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.productamount, 0))  AS GIFT_QUANTITY,
 	SUM(IFF(gpv.productTypeKey = 'flower', ol.productamount, 0))  AS FLOWER_QUANTITY,
-	
 	CARD_QUANTITY + FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
-	CARD_QUANTITY_BANDS	,
-	CARD_UPSELL_QUANTITY	,
-	FLOWER_UPSELL_QUANTITY	,
-	TOTAL_UPSELL_QUANTITY	,
-	ECARD_QUANTITY	,
-	PHYSICAL_CARD_QUANTITY	,
-	GIANT_CARD_QUANTITY	,
-	LARGE_CARD_QUANTITY	,
-	LARGE_SQUARE_CARD_QUANTITY	,
-	STANDARD_SQUARE_CARD_QUANTITY	,
-	STANDARD_CARD_QUANTITY	,
+	
+	CASE
+        WHEN cards_total_amount = 0 THEN '0'
+        WHEN cards_total_amount = 1 THEN '1'
+        WHEN cards_total_amount BETWEEN 2 AND 4 THEN '2-4'
+        WHEN cards_total_amount BETWEEN 5 AND 9 THEN '5-9'
+        WHEN cards_total_amount BETWEEN 10 AND 19 THEN '10-19'
+        WHEN cards_total_amount BETWEEN 20 AND 49 THEN '20-49'
+        ELSE '50+'
+    END AS CARD_QUANTITY_BANDS,
+	
+	sum_IS_CARD_UPSELL_ORDER  AS CARD_UPSELL_QUANTITY	,
+	sum_IS_FLOWER_UPSELL_ORDER  AS FLOWER_UPSELL_QUANTITY	,
+	sum_IS_CARD_UPSELL_ORDER + sum_IS_FLOWER_UPSELL_ORDER  AS TOTAL_UPSELL_QUANTITY	,
+	0  AS ECARD_QUANTITY	,
+	CARD_QUANTITY  AS PHYSICAL_CARD_QUANTITY	,
+	
+	SUM(IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%xl%' 
+		 OR lower(gpv.productcode)  like '%supersize%'
+		 )
+	   , ol.productamount, 0)) AS GIANT_CARD_QUANTITY	,
+	
+	SUM(IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%large%' 
+		 AND cd.cardratio = 'STANDARD'
+		 )
+	   , ol.productamount, 0)) AS LARGE_CARD_QUANTITY	,
+	
+	SUM(IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%large%' 
+		 AND cd.cardratio = 'SQUARE'
+		 )
+	   , ol.productamount, 0)) AS LARGE_SQUARE_CARD_QUANTITY	,
+	
+	SUM(IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%medium%' 
+		 AND cd.cardratio = 'SQUARE'
+		 )
+	   , ol.productamount, 0)) AS STANDARD_SQUARE_CARD_QUANTITY	,
+	
+	SUM(IFF(IS_CARD_ORDER = True 
+		AND 
+		(
+		 lower(gpv.productcode) like '%medium%' 
+		 AND cd.cardratio = 'STANDARD'
+		 )
+	   , ol.productamount, 0)) AS STANDARD_CARD_QUANTITY	,
+	
 	POSTCARD_QUANTITY	,
 	NON_CARD_VOLUME	,
 	NON_CARD_SALES	,
@@ -238,14 +287,14 @@ SELECT
 	HIGH_EFFORT_ITEMS	,
 	LOW_EFFORT_CARD_ITEMS	,
 	HIGH_EFFORT_CARD_ITEMS	,
-	IS_MEMBERSHIP_ORDER	,
-	IS_MEMBERSHIP_SIGNUP_ORDER	,
-	MEMBERSHIP_SIGNUP_DATETIME	,
-	MEMBERSHIP_VERSION	,
-	MCD_ORDER_ID	,
-	MCD_ENCRYPTED_ORDER_ID	,
-	MCD_CUSTOMER_ID	,
-	BRAND	,
+	False  AS IS_MEMBERSHIP_ORDER	,
+	False  AS IIS_MEMBERSHIP_SIGNUP_ORDER	,
+	NULL  AS MEMBERSHIP_SIGNUP_DATETIME	,
+	NULL  AS MEMBERSHIP_VERSION	,
+	NULL  AS MCD_ORDER_ID	,
+	NULL  AS MCD_ENCRYPTED_ORDER_ID	,
+	NULL  AS MCD_CUSTOMER_ID	,
+	'grtz'  AS BRAND	,
 	MESSAGE_TIMESTAMP	,
 	IMPORT_DATETIME	,
 	SOURCE_DATA	,
