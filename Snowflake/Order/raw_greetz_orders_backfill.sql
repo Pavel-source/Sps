@@ -63,7 +63,7 @@ SELECT
 	-- POSTAGE_SUBTOTAL = POSTAGE_EX_TAX + POSTAGE_TOTAL_TAX
 	sum(IFF(gpv.productcode = 'shipment_generic', /*ol.TOTALWITHOUTVAT +*/ ol.TOTALWITHVAT /*- ol.TOTALWITHOUTVAT*/, 0)) AS POSTAGE_SUBTOTAL	,
 	sum(ol.TOTALWITHOUTVAT) AS ORDER_ISEV	,
-	abs(sum(IFF(gpv.productcode != 'shipment_generic', ol.DISCOUNTWITHVAT, 0))) AS TOTAL_DISCOUNT	,
+	abs(sum(ol.DISCOUNTWITHVAT)) AS TOTAL_DISCOUNT	,
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,
 	sum(ol.TOTALWITHVAT) AS ORDER_ISIV	,
 	sum(ol.TOTALWITHVAT) ORDER_CASH_PAID	,
@@ -78,7 +78,7 @@ SELECT
 	sum(IFF(gpv.productcode = 'shipment_generic', ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT), 0))  AS POSTAGE_TOTAL_TAX_GBP	,
 	sum(IFF(gpv.productcode = 'shipment_generic', ex.avg_rate * ( /*ol.TOTALWITHOUTVAT +*/ ol.TOTALWITHVAT /*- ol.TOTALWITHOUTVAT*/), 0)) AS POSTAGE_SUBTOTAL_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHOUTVAT)  AS ORDER_ISEV_GBP	,
-	abs(sum(IFF(gpv.productcode != 'shipment_generic', ex.avg_rate * ol.DISCOUNTWITHVAT, 0)))  AS TOTAL_DISCOUNT_GBP	,
+	abs(sum(ex.avg_rate * ol.DISCOUNTWITHVAT))  AS TOTAL_DISCOUNT_GBP	,
 	sum(ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT))  AS TOTAL_TAX_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHVAT)  AS ORDER_ISIV_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHVAT) AS ORDER_CASH_PAID_GBP	,
@@ -106,10 +106,10 @@ SELECT
 	-- DIFF_PRODUCT_SUBTOTAL	,					??
 	0  AS DIFF_POSTAGE_SUBTOTAL	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle', 1, 0))  AS cards,
-	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND gpv.productTypeKey != 'flower', 1, 0))  AS gifts,
-	SUM(IFF(gpv.productTypeKey = 'flower', 1, 0))  AS flowers,
-	SUM(IFF(p.TYPE = 'productCardSingle', ol.productamount, 0))  AS cards_total_amount,
+	SUM(IFF(p.TYPE = 'productCardSingle', ol.productamount, 0))  AS cards,
+	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND gpv.productTypeKey != 'flower', ol.productamount, 0))  AS gifts,
+	SUM(IFF(gpv.productTypeKey = 'flower', ol.productamount, 0))  AS flowers,
+	SUM(IFF(p.TYPE = 'productCardSingle', 1, 0))  AS cards_distinct,
 	
 	IFF(cards > 0, True, False)  AS IS_CARD_ORDER	,
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
@@ -150,13 +150,9 @@ SELECT
 	IFF(cards = 0 AND gifts > 0 AND flowers = 0, True, False)  AS IS_GIFT_ONLY_ORDER	,
 	
 	-- TRUE of order has IS_GIFT_ORDER = TRUE and IS_FLOWER_ORDER = TRUE (and not IS_CARD_ORDER)		??
-	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_FLOWER_OR_GIFT_ONLY_ORDER	,
-	
-	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_NON_CARD_ORDER	,
-	
-	 
-	IFF(cards_total_amount > 1, True, False)  AS IS_MULTI_CARD_ORDER	,
-	 
+	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_FLOWER_OR_GIFT_ONLY_ORDER	,	
+	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_NON_CARD_ORDER	,	 
+	IFF(cards > 1, True, False)  AS IS_MULTI_CARD_ORDER	,	 
 	False  AS IS_XSELL_ORDER	,
 	False  AS IS_FLOWER_XSELL_ORDER	,
 	False  AS IS_GIFT_XSELL_ORDER	,
@@ -178,18 +174,18 @@ SELECT
 	IS_EMAIL_ADDRESS_TYPE_ORDER_ONLY	,
 	IFF(gifts > 0, True, False)  AS IS_SPLIT_ADDRESS_TYPE_ORDER	,
 	False  AS IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER	,
-	cards_total_amount AS CARD_QUANTITY	,
+	cards AS CARD_QUANTITY	,
 	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.productamount, 0))  AS GIFT_QUANTITY,
 	SUM(IFF(gpv.productTypeKey = 'flower', ol.productamount, 0))  AS FLOWER_QUANTITY,
 	CARD_QUANTITY + FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
 	
 	CASE
-        WHEN cards_total_amount = 0 THEN '0'
-        WHEN cards_total_amount = 1 THEN '1'
-        WHEN cards_total_amount BETWEEN 2 AND 4 THEN '2-4'
-        WHEN cards_total_amount BETWEEN 5 AND 9 THEN '5-9'
-        WHEN cards_total_amount BETWEEN 10 AND 19 THEN '10-19'
-        WHEN cards_total_amount BETWEEN 20 AND 49 THEN '20-49'
+        WHEN cards = 0 THEN '0'
+        WHEN cards = 1 THEN '1'
+        WHEN cards BETWEEN 2 AND 4 THEN '2-4'
+        WHEN cards BETWEEN 5 AND 9 THEN '5-9'
+        WHEN cards BETWEEN 10 AND 19 THEN '10-19'
+        WHEN cards BETWEEN 20 AND 49 THEN '20-49'
         ELSE '50+'
     END AS CARD_QUANTITY_BANDS,
 	
@@ -239,20 +235,28 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS STANDARD_CARD_QUANTITY	,
 	
-	POSTCARD_QUANTITY	,
-	NON_CARD_VOLUME	,
-	NON_CARD_SALES	,
-	CARD_ITEMS_ISEV_GBP	,
-	GIFT_ITEMS_ISEV_GBP	,
-	FLOWER_ITEMS_ISEV_GBP	,
-	CARD_DISTINCT_PRODUCTS	,
-	MULTI_CARD_SKU_ORDER	,
-	MULTI_CARD_VOLUME	,
-	MULTI_CARD_SALES	,
-	CARD_ONLY_VOLUME	,
-	CARD_ONLY_SALES	,
-	GIFT_ONLY_VOLUME	,
+	SUM(IFF(cd.NUMBEROFPANELS = 1, 1, 0))  AS POSTCARD_QUANTITY,
+	gifts + flowers  AS NON_CARD_VOLUME,
+	
+-- moved down	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,  
+	
+	SUM(IFF(p.TYPE = 'productCardSingle', ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS CARD_ITEMS_ISEV_GBP,
+	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS GIFT_ITEMS_ISEV_GBP	,
+	SUM(IFF(gpv.productTypeKey = 'flower', ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS FLOWER_ITEMS_ISEV_GBP	,
+	
+	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,
+	
+	cards_distinct  AS CARD_DISTINCT_PRODUCTS	,
+	IFF(CARD_DISTINCT_PRODUCTS > 1, 'Multi SKU', 'Single SKU')  AS MULTI_CARD_SKU_ORDER	,
+	IFF(CARD_DISTINCT_PRODUCTS > 1, CARD_DISTINCT_PRODUCTS, 0)  AS MULTI_CARD_VOLUME,
+	IFF(CARD_DISTINCT_PRODUCTS > 1, CARD_ITEMS_ISEV_GBP, 0)  AS 	MULTI_CARD_SALES	,
+	IFF(IS_CARD_ONLY_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ONLY_VOLUME	,
+	IFF(IS_CARD_ONLY_ORDER = True, CARD_ITEMS_ISEV_GBP, 0)  AS CARD_ONLY_SALES	,
+	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_ONLY_VOLUME	,
+	
+	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ONLY_SALES	,
 	GIFT_ONLY_SALES	,
+	
 	FLOWER_ONLY_VOLUME	,
 	FLOWER_ONLY_SALES	,
 	ATTACH_VOLUME_TOTAL_ITEMS	,
