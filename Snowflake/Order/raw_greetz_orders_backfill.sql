@@ -1,3 +1,42 @@
+
+ WITH cte_ISEV_groupped_0
+ AS
+ (
+ SELECT ol.ORDERID, 
+			ol.INDIVIDUALSHIPPINGID,
+			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.PRODUCTAMOUNT, 0)) AS cards_count,
+			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.PRODUCTAMOUNT, 0)) AS gifts_count,
+			SUM(IFF(pt.MPTypeCode = 'flower', ol.PRODUCTAMOUNT, 0)) AS flowers_count,
+			
+			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.TOTALWITHOUTVAT, 0)) AS cards_cost,
+			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.TOTALWITHOUTVAT, 0)) AS gifts_cost,
+			SUM(IFF(pt.MPTypeCode = 'flower', ol.TOTALWITHOUTVAT, 0)) AS flowers_cost,
+				
+			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost,
+			
+			cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count))  AS cards_ISEV,
+			gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count))  AS gifts_ISEV,
+			flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count))  AS flowers_ISEV
+			
+FROM orderline ol 
+    INNER JOIN product p ON ol.PRODUCTID = p.ID
+    LEFT JOIN productgift pg ON p.ID = pg.PRODUCTID
+    LEFT JOIN greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
+ GROUP BY ol.ORDERID, ol.INDIVIDUALSHIPPINGID
+ ),
+ 
+ cte_ISEV_groupped
+ AS
+ (
+ SELECT  ORDERID, 
+ 			SUM(cards_ISEV)  AS cards_ISEV,
+ 			SUM(gifts_ISEV)  AS gifts_ISEV,
+ 			SUM(flowers_ISEV)  AS flowers_ISEV
+ FROM cte_ISEV_groupped_0
+ WHERE  cards_count + gifts_count + flowers_count > 0
+ GROUP BY ORDERID
+ )
+
 SELECT 
 	o.ID AS ORDER_ID,
 	CAST(o.CREATED AS DATE) AS ORDER_DATE,
@@ -241,20 +280,25 @@ SELECT
 	SUM(IFF(cd.NUMBEROFPANELS = 1, 1, 0))  AS POSTCARD_QUANTITY,
 	gifts + flowers  AS NON_CARD_VOLUME,
 	
+	SUM(IFF(p.TYPE = 'productCardSingle', ol.productamount, 0)) OVER(PARTITION BY ol.individualshippingid) AS cards_forThisShipping,
+	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ol.productamount, 0)) OVER(PARTITION BY ol.individualshippingid) AS gifts_forThisShipping,
+	SUM(IFF(gpv.productTypeKey = 'flower', ol.productamount, 0)) OVER(PARTITION BY ol.individualshippingid) AS flowers_forThisShipping,
+	SUM(IFF(gpv.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)) OVER(PARTITION BY ol.individualshippingid) AS shippingCost_forThisShipping,
+	
 -- moved down	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,  
-	SUM(IFF(p.TYPE = 'productCardSingle', ol.TOTALWITHOUTVAT, 0))  AS card_items_isev,
-	SUM(IFF(p.TYPE = 'productCardSingle', ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS CARD_ITEMS_ISEV_GBP,
-	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift'), ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS GIFT_ITEMS_ISEV_GBP	,
-	SUM(IFF(gpv.productTypeKey = 'flower', ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS FLOWER_ITEMS_ISEV_GBP	,
+	
+	ig.cards_ISEV * ex.avg_rate  AS CARD_ITEMS_ISEV_GBP,
+	ig.gifts_ISEV * ex.avg_rate  AS GIFT_ITEMS_ISEV_GBP	,
+	ig.flowers_ISEV * ex.avg_rate  AS FLOWER_ITEMS_ISEV_GBP	,
 	
 	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,
 	
 	cards_distinct  AS CARD_DISTINCT_PRODUCTS	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, 'Multi SKU', 'Single SKU')  AS MULTI_CARD_SKU_ORDER	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, CARD_DISTINCT_PRODUCTS, 0)  AS MULTI_CARD_VOLUME,
-	IFF(CARD_DISTINCT_PRODUCTS > 1, card_items_isev, 0)  AS 	MULTI_CARD_SALES	,
+	IFF(CARD_DISTINCT_PRODUCTS > 1, ig.cards_ISEV, 0)  AS 	MULTI_CARD_SALES	,
 	IFF(IS_CARD_ONLY_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ONLY_VOLUME	,
-	IFF(IS_CARD_ONLY_ORDER = True, card_items_isev, 0)  AS CARD_ONLY_SALES	,
+	IFF(IS_CARD_ONLY_ORDER = True, ig.cards_ISEV, 0)  AS CARD_ONLY_SALES	,
 	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_ONLY_VOLUME	,	
 	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ONLY_SALES	,
 	IFF(IS_FLOWER_ONLY_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_ONLY_VOLUME	,	
@@ -264,7 +308,7 @@ SELECT
 	IFF(IS_ATTACH_ORDER = True, GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS ATTACH_VOLUME_ATTACHED_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP, 0)  AS ATTACH_SALES_ATTACHED_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ATTACH_VOLUME_CARD_ITEMS	,
-	IFF(IS_ATTACH_ORDER = True, card_items_isev, 0)  AS CARD_ATTACH_SALES_CARD_ITEMS	,
+	IFF(IS_ATTACH_ORDER = True, ig.cards_ISEV, 0)  AS CARD_ATTACH_SALES_CARD_ITEMS	,
 	
 	IFF(IS_GIFT_ATTACH_ORDER = True, CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS GIFT_ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS GIFT_ATTACH_SALES_TOTAL_ITEMS	,
@@ -347,6 +391,8 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercostentry AS oce
 		ON oce.ordercostid = ol.orderid
 			AND oce.orderlineid = ol.ID
+	LEFT JOIN cte_ISEV_groupped AS ig
+		ON o.id = ig.orderid
 			
 GROUP BY 
 	o.ID,O.CREATED, O.CUSTOMERID, O.ORDERCODE, O.CURRENTORDERSTATE, O.CURRENCYCODE, EX.AVG_RATE, EX_2.AVG_RATE
