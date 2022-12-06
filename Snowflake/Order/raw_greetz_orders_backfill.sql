@@ -10,12 +10,13 @@
 			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.TOTALWITHOUTVAT, 0)) AS cards_cost,
 			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.TOTALWITHOUTVAT, 0)) AS gifts_cost,
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.TOTALWITHOUTVAT, 0)) AS flowers_cost,
-				
+
+			SUM(IFF(p.PRODUCTCODE != 'shipment_generic', ol.productamount, 0))  AS total_amount,
 			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost,
 			
-			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  AS cards_ISEV,
-			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  AS gifts_ISEV,
-			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV
+			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / total_amount))  AS cards_ISEV,
+			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / total_amount))  AS gifts_ISEV,
+			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / total_amount))  AS flowers_ISEV
 			
  FROM orderline ol 
     INNER JOIN product p ON ol.PRODUCTID = p.ID
@@ -75,7 +76,14 @@ SELECT
 	'NL' AS ORDER_COUNTRY_CODE	,
 	'Netherlands' AS ORDER_COUNTRY	,
 	'NL' AS ORDER_STORE	,
-	NULL AS	PLATFORM	,										-- to do later
+	
+	CASE WHEN rr.code ='hybridaiosapp' THEN 'iOS App'
+		WHEN rr.code='hybridandroidapp' THEN 'Android App'
+		WHEN s.devicetype='MOBILE' THEN 'Mobile Web'
+		WHEN s.devicetype='NORMAL' OR s.devicetype='TABLET' THEN 'Desktop Web'
+		ELSE devicetype
+	END AS	PLATFORM	,										
+	
 	concat('LEGO-', o.ORDERCODE) AS	ORDER_NUMBER	,
 	IFF(o.currentorderstate = 'CANCELLED', 'Cancelled', 'Confirmed')  AS ORDER_STATE	,
 	sum(IFF(ol.packettoselfid IS NULL, 1, 0))  AS not_toself_count	,
@@ -116,10 +124,11 @@ SELECT
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_EX_TAX_GBP	,
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * (ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0)))  AS POSTAGE_DISCOUNT_TAX_GBP	,
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * ol.DISCOUNTWITHVAT, 0)))  AS POSTAGE_DISCOUNT_INC_TAX_GBP	,
-	SUM(cast((ol.totalwithvat + IFNULL(co.totalwithvat, 0))/ol.productamount as DECIMAL(10,2))) AS	PRODUCT_UNIT_PRICE	,					-- to do later
+	sum(IFF(p.productcode != 'shipment_generic', cast((ol.totalwithvat + IFNULL(co.totalwithvat, 0))/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
 	
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT, 0)) AS ORDER_ESEV	,
-	sum(IFF(p.productcode = 'shipment_generic', ol.WITHVAT + ol.DISCOUNTWITHVAT, 0))  AS POSTAGE_UNIT_PRICE	, 		-- ?
+	sum(IFF(p.productcode != 'shipment_generic', ol.productamount, 0))  AS total_amount,
+	sum(IFF(p.productcode = 'shipment_generic', ol.WITHVAT + ol.DISCOUNTWITHVAT, 0)) / total_amount  AS POSTAGE_UNIT_PRICE	, 		-- ?
 	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT - ol.TOTALWITHVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
@@ -155,7 +164,7 @@ SELECT
 	ORDER_ISEV - sum(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost) AS TOTAL_GROSS_MARGIN	,	
 	ORDER_ESEV - sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost, 0)) AS COMMERCIAL_PRODUCT_MARGIN	,
 	GROSS_SHIPPING_MARGIN  AS COMMERCIAL_SHIPPING_MARGIN,	
-	ORDER_ISEV - sum(oce.purchasecost)  AS TOTAL_COMMERCIAL_MARGIN	,
+	ORDER_ISEV - IFNULL(sum(oce.purchasecost), 0)  AS TOTAL_COMMERCIAL_MARGIN	,
 	
 	ORDER_ISEV  AS TOTAL_SALES	,
 	ORDER_ESEV  AS PRODUCT_SALES	,
@@ -169,21 +178,21 @@ SELECT
 	ORDER_ESEV  AS EVE_TOTAL_LINE_ITEM	,
 	
 	-- total cardgiftback fee (incl tax)
-	SUM(ol.totalwithvat - 100 * KICK_BACK_FEE * ol.totalwithvat/ol.productamount)  AS DIFF_TOTAL_GROSS,	-- ?
+	SUM(ol.totalwithvat - 100 * IFNULL(fee.KICK_BACK_FEE, 0) * ol.totalwithvat/ol.productamount)  AS DIFF_TOTAL_GROSS,	-- ?
 		
 	DIFF_TOTAL_GROSS  AS DIFF_PRODUCT_SUBTOTAL	,					-- ?
 	0  AS DIFF_POSTAGE_SUBTOTAL	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle', ol.productamount, 0))  AS cards,
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.productamount, 0))  AS cards,
 	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.productamount, 0))  AS gifts,
 	SUM(IFF(pt.MPTypeCode = 'flower', ol.productamount, 0))  AS flowers,
-	SUM(IFF(p.TYPE = 'productCardSingle', 1, 0))  AS cards_distinct,
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', 1, 0))  AS cards_distinct,
 	
 	IFF(cards > 0, True, False)  AS IS_CARD_ORDER	,
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
 	IFF(flowers > 0, True, False)  AS IS_FLOWER_ORDER	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' 
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
 		AND 
 		(
 		 lower(p.productcode) like '%xl%' 
@@ -266,7 +275,7 @@ SELECT
 	0  AS ECARD_QUANTITY	,
 	CARD_QUANTITY  AS PHYSICAL_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' 
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
 		AND 
 		(
 		 lower(p.productcode) like '%xl%' 
@@ -274,7 +283,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS GIANT_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' 
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -282,7 +291,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS LARGE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' 
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -290,7 +299,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS LARGE_SQUARE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle'  
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%'  
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -298,7 +307,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS STANDARD_SQUARE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' 
+	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -327,19 +336,19 @@ SELECT
 	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ONLY_SALES	,
 	IFF(IS_FLOWER_ONLY_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_ONLY_VOLUME	,	
 	IFF(IS_FLOWER_ONLY_ORDER = True, FLOWER_ITEMS_ISEV_GBP, 0)  AS FLOWER_ONLY_SALES	,
-	IFF(IS_ATTACH_ORDER = True, CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS ATTACH_VOLUME_TOTAL_ITEMS	,
+	IFF(IS_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS ATTACH_SALES_TOTAL_ITEMS	,	
 	IFF(IS_ATTACH_ORDER = True, GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS ATTACH_VOLUME_ATTACHED_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP, 0)  AS ATTACH_SALES_ATTACHED_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ATTACH_VOLUME_CARD_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, IFNULL(ig.cards_ISEV, 0), 0)  AS CARD_ATTACH_SALES_CARD_ITEMS	,
 	
-	IFF(IS_GIFT_ATTACH_ORDER = True, CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS GIFT_ATTACH_VOLUME_TOTAL_ITEMS	,
+	IFF(IS_GIFT_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS GIFT_ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS GIFT_ATTACH_SALES_TOTAL_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_ATTACH_VOLUME_GIFT_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ATTACH_SALES_GIFT_ITEMS	,
 
-	IFF(IS_FLOWER_ATTACH_ORDER = True, CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS FLOWER_ATTACH_VOLUME_TOTAL_ITEMS	,
+	IFF(IS_FLOWER_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS FLOWER_ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_FLOWER_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS FLOWER_ATTACH_SALES_TOTAL_ITEMS	,
 	IFF(IS_FLOWER_ATTACH_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_ATTACH_VOLUME_FLOWER_ITEMS	,
 	IFF(IS_FLOWER_ATTACH_ORDER = True, FLOWER_ITEMS_ISEV_GBP, 0)  AS FLOWER_ATTACH_SALES_FLOWER_ITEMS	,
@@ -349,7 +358,7 @@ SELECT
 	0  AS FLOWER_XSELL_SALES	,
 	0  AS GIFT_XSELL_SALES	,
 	
-	IFF(IS_DISCOUNTED_ORDER = True, CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS DISCOUNTED_VOLUME	,
+	IFF(IS_DISCOUNTED_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS DISCOUNTED_VOLUME	,
 	IFF(IS_DISCOUNTED_ORDER = True, CARD_QUANTITY, 0)  AS CARD_DISCOUNTED_VOLUME	,
 	IFF(IS_DISCOUNTED_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_DISCOUNTED_VOLUME	,
 	IFF(IS_DISCOUNTED_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_DISCOUNTED_VOLUME	,
@@ -425,15 +434,20 @@ FROM
 			AND oce.orderlineid = ol.ID
 	LEFT JOIN cte_ISEV_groupped AS ig
 		ON o.id = ig.orderid
-	LEFT JOIN cte_content co
+	LEFT JOIN cte_content AS co
 		ON ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-		   AND p.type = 'productCardSingle'
-	LEFT JOIN cte_Fee fee   
+		   AND (p.type = 'productCardSingle' OR p.productcode LIKE 'card%')
+	LEFT JOIN cte_Fee AS fee   
 		ON ol.ID = fee.OrderLineID
+	LEFT JOIN referrer AS rr
+		ON o.referrerid = rr.ID
+	LEFT JOIN customersessioninfo AS s
+		ON c.customersessioninfo = s.ID
 
 GROUP BY 
 	o.ID, 
-	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, ig.gifts_ISEV, ig.flowers_ISEV
+	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, 
+	ig.gifts_ISEV, ig.flowers_ISEV, rr.code, s.devicetype
 )
 
 SELECT 
