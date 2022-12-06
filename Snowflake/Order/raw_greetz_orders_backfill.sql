@@ -77,12 +77,15 @@ SELECT
 	'Netherlands' AS ORDER_COUNTRY	,
 	'NL' AS ORDER_STORE	,
 	
+	MAX(
 	CASE WHEN rr.code ='hybridaiosapp' THEN 'iOS App'
 		WHEN rr.code='hybridandroidapp' THEN 'Android App'
 		WHEN s.devicetype='MOBILE' THEN 'Mobile Web'
 		WHEN s.devicetype='NORMAL' OR s.devicetype='TABLET' THEN 'Desktop Web'
 		ELSE devicetype
-	END AS	PLATFORM	,										
+	END 
+	)
+	AS	PLATFORM	,										
 	
 	concat('LEGO-', o.ORDERCODE) AS	ORDER_NUMBER	,
 	IFF(o.currentorderstate = 'CANCELLED', 'Cancelled', 'Confirmed')  AS ORDER_STATE	,
@@ -95,7 +98,7 @@ SELECT
 	IFF(
 		COUNT(DISTINCT r.addressid) - IFF(null_addresses_count > 0, 1, 0) = 0,
 		IFF(customer_addresses_count > 0, 1, 0),
-		0
+		COUNT(DISTINCT r.addressid) - IFF(null_addresses_count > 0, 1, 0)
 	    )	AS NUMBER_OF_ADDRESSES	,
 		
 	case 
@@ -131,7 +134,7 @@ SELECT
 	sum(IFF(p.productcode = 'shipment_generic', ol.WITHVAT + ol.DISCOUNTWITHVAT, 0)) / total_amount  AS POSTAGE_UNIT_PRICE	, 		-- ?
 	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
-	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT - ol.TOTALWITHVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
+	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT, 0)) AS PRODUCT_TOTAL_TAX	,
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT, 0)) AS ORDER_ESIV	,
 	-- POSTAGE_LINE_TAX = POSTAGE_TOTAL_TAX + POSTAGE_DISCOUNT_TAX
@@ -148,7 +151,7 @@ SELECT
 	sum(IFF(p.productcode != 'shipment_generic', ex.avg_rate * ol.TOTALWITHOUTVAT, 0))  AS ORDER_ESEV_GBP	,
 	ex.avg_rate * POSTAGE_UNIT_PRICE  AS POSTAGE_UNIT_PRICE_GBP	,
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX_GBP	,
-	sum(IFF(p.productcode != 'shipment_generic', ex.avg_rate * (ol.TOTALWITHOUTVAT - ol.TOTALWITHVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)), 0))  AS PRODUCT_LINE_TAX_GBP	,
+	sum(IFF(p.productcode != 'shipment_generic', ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)), 0))  AS PRODUCT_LINE_TAX_GBP	,
 	sum(IFF(p.productcode != 'shipment_generic', ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT), 0))  AS PRODUCT_TOTAL_TAX_GBP	,
 	sum(IFF(p.productcode != 'shipment_generic', ex.avg_rate * ol.TOTALWITHVAT, 0))  AS ORDER_ESIV_GBP	,
 	sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)), 0))  AS POSTAGE_LINE_TAX_GBP	,
@@ -159,10 +162,10 @@ SELECT
 	sum(ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT))  AS TOTAL_TAX_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHVAT)  AS ORDER_ISIV_GBP	,
 	sum(ex.avg_rate * ol.TOTALWITHVAT) AS ORDER_CASH_PAID_GBP	,
-	ORDER_ESEV - sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)) AS GROSS_PRODUCT_MARGIN	,
-	POSTAGE_EX_TAX - sum(IFF(oce.subcell = 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)) AS GROSS_SHIPPING_MARGIN	,
-	ORDER_ISEV - sum(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost) AS TOTAL_GROSS_MARGIN	,	
-	ORDER_ESEV - sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost, 0)) AS COMMERCIAL_PRODUCT_MARGIN	,
+	ORDER_ESEV - IFNULL(sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)), 0) AS GROSS_PRODUCT_MARGIN	,
+	POSTAGE_EX_TAX - IFNULL(sum(IFF(oce.subcell = 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)), 0) AS GROSS_SHIPPING_MARGIN	,
+	ORDER_ISEV - IFNULL(sum(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost), 0) AS TOTAL_GROSS_MARGIN	,	
+	ORDER_ESEV - IFNULL(sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost, 0)), 0) AS COMMERCIAL_PRODUCT_MARGIN	,
 	GROSS_SHIPPING_MARGIN  AS COMMERCIAL_SHIPPING_MARGIN,	
 	ORDER_ISEV - IFNULL(sum(oce.purchasecost), 0)  AS TOTAL_COMMERCIAL_MARGIN	,
 	
@@ -429,8 +432,10 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".address AS a2
 	   ON o.customerid = a2.customerid 
 		  AND a2.DEFAULTADDRESS = 'Y'
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercost AS oc
+		ON o.ordercostid = oc.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercostentry AS oce
-		ON oce.ordercostid = ol.orderid
+		ON oce.ordercostid = oc.ID
 			AND oce.orderlineid = ol.ID
 	LEFT JOIN cte_ISEV_groupped AS ig
 		ON o.id = ig.orderid
