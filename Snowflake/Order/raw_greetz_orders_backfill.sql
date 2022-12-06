@@ -37,14 +37,6 @@
  GROUP BY ORDERID
  ),
 
-cte_content AS
-( 
-SELECT PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
-FROM orderline o JOIN product p ON o.productid = p.id
-WHERE p.type = 'content'
-GROUP BY PRODUCTITEMINBASKETID
-),
-
 cte_Fee_0 AS
 (
 SELECT ol.ID, KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY DATE_START)  AS RN
@@ -96,10 +88,11 @@ SELECT
 	sum(IFF(a2.customerid IS NOT NULL, 1, 0))  AS customer_addresses_count	, --  1 is max
 	
 	IFF(
-		COUNT(DISTINCT r.addressid) - IFF(null_addresses_count > 0, 1, 0) = 0,
+		COUNT(DISTINCT r.addressid) = 0,
 		IFF(customer_addresses_count > 0, 1, 0),
-		COUNT(DISTINCT r.addressid) - IFF(null_addresses_count > 0, 1, 0)
-	    )	AS NUMBER_OF_ADDRESSES	,
+		COUNT(DISTINCT r.addressid)
+	    )	
+		AS NUMBER_OF_ADDRESSES	,
 		
 	case 
 		when not_toself_count > 0 AND toself_count = 0 then 'DIRECT'
@@ -127,7 +120,7 @@ SELECT
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_EX_TAX_GBP	,
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * (ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0)))  AS POSTAGE_DISCOUNT_TAX_GBP	,
 	abs(sum(IFF(p.productcode = 'shipment_generic', ex.avg_rate * ol.DISCOUNTWITHVAT, 0)))  AS POSTAGE_DISCOUNT_INC_TAX_GBP	,
-	sum(IFF(p.productcode != 'shipment_generic', cast((ol.totalwithvat + IFNULL(co.totalwithvat, 0))/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
+	sum(IFF(p.productcode != 'shipment_generic', cast(ol.totalwithvat/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
 	
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT, 0)) AS ORDER_ESEV	,
 	sum(IFF(p.productcode != 'shipment_generic', ol.productamount, 0))  AS total_amount,
@@ -439,9 +432,6 @@ FROM
 			AND oce.orderlineid = ol.ID
 	LEFT JOIN cte_ISEV_groupped AS ig
 		ON o.id = ig.orderid
-	LEFT JOIN cte_content AS co
-		ON ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-		   AND (p.type = 'productCardSingle' OR p.productcode LIKE 'card%')
 	LEFT JOIN cte_Fee AS fee   
 		ON ol.ID = fee.OrderLineID
 	LEFT JOIN referrer AS rr
