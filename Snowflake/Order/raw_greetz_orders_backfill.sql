@@ -7,16 +7,15 @@
 			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.PRODUCTAMOUNT, 0)) AS gifts_count,
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.PRODUCTAMOUNT, 0)) AS flowers_count,
 			
-			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.TOTALWITHOUTVAT, 0)) AS cards_cost,
+			SUM(IFF(p.TYPE IN ('productCardSingle', 'content') OR p.productcode LIKE 'card%', ol.TOTALWITHOUTVAT, 0)) AS cards_cost,
 			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.TOTALWITHOUTVAT, 0)) AS gifts_cost,
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.TOTALWITHOUTVAT, 0)) AS flowers_cost,
 
-			SUM(IFF(p.PRODUCTCODE != 'shipment_generic', ol.productamount, 0))  AS total_amount,
-			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost,
+			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost,
 			
-			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / total_amount))  AS cards_ISEV,
-			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / total_amount))  AS gifts_ISEV,
-			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / total_amount))  AS flowers_ISEV
+			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  AS cards_ISEV,
+			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  AS gifts_ISEV,
+			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV
 			
  FROM orderline ol 
     INNER JOIN product p ON ol.PRODUCTID = p.ID
@@ -140,7 +139,7 @@ SELECT
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,
 	sum(ol.TOTALWITHVAT) * IFNULL(fee.KICK_BACK_FEE, 1) AS ORDER_ISIV	,
 	-- ORDER_ISIV + giftcard kick back fee
-	sum(ol.TOTALWITHVAT - ol.DISCOUNTWITHVAT) AS ORDER_CASH_PAID	,		-- ?
+	sum(ol.TOTALWITHVAT) AS ORDER_CASH_PAID	,		-- ?
 	ex.avg_rate * PRODUCT_UNIT_PRICE  AS PRODUCT_UNIT_PRICE_GBP	,
 	ORDER_ESEV * ex.avg_rate  AS ORDER_ESEV_GBP	,
 	POSTAGE_UNIT_PRICE * ex.avg_rate  AS POSTAGE_UNIT_PRICE_GBP	,
@@ -189,7 +188,7 @@ SELECT
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
 	IFF(flowers > 0, True, False)  AS IS_FLOWER_ORDER	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		AND 
 		(
 		 lower(p.productcode) like '%xl%' 
@@ -235,10 +234,10 @@ SELECT
 	IFF(TOTAL_DISCOUNT > 0 AND gifts > 0, True, False)  AS IS_GIFT_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND flowers > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND IS_NON_CARD_ORDER = True, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift', 1, 0))  AS HIGH_EFFORT_ITEMS	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift', 0, 1))  AS LOW_EFFORT_ITEMS	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS HIGH_EFFORT_CARD_ITEMS	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 0, 1))  AS LOW_EFFORT_CARD_ITEMS	,
+	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift'), 1, 0))  AS HIGH_EFFORT_ITEMS	,	-- ?
+	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift'), 0, 1))  AS LOW_EFFORT_ITEMS	,	-- ?
+	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS HIGH_EFFORT_CARD_ITEMS	,
+	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 0, 1))  AS LOW_EFFORT_CARD_ITEMS	,
 	IFF(HIGH_EFFORT_ITEMS > 0, True, False)  AS IS_PHOTO_UPLOAD_ORDER	,
 	IFF(IS_PHOTO_UPLOAD_ORDER = True, False, True)  AS IS_LOW_EFFORT_ORDER	,
 	IS_PHOTO_UPLOAD_ORDER  AS IS_HIGH_EFFORT_ORDER	,
@@ -272,7 +271,7 @@ SELECT
 	0  AS ECARD_QUANTITY	,
 	CARD_QUANTITY  AS PHYSICAL_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
 		AND 
 		(
 		 lower(p.productcode) like '%xl%' 
@@ -280,7 +279,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS GIANT_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -288,7 +287,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS LARGE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -296,7 +295,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS LARGE_SQUARE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%'  
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')  
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -304,7 +303,7 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS STANDARD_SQUARE_CARD_QUANTITY	,
 	
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%' 
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -330,25 +329,25 @@ SELECT
 	IFF(IS_CARD_ONLY_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ONLY_VOLUME	,
 	IFF(IS_CARD_ONLY_ORDER = True, IFNULL(ig.cards_ISEV, 0), 0)  AS CARD_ONLY_SALES	,
 	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_ONLY_VOLUME	,	
-	IFF(IS_GIFT_ONLY_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ONLY_SALES	,
+	IFF(IS_GIFT_ONLY_ORDER = True, IFNULL(ig.gifts_ISEV, 0), 0)  AS GIFT_ONLY_SALES	,
 	IFF(IS_FLOWER_ONLY_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_ONLY_VOLUME	,	
-	IFF(IS_FLOWER_ONLY_ORDER = True, FLOWER_ITEMS_ISEV_GBP, 0)  AS FLOWER_ONLY_SALES	,
+	IFF(IS_FLOWER_ONLY_ORDER = True, IFNULL(ig.flowers_ISEV, 0), 0)  AS FLOWER_ONLY_SALES	,
 	IFF(IS_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS ATTACH_SALES_TOTAL_ITEMS	,	
 	IFF(IS_ATTACH_ORDER = True, GIFT_QUANTITY + FLOWER_QUANTITY, 0)  AS ATTACH_VOLUME_ATTACHED_ITEMS	,
-	IFF(IS_ATTACH_ORDER = True, GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP, 0)  AS ATTACH_SALES_ATTACHED_ITEMS	,
+	IFF(IS_ATTACH_ORDER = True, IFNULL(ig.gifts_ISEV, 0) + IFNULL(ig.flowers_ISEV, 0), 0)  AS ATTACH_SALES_ATTACHED_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, CARD_QUANTITY, 0)  AS CARD_ATTACH_VOLUME_CARD_ITEMS	,
 	IFF(IS_ATTACH_ORDER = True, IFNULL(ig.cards_ISEV, 0), 0)  AS CARD_ATTACH_SALES_CARD_ITEMS	,
 	
 	IFF(IS_GIFT_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS GIFT_ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS GIFT_ATTACH_SALES_TOTAL_ITEMS	,
 	IFF(IS_GIFT_ATTACH_ORDER = True, GIFT_QUANTITY, 0)  AS GIFT_ATTACH_VOLUME_GIFT_ITEMS	,
-	IFF(IS_GIFT_ATTACH_ORDER = True, GIFT_ITEMS_ISEV_GBP, 0)  AS GIFT_ATTACH_SALES_GIFT_ITEMS	,
+	IFF(IS_GIFT_ATTACH_ORDER = True, IFNULL(ig.gifts_ISEV, 0), 0)  AS GIFT_ATTACH_SALES_GIFT_ITEMS	,
 
 	IFF(IS_FLOWER_ATTACH_ORDER = True, total_amount /*CARD_QUANTITY + GIFT_QUANTITY + FLOWER_QUANTITY*/, 0)  AS FLOWER_ATTACH_VOLUME_TOTAL_ITEMS	,
 	IFF(IS_FLOWER_ATTACH_ORDER = True, ORDER_ISEV, 0)  AS FLOWER_ATTACH_SALES_TOTAL_ITEMS	,
 	IFF(IS_FLOWER_ATTACH_ORDER = True, FLOWER_QUANTITY, 0)  AS FLOWER_ATTACH_VOLUME_FLOWER_ITEMS	,
-	IFF(IS_FLOWER_ATTACH_ORDER = True, FLOWER_ITEMS_ISEV_GBP, 0)  AS FLOWER_ATTACH_SALES_FLOWER_ITEMS	,
+	IFF(IS_FLOWER_ATTACH_ORDER = True, IFNULL(ig.flowers_ISEV, 0), 0)  AS FLOWER_ATTACH_SALES_FLOWER_ITEMS	,
 	
 	0  AS XSELL_SALES_TOTAL_ITEMS	,
 	0  AS XSELL_VOLUME_TOTAL_ITEMS	,
@@ -366,7 +365,7 @@ SELECT
 	IFF(IS_DISCOUNTED_ORDER = True, IFNULL(ig.flowers_ISEV, 0), 0)  AS FLOWER_DISCOUNTED_SALES	,
 	IFF(IS_DISCOUNTED_ORDER = True AND IS_NON_CARD_ORDER = True, ORDER_ISEV, 0)  AS NON_CARD_DISCOUNTED_SALES	,
 	
-	-- calced above
+	-- calculated above
 	-- LOW_EFFORT_ITEMS	,
 	-- HIGH_EFFORT_ITEMS	,
 	-- LOW_EFFORT_CARD_ITEMS	,
