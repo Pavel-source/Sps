@@ -15,7 +15,16 @@
 			
 			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  AS cards_ISEV,
 			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  AS gifts_ISEV,
-			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV
+			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV,
+			
+			----------------- for POSTAGE_UNIT_PRICE  -----------
+			
+			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
+			
+			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', 1, 0))  AS cards_count_distinct,
+			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', 1, 0))  AS gifts_count_distinct,
+			SUM(IFF(pt.MPTypeCode = 'flower', 1, 0))  AS flowers_count_distinct,
+			postage_cost_wVat * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / (cards_count + gifts_count + flowers_count)  AS postage_unit_price
 			
  FROM orderline ol 
     INNER JOIN product p ON ol.PRODUCTID = p.ID
@@ -31,7 +40,8 @@
  SELECT  ORDERID, 
  			SUM(cards_ISEV)  AS cards_ISEV,
  			SUM(gifts_ISEV)  AS gifts_ISEV,
- 			SUM(flowers_ISEV)  AS flowers_ISEV
+ 			SUM(flowers_ISEV)  AS flowers_ISEV,
+			SUM(postage_unit_price)  AS postage_unit_price
  FROM cte_ISEV_groupped_0
  GROUP BY ORDERID
  ),
@@ -83,7 +93,6 @@ SELECT
 	sum(IFF(ol.packettoselfid IS NULL, 1, 0))  AS not_toself_count	,
 	sum(IFF(ol.packettoselfid IS NOT NULL, 1, 0))  AS toself_count	,
 	
-	sum(IFF(r.addressid IS NULL, 1, 0))  AS null_addresses_count	,
 	sum(IFF(a2.customerid IS NOT NULL, 1, 0))  AS customer_addresses_count	, --  1 is max
 	
 	IFF(
@@ -123,7 +132,7 @@ SELECT
 	
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESEV	,
 	sum(IFF(p.productcode != 'shipment_generic', ol.productamount, 0))  AS total_amount,
-	NULL  AS POSTAGE_UNIT_PRICE	, 		-- ?
+	IFNULL(ig.postage_unit_price, 0)  AS POSTAGE_UNIT_PRICE	, 		-- ?
 	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
@@ -235,9 +244,9 @@ SELECT
 	IFF(TOTAL_DISCOUNT > 0 AND flowers > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND IS_NON_CARD_ORDER = True, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
 	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift'), 1, 0))  AS HIGH_EFFORT_ITEMS	,	-- ?
-	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift'), 0, 1))  AS LOW_EFFORT_ITEMS	,	-- ?
+	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE NOT IN ('PHOTO_TEMPLATE','PHOTO_SELF') AND p.productcode != 'personalizedGift'), 1, 0))  AS LOW_EFFORT_ITEMS	,	-- ?
 	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS HIGH_EFFORT_CARD_ITEMS	,
-	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 0, 1))  AS LOW_EFFORT_CARD_ITEMS	,
+	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE NOT IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS LOW_EFFORT_CARD_ITEMS	,
 	IFF(HIGH_EFFORT_ITEMS > 0, True, False)  AS IS_PHOTO_UPLOAD_ORDER	,
 	IFF(IS_PHOTO_UPLOAD_ORDER = True, False, True)  AS IS_LOW_EFFORT_ORDER	,
 	IS_PHOTO_UPLOAD_ORDER  AS IS_HIGH_EFFORT_ORDER	,
@@ -313,9 +322,7 @@ SELECT
 	
 	SUM(IFF(cd.NUMBEROFPANELS = 1, 1, 0))  AS POSTCARD_QUANTITY,
 	gifts + flowers  AS NON_CARD_VOLUME,
-		
--- moved down	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,  
-	
+			
 	IFNULL(ig.cards_ISEV, 0) * ex.avg_rate  AS CARD_ITEMS_ISEV_GBP,
 	IFNULL(ig.gifts_ISEV, 0) * ex.avg_rate  AS GIFT_ITEMS_ISEV_GBP	,
 	IFNULL(ig.flowers_ISEV, 0) * ex.avg_rate  AS FLOWER_ITEMS_ISEV_GBP	,
@@ -365,12 +372,6 @@ SELECT
 	IFF(IS_DISCOUNTED_ORDER = True, IFNULL(ig.flowers_ISEV, 0), 0)  AS FLOWER_DISCOUNTED_SALES	,
 	IFF(IS_DISCOUNTED_ORDER = True AND IS_NON_CARD_ORDER = True, ORDER_ISEV, 0)  AS NON_CARD_DISCOUNTED_SALES	,
 	
-	-- calculated above
-	-- LOW_EFFORT_ITEMS	,
-	-- HIGH_EFFORT_ITEMS	,
-	-- LOW_EFFORT_CARD_ITEMS	,
-	-- HIGH_EFFORT_CARD_ITEMS	,
-	
 	False  AS IS_MEMBERSHIP_ORDER	,
 	False  AS IS_MEMBERSHIP_SIGNUP_ORDER	,
 	NULL  AS MEMBERSHIP_SIGNUP_DATETIME	,
@@ -388,7 +389,7 @@ SELECT
 
 FROM
 	-- (SELECT * FROM orders WHERE created > '2022-06-01' /*ordercode = '1-4RKXKMFYL1' id = 1337079006*/ ORDER BY created LIMIT 1000) o
-	(SELECT * FROM orders WHERE id = 1336681263) o
+	(SELECT * FROM orders WHERE id = 1347309071 /*1336681263*/) o
 --    "RAW_GREETZ"."GREETZ3".orders o
     INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
@@ -409,10 +410,6 @@ FROM
 		ON pib.CONTENTSELECTIONID = c.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".carddefinition AS cd
 		ON cd.ID = c.carddefinition
-	/*LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants AS gpv 
-		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
-		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		
-		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)*/
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".product AS p
 		ON ol.productid = p.ID
 	LEFT JOIN productgift pg 
@@ -442,7 +439,7 @@ FROM
 
 GROUP BY 
 	o.ID, 
-	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, 
+	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, ig.POSTAGE_UNIT_PRICE,
 	ig.gifts_ISEV, ig.flowers_ISEV, rr.code, s.devicetype, fee.KICK_BACK_FEE
 )
 
