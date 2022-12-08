@@ -48,7 +48,7 @@
 
 cte_Fee_0 AS
 (
-SELECT ol.ID, KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY DATE_START DESC)  AS RN
+SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
 FROM orderline ol 
     join orders o 
 		ON ol.orderid = o.ID
@@ -111,7 +111,7 @@ SELECT
 	IFF(NUMBER_OF_ADDRESSES = 1, True, False)  AS SINGLE_ADDRESS_FLAG	,
 	'LineItemLevel' AS ORDER_TAX_CALCULATION	,
 	True AS ORDER_TRANSACTION_FEE	,
-	sum(IFF(p.productcode != 'shipment_generic', 1, 0)) ITEMS_IN_ORDER	,						
+	sum(IFF(p.productcode != 'shipment_generic', 1, 0))  AS ITEMS_IN_ORDER	,						
 	o.currencycode AS ORDER_CURRENCYCODE	,
 	ex.avg_rate AS TO_GBP_RATE,
 	ex_2.avg_rate AS MNTH_GBP_TO_EUR_RATE,
@@ -131,7 +131,7 @@ SELECT
 	sum(IFF(p.productcode != 'shipment_generic', cast(ol.totalwithvat/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
 	
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESEV	,
-	sum(IFF(p.productcode != 'shipment_generic', ol.productamount, 0))  AS total_amount,
+	sum(IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') OR lower(p.productcode) LIKE '%envelop%', ol.productamount, 0))  AS total_amount,
 	IFNULL(ig.postage_unit_price, 0)  AS POSTAGE_UNIT_PRICE	, 		-- ?
 	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
@@ -149,7 +149,7 @@ SELECT
 	sum(ol.TOTALWITHVAT) * IFNULL(fee.KICK_BACK_FEE, 1) AS ORDER_ISIV	,
 	-- ORDER_ISIV + giftcard kick back fee
 	sum(ol.TOTALWITHVAT) AS ORDER_CASH_PAID	,		-- ?
-	ex.avg_rate * PRODUCT_UNIT_PRICE  AS PRODUCT_UNIT_PRICE_GBP	,
+	PRODUCT_UNIT_PRICE * ex.avg_rate  AS PRODUCT_UNIT_PRICE_GBP	,
 	ORDER_ESEV * ex.avg_rate  AS ORDER_ESEV_GBP	,
 	POSTAGE_UNIT_PRICE * ex.avg_rate  AS POSTAGE_UNIT_PRICE_GBP	,
 	POSTAGE_EX_TAX * ex.avg_rate  AS POSTAGE_EX_TAX_GBP	,
@@ -231,7 +231,6 @@ SELECT
 	IFF(cards = 0 AND gifts = 0 AND flowers > 0, True, False)  AS IS_FLOWER_ONLY_ORDER	,
 	IFF(cards = 0 AND gifts > 0 AND flowers = 0, True, False)  AS IS_GIFT_ONLY_ORDER	,
 	
-	-- TRUE of order has IS_GIFT_ORDER = TRUE and IS_FLOWER_ORDER = TRUE (and not IS_CARD_ORDER)		??
 	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_FLOWER_OR_GIFT_ONLY_ORDER	,	
 	IFF(cards = 0 AND (gifts > 0 OR flowers > 0), True, False)  AS IS_NON_CARD_ORDER	,	 
 	IFF(cards > 1, True, False)  AS IS_MULTI_CARD_ORDER	,	 
@@ -243,16 +242,15 @@ SELECT
 	IFF(TOTAL_DISCOUNT > 0 AND gifts > 0, True, False)  AS IS_GIFT_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND flowers > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND IS_NON_CARD_ORDER = True, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
-	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift'), 1, 0))  AS HIGH_EFFORT_ITEMS	,	-- ?
-	sum(IFF(p.productcode != 'shipment_generic' AND (cd.CONTENTTYPE NOT IN ('PHOTO_TEMPLATE','PHOTO_SELF') AND p.productcode != 'personalizedGift'), 1, 0))  AS LOW_EFFORT_ITEMS	,	-- ?
+	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift', 1, 0))  AS HIGH_EFFORT_ITEMS	,
+	total_amount - HIGH_EFFORT_ITEMS  AS LOW_EFFORT_ITEMS	,	
 	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS HIGH_EFFORT_CARD_ITEMS	,
-	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE NOT IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS LOW_EFFORT_CARD_ITEMS	,
+	CARD_QUANTITY - HIGH_EFFORT_CARD_ITEMS  AS LOW_EFFORT_CARD_ITEMS	,
 	IFF(HIGH_EFFORT_ITEMS > 0, True, False)  AS IS_PHOTO_UPLOAD_ORDER	,
 	IFF(IS_PHOTO_UPLOAD_ORDER = True, False, True)  AS IS_LOW_EFFORT_ORDER	,
 	IS_PHOTO_UPLOAD_ORDER  AS IS_HIGH_EFFORT_ORDER	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS high_effort_items_card_only	,
-	IFF(high_effort_items_card_only > 0, False, True)  AS IS_LOW_EFFORT_CARD_ORDER	,
-	IFF(high_effort_items_card_only > 0, True, False)  AS IS_HIGH_EFFORT_CARD_ORDER	,
+	IFF(HIGH_EFFORT_CARD_ITEMS > 0, False, True)  AS IS_LOW_EFFORT_CARD_ORDER	,
+	IFF(HIGH_EFFORT_CARD_ITEMS > 0, True, False)  AS IS_HIGH_EFFORT_CARD_ORDER	,
 	
 	IFF(toself_count > 0 AND not_toself_count = 0, True, False)  AS IS_CUSTOMER_ADDRESS_TYPE_ORDER_ONLY	,
 	IFF(toself_count = 0 AND not_toself_count > 0, True, False)  AS IS_DIRECT_ADDRESS_TYPE_ORDER_ONLY	,
@@ -327,7 +325,7 @@ SELECT
 	IFNULL(ig.gifts_ISEV, 0) * ex.avg_rate  AS GIFT_ITEMS_ISEV_GBP	,
 	IFNULL(ig.flowers_ISEV, 0) * ex.avg_rate  AS FLOWER_ITEMS_ISEV_GBP	,
 	
-	GIFT_ITEMS_ISEV_GBP + FLOWER_ITEMS_ISEV_GBP  AS NON_CARD_SALES	,
+	IFNULL(ig.gifts_ISEV, 0) + IFNULL(ig.flowers_ISEV, 0)  AS NON_CARD_SALES	,
 	
 	cards_distinct  AS CARD_DISTINCT_PRODUCTS	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, 'Multi SKU', 'Single SKU')  AS MULTI_CARD_SKU_ORDER	,
@@ -389,7 +387,7 @@ SELECT
 
 FROM
 	-- (SELECT * FROM orders WHERE created > '2022-06-01' /*ordercode = '1-4RKXKMFYL1' id = 1337079006*/ ORDER BY created LIMIT 1000) o
-	(SELECT * FROM orders WHERE id = 1347309071 /*1336681263*/) o
+	(SELECT * FROM orders WHERE id = 1323191458 /*1347309071 1336681263*/) o
 --    "RAW_GREETZ"."GREETZ3".orders o
     INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
