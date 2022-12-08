@@ -1,3 +1,5 @@
+CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDERS_STAGING_BACKFILL" AS (
+
  WITH cte_ISEV_groupped_0
  AS
  (
@@ -26,10 +28,10 @@
 			SUM(IFF(pt.MPTypeCode = 'flower', 1, 0))  AS flowers_count_distinct,
 			postage_cost_wVat * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / (cards_count + gifts_count + flowers_count)  AS postage_unit_price
 			
- FROM orderline ol 
-    INNER JOIN product p ON ol.PRODUCTID = p.ID
-    LEFT JOIN productgift pg ON p.ID = pg.PRODUCTID
-    LEFT JOIN greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
+ FROM "RAW_GREETZ"."GREETZ3".orderline ol 
+    INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
+    LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg ON p.ID = pg.PRODUCTID
+    LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
  GROUP BY   ol.ORDERID, 
 			ol.INDIVIDUALSHIPPINGID
  ),
@@ -49,8 +51,8 @@
 cte_Fee_0 AS
 (
 SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
-FROM orderline ol 
-    join orders o 
+FROM "RAW_GREETZ"."GREETZ3".orderline ol 
+    join "RAW_GREETZ"."GREETZ3".orders o 
 		ON ol.orderid = o.ID
     join RAW_GREETZ.GREETZDWH.INTEGRATION_GiftCardsKickBackFeeDateInterval fee 
         ON ol.productid = fee.PRODUCT_ID
@@ -132,7 +134,7 @@ SELECT
 	
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESEV	,
 	sum(IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') OR lower(p.productcode) LIKE '%envelop%', ol.productamount, 0))  AS total_amount,
-	IFNULL(ig.postage_unit_price, 0)  AS POSTAGE_UNIT_PRICE	, 		-- ?
+	IFNULL(ig.postage_unit_price, 0)  AS POSTAGE_UNIT_PRICE	, 		
 	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
 	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
@@ -148,7 +150,7 @@ SELECT
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,
 	sum(ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1)) AS ORDER_ISIV	,
 	-- ORDER_ISIV + giftcard kick back fee
-	sum(ol.TOTALWITHVAT) AS ORDER_CASH_PAID	,		-- ?
+	sum(ol.TOTALWITHVAT) AS ORDER_CASH_PAID	,		
 	PRODUCT_UNIT_PRICE * ex.avg_rate  AS PRODUCT_UNIT_PRICE_GBP	,
 	ORDER_ESEV * ex.avg_rate  AS ORDER_ESEV_GBP	,
 	POSTAGE_UNIT_PRICE * ex.avg_rate  AS POSTAGE_UNIT_PRICE_GBP	,
@@ -183,9 +185,9 @@ SELECT
 	ORDER_ESEV  AS EVE_TOTAL_LINE_ITEM	,
 	
 	-- total cardgiftback fee (incl tax)
-	SUM(ol.totalwithvat - 100 * IFNULL(fee.KICK_BACK_FEE, 0) * ol.productamount)  AS DIFF_TOTAL_GROSS,	-- ?
+	SUM(ol.totalwithvat - 100 * IFNULL(fee.KICK_BACK_FEE, 0) * ol.productamount)  AS DIFF_TOTAL_GROSS,	
 		
-	DIFF_TOTAL_GROSS  AS DIFF_PRODUCT_SUBTOTAL	,					-- ?
+	DIFF_TOTAL_GROSS  AS DIFF_PRODUCT_SUBTOTAL	,					
 	0  AS DIFF_POSTAGE_SUBTOTAL	,
 	
 	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.productamount, 0))  AS cards,
@@ -386,9 +388,9 @@ SELECT
 	NULL  AS DBT_JOB_STARTED_AT	
 
 FROM
-	 (SELECT * FROM orders WHERE created > '2022-06-01' /*ordercode = '1-4RKXKMFYL1' id = 1337079006*/ ORDER BY created LIMIT 1000) o
-	-- (SELECT * FROM orders WHERE id = /*1323191458 1347309071*/ 1336681263) o
---    "RAW_GREETZ"."GREETZ3".orders o
+--	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE created > '2022-06-01' ORDER BY created LIMIT 1000) o
+-- 	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE id = /*1323191458 1347309071*/ 1336681263) o
+    "RAW_GREETZ"."GREETZ3".orders o
     INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
 	LEFT JOIN PROD.dw_lookup.exchange_rate_history AS ex
@@ -398,10 +400,7 @@ FROM
 	LEFT JOIN PROD.dw_lookup.exchange_rate_history AS ex_2
 		ON ex_2.month = concat(year(o.CREATED), iff(month(o.CREATED) < 10, '0',''), month(o.CREATED))
 			AND ex_2.local_currency = 'GBP'
-			AND ex_2.destination_currency = 'EUR'
-	/*LEFT JOIN (select 1 as avg_rate) AS ex
-	LEFT JOIN (select 1 as avg_rate) AS ex_2*/
-	
+			AND ex_2.destination_currency = 'EUR'	
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib 
 		ON pib.ID = ol.PRODUCTITEMINBASKETID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c 
@@ -410,9 +409,9 @@ FROM
 		ON cd.ID = c.carddefinition
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".product AS p
 		ON ol.productid = p.ID
-	LEFT JOIN productgift pg 
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg 
 		ON p.ID = pg.PRODUCTID
-    LEFT JOIN greetz_to_mnpg_product_types_view pt  
+    LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt  
 		ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".individualshipping AS isp
        ON ol.individualshippingid = isp.id	
@@ -430,9 +429,9 @@ FROM
 		ON o.id = ig.orderid
 	LEFT JOIN cte_Fee AS fee   
 		ON ol.ID = fee.OrderLineID
-	LEFT JOIN referrer AS rr
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".referrer AS rr
 		ON o.referrerid = rr.ID
-	LEFT JOIN customersessioninfo AS s
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
 		ON c.customersessioninfo = s.ID
 
 GROUP BY 
@@ -639,3 +638,4 @@ SELECT
 	DBT_INVOCATION_ID	,
 	DBT_JOB_STARTED_AT	
 FROM cte_Main
+)
