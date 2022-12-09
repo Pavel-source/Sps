@@ -113,7 +113,7 @@ SELECT
 	IFF(NUMBER_OF_ADDRESSES = 1, True, False)  AS SINGLE_ADDRESS_FLAG	,
 	'LineItemLevel' AS ORDER_TAX_CALCULATION	,
 	True AS ORDER_TRANSACTION_FEE	,
-	sum(IFF(p.productcode != 'shipment_generic', 1, 0))  AS ITEMS_IN_ORDER	,						
+	sum(IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') OR lower(p.productcode) LIKE '%envelop%', 1, 0))  AS ITEMS_IN_ORDER	,						
 	o.currencycode AS ORDER_CURRENCYCODE	,
 	ex.avg_rate AS TO_GBP_RATE,
 	ex_2.avg_rate AS MNTH_GBP_TO_EUR_RATE,
@@ -149,7 +149,6 @@ SELECT
 	abs(sum(ol.DISCOUNTWITHVAT)) AS TOTAL_DISCOUNT	,
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,
 	sum(ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1)) AS ORDER_ISIV	,
-	-- ORDER_ISIV + giftcard kick back fee
 	sum(ol.TOTALWITHVAT) AS ORDER_CASH_PAID	,		
 	PRODUCT_UNIT_PRICE * ex.avg_rate  AS PRODUCT_UNIT_PRICE_GBP	,
 	ORDER_ESEV * ex.avg_rate  AS ORDER_ESEV_GBP	,
@@ -259,9 +258,9 @@ SELECT
 	False  AS IS_EMAIL_ADDRESS_TYPE_ORDER_ONLY	,
 	IFF(toself_count > 0  AND not_toself_count > 0, True, False)  AS IS_SPLIT_ADDRESS_TYPE_ORDER	,
 	False  AS IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER	,
-	cards AS CARD_QUANTITY	,
-	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.productamount, 0))  AS GIFT_QUANTITY,
-	SUM(IFF(pt.MPTypeCode = 'flower', ol.productamount, 0))  AS FLOWER_QUANTITY,
+	cards  AS CARD_QUANTITY	,
+	gifts  AS GIFT_QUANTITY,
+	flowers  AS FLOWER_QUANTITY,
 	CARD_QUANTITY + FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
 	
 	CASE
@@ -320,8 +319,8 @@ SELECT
 		 )
 	   , ol.productamount, 0)) AS STANDARD_CARD_QUANTITY	,
 	
-	SUM(IFF(cd.NUMBEROFPANELS = 1, 1, 0))  AS POSTCARD_QUANTITY,
-	gifts + flowers  AS NON_CARD_VOLUME,
+	SUM(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.NUMBEROFPANELS = 1, ol.productamount, 0))  AS POSTCARD_QUANTITY,
+	GIFT_QUANTITY + FLOWER_QUANTITY  AS NON_CARD_VOLUME,
 			
 	IFNULL(ig.cards_ISEV, 0) * ex.avg_rate  AS CARD_ITEMS_ISEV_GBP,
 	IFNULL(ig.gifts_ISEV, 0) * ex.avg_rate  AS GIFT_ITEMS_ISEV_GBP	,
