@@ -20,6 +20,51 @@ SELECT ID AS OrderLineID, KICK_BACK_FEE
 FROM cte_Fee_0
 WHERE RN = 1
 ),
+
+cte_distinct_products_cnt
+AS
+(
+SELECT 
+  ol.orderid, 
+  ol.INDIVIDUALSHIPPINGID,
+  
+--  IFF(pt.MPTypeCode = 'flower', 'flower', IFF(p.productcode LIKE 'card%', p.type)  AS ptype,
+	CASE
+		WHEN p.type = 'productCardSingle' OR p.productcode LIKE 'card%' THEN 'card'
+		WHEN pt.MPTypeCode = 'flower' THEN 'flower'
+		ELSE p.type
+	END  AS ptype,
+  
+  IFF(ptype IN ('card', 'personalizedGift'), COUNT(DISTINCT c.carddefinition), COUNT(DISTINCT ol.productid))  AS amount
+   
+FROM
+	"RAW_GREETZ"."GREETZ3".orders o
+    INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol ON o.id = ol.orderid
+    INNER JOIN "RAW_GREETZ"."GREETZ3".product p on p.id = ol.productid
+    LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg ON p.ID = pg.PRODUCTID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
+WHERE p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%' 
+GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
+ ),
+ 
+ cte_distinct_cardsInOrder
+AS
+(
+SELECT 
+  ol.orderid, 
+  COUNT(DISTINCT c.carddefinition)  AS amount
+   
+FROM
+	"RAW_GREETZ"."GREETZ3".orders o
+    INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol ON o.id = ol.orderid
+    INNER JOIN "RAW_GREETZ"."GREETZ3".product p on p.id = ol.productid
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
+WHERE p.type = 'productCardSingle' OR p.productcode LIKE 'card%' 
+GROUP BY ol.orderid
+ ),
  
  cte_ISEV_groupped_0
  AS
@@ -40,15 +85,8 @@ WHERE RN = 1
 			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  AS gifts_ISEV,
 			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV,
 			
-			----------------- for POSTAGE_UNIT_PRICE  -----------
-			
-			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
-			
-			SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', 1, 0))  AS cards_count_distinct,
-			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', 1, 0))  AS gifts_count_distinct,
-			SUM(IFF(pt.MPTypeCode = 'flower', 1, 0))  AS flowers_count_distinct,
-			postage_cost_wVat * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / (cards_count + gifts_count + flowers_count)  AS postage_unit_price
-			
+			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat
+						
  FROM "RAW_GREETZ"."GREETZ3".orderline ol 
     INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
     LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg ON p.ID = pg.PRODUCTID
@@ -61,13 +99,31 @@ WHERE RN = 1
  cte_ISEV_groupped
  AS
  (
- SELECT  ORDERID, 
- 			SUM(cards_ISEV)  AS cards_ISEV,
- 			SUM(gifts_ISEV)  AS gifts_ISEV,
- 			SUM(flowers_ISEV)  AS flowers_ISEV,
-			SUM(postage_unit_price)  AS postage_unit_price
- FROM cte_ISEV_groupped_0
- GROUP BY ORDERID
+ SELECT  ol.ORDERID, 
+ 			SUM(ol.cards_ISEV)  AS cards_ISEV,
+ 			SUM(ol.gifts_ISEV)  AS gifts_ISEV,
+ 			SUM(ol.flowers_ISEV)  AS flowers_ISEV,
+			
+			----------- POSTAGE_UNIT_PRICE --------
+			SUM(IFNULL(d_card.amount, 0))  AS cards_count_distinct,
+			SUM(IFNULL(d_gift_standard.amount, 0) + IFNULL(d_gift_personalized.amount, 0))  AS gifts_count_distinct,
+			SUM(IFNULL(d_flower.amount, 0))  AS flowers_count_distinct,
+			SUM(postage_cost_wVat) * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / SUM(cards_count + gifts_count + flowers_count)  AS postage_unit_price
+
+ FROM cte_ISEV_groupped_0 ol
+	LEFT JOIN cte_distinct_products_cnt d_card 
+		ON ol.ORDERID = d_card.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_card.INDIVIDUALSHIPPINGID
+			AND d_card.ptype = 'card'
+	LEFT JOIN cte_distinct_products_cnt d_gift_standard 
+		ON ol.ORDERID = d_gift_standard.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_gift_standard.INDIVIDUALSHIPPINGID
+			AND d_gift_standard.ptype = 'standardGift' 
+	LEFT JOIN cte_distinct_products_cnt d_gift_personalized
+		ON ol.ORDERID = d_gift_personalized.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_gift_personalized.INDIVIDUALSHIPPINGID
+			AND d_gift_personalized.ptype = 'personalizedGift' 			
+	LEFT JOIN cte_distinct_products_cnt d_flower 
+		ON ol.ORDERID = d_flower.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_flower.INDIVIDUALSHIPPINGID
+			AND d_flower.ptype = 'flower'			
+ GROUP BY ol.ORDERID
  ),
 
 cte_Main 
@@ -196,7 +252,7 @@ SELECT
 	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.productamount, 0))  AS cards,
 	SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.productamount, 0))  AS gifts,
 	SUM(IFF(pt.MPTypeCode = 'flower', ol.productamount, 0))  AS flowers,
-	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', 1, 0))  AS cards_distinct,
+--	SUM(IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', 1, 0))  AS cards_distinct,
 	
 	IFF(cards > 0, True, False)  AS IS_CARD_ORDER	,
 	IFF(gifts > 0, True, False)  AS IS_GIFT_ORDER	,
@@ -247,7 +303,7 @@ SELECT
 	IFF(TOTAL_DISCOUNT > 0 AND gifts > 0, True, False)  AS IS_GIFT_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND flowers > 0, True, False)  AS IS_FLOWER_DISCOUNTED_ORDER	,
 	IFF(TOTAL_DISCOUNT > 0 AND IS_NON_CARD_ORDER = True, True, False)  AS IS_NON_CARD_DISCOUNTED_ORDER	,
-	sum(IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.productcode = 'personalizedGift', 1, 0))  AS HIGH_EFFORT_ITEMS	,
+	sum(IFF((cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift') AND (p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') OR lower(p.productcode) LIKE '%envelop%'), 1, 0))  AS HIGH_EFFORT_ITEMS	,
 	total_amount - HIGH_EFFORT_ITEMS  AS LOW_EFFORT_ITEMS	,	
 	sum(IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), 1, 0))  AS HIGH_EFFORT_CARD_ITEMS	,
 	cards - HIGH_EFFORT_CARD_ITEMS  AS LOW_EFFORT_CARD_ITEMS	,
@@ -332,7 +388,7 @@ SELECT
 	
 	IFNULL(ig.gifts_ISEV, 0) + IFNULL(ig.flowers_ISEV, 0)  AS NON_CARD_SALES	,
 	
-	cards_distinct  AS CARD_DISTINCT_PRODUCTS	,
+	cds.amount  AS CARD_DISTINCT_PRODUCTS	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, 'Multi SKU', 'Single SKU')  AS MULTI_CARD_SKU_ORDER	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, CARD_DISTINCT_PRODUCTS, 0)  AS MULTI_CARD_VOLUME,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, IFNULL(ig.cards_ISEV, 0), 0)  AS 	MULTI_CARD_SALES	,
@@ -392,7 +448,7 @@ SELECT
 
 FROM
 --	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE created > '2022-06-01' ORDER BY created LIMIT 1000) o
--- 	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE id = /*1323191458 1347309071*/ 1336681263) o
+-- 	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE id = 1266779435 /*1323191458 1347309071 1336681263*/) o
     "RAW_GREETZ"."GREETZ3".orders o
     INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
@@ -436,11 +492,13 @@ FROM
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
 		ON c.customersessioninfo = s.ID
+	LEFT JOIN cte_distinct_cardsInOrder cds
+		ON o.ID = cds.OrderID
 
 GROUP BY 
 	o.ID, 
 	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, ig.POSTAGE_UNIT_PRICE,
-	ig.gifts_ISEV, ig.flowers_ISEV
+	ig.gifts_ISEV, ig.flowers_ISEV, cds.amount
 )
 
 SELECT 
