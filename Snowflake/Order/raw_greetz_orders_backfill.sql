@@ -1,6 +1,27 @@
 CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDERS_STAGING_BACKFILL" AS (
 
- WITH cte_ISEV_groupped_0
+WITH cte_Fee_0 
+AS
+(
+SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
+FROM "RAW_GREETZ"."GREETZ3".orderline ol 
+    join "RAW_GREETZ"."GREETZ3".orders o 
+		ON ol.orderid = o.ID
+    join RAW_GREETZ.GREETZDWH.INTEGRATION_GiftCardsKickBackFeeDateInterval fee 
+        ON ol.productid = fee.PRODUCT_ID
+            AND (to_date(IFF(fee.DATE_START = 'NULL' OR fee.DATE_START IS NULL, '01-01-1990', fee.DATE_START), 'DD-MM-YYYY' ) < o.CREATED ) 
+            AND (to_date(IFF(fee.DATE_END = 'NULL' OR fee.DATE_END IS NULL, '01-01-2030', fee.DATE_END), 'DD-MM-YYYY' ) > o.CREATED )
+),
+
+cte_Fee 
+AS
+(
+SELECT ID AS OrderLineID, KICK_BACK_FEE
+FROM cte_Fee_0
+WHERE RN = 1
+),
+ 
+ cte_ISEV_groupped_0
  AS
  (
  SELECT 	ol.ORDERID, 
@@ -10,7 +31,7 @@ CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.PRODUCTAMOUNT, 0)) AS flowers_count,
 			
 			SUM(IFF(p.TYPE IN ('productCardSingle', 'content') OR p.productcode LIKE 'card%', ol.TOTALWITHOUTVAT, 0)) AS cards_cost,
-			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.TOTALWITHOUTVAT, 0)) AS gifts_cost,
+			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS gifts_cost,
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.TOTALWITHOUTVAT, 0)) AS flowers_cost,
 
 			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost,
@@ -32,6 +53,7 @@ CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_
     INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
     LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg ON p.ID = pg.PRODUCTID
     LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
+	LEFT JOIN cte_Fee fee ON ol.ID = fee.OrderLineID
  GROUP BY   ol.ORDERID, 
 			ol.INDIVIDUALSHIPPINGID
  ),
@@ -48,26 +70,8 @@ CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_
  GROUP BY ORDERID
  ),
 
-cte_Fee_0 AS
-(
-SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
-FROM "RAW_GREETZ"."GREETZ3".orderline ol 
-    join "RAW_GREETZ"."GREETZ3".orders o 
-		ON ol.orderid = o.ID
-    join RAW_GREETZ.GREETZDWH.INTEGRATION_GiftCardsKickBackFeeDateInterval fee 
-        ON ol.productid = fee.PRODUCT_ID
-            AND (to_date(IFF(fee.DATE_START = 'NULL' OR fee.DATE_START IS NULL, '01-01-1990', fee.DATE_START), 'DD-MM-YYYY' ) < o.CREATED ) 
-            AND (to_date(IFF(fee.DATE_END = 'NULL' OR fee.DATE_END IS NULL, '01-01-2030', fee.DATE_END), 'DD-MM-YYYY' ) > o.CREATED )
-),
-
-cte_Fee AS
-(
-SELECT ID AS OrderLineID, KICK_BACK_FEE
-FROM cte_Fee_0
-WHERE RN = 1
-),
-
-cte_Main AS
+cte_Main 
+AS
 (
 SELECT 
 	o.ID AS ORDER_ID,
