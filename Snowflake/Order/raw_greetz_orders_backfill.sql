@@ -21,7 +21,7 @@ FROM cte_Fee_0
 WHERE RN = 1
 ),
 
-cte_distinct_products_cnt
+cte_distinct_InShipping
 AS
 (
 SELECT 
@@ -36,6 +36,8 @@ SELECT
 	END  AS ptype,
   
   IFF(ptype IN ('card', 'personalizedGift'), COUNT(DISTINCT c.carddefinition), COUNT(DISTINCT ol.productid))  AS amount
+  
+ -- COUNT(DISTINCT c.carddefinition) OVER (PARTITION BY ol.orderid)  AS DistinctCardsInOrder
    
 FROM
 	"RAW_GREETZ"."GREETZ3".orders o
@@ -49,7 +51,7 @@ WHERE p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.p
 GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
  ),
  
- cte_distinct_cardsInOrder
+cte_distinct_CardsInOrder
 AS
 (
 SELECT 
@@ -111,16 +113,16 @@ GROUP BY ol.orderid
 			SUM(postage_cost_wVat) * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / SUM(cards_count + gifts_count + flowers_count)  AS postage_unit_price
 
  FROM cte_ISEV_groupped_0 ol
-	LEFT JOIN cte_distinct_products_cnt d_card 
+	LEFT JOIN cte_distinct_InShipping d_card 
 		ON ol.ORDERID = d_card.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_card.INDIVIDUALSHIPPINGID
 			AND d_card.ptype = 'card'
-	LEFT JOIN cte_distinct_products_cnt d_gift_standard 
+	LEFT JOIN cte_distinct_InShipping d_gift_standard 
 		ON ol.ORDERID = d_gift_standard.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_gift_standard.INDIVIDUALSHIPPINGID
 			AND d_gift_standard.ptype = 'standardGift' 
-	LEFT JOIN cte_distinct_products_cnt d_gift_personalized
+	LEFT JOIN cte_distinct_InShipping d_gift_personalized
 		ON ol.ORDERID = d_gift_personalized.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_gift_personalized.INDIVIDUALSHIPPINGID
 			AND d_gift_personalized.ptype = 'personalizedGift' 			
-	LEFT JOIN cte_distinct_products_cnt d_flower 
+	LEFT JOIN cte_distinct_InShipping d_flower 
 		ON ol.ORDERID = d_flower.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_flower.INDIVIDUALSHIPPINGID
 			AND d_flower.ptype = 'flower'			
  GROUP BY ol.ORDERID
@@ -492,7 +494,7 @@ FROM
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
 		ON c.customersessioninfo = s.ID
-	LEFT JOIN cte_distinct_cardsInOrder cds
+	LEFT JOIN cte_distinct_CardsInOrder cds
 		ON o.ID = cds.OrderID
 
 GROUP BY 
