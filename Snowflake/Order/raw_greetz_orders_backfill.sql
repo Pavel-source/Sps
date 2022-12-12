@@ -45,7 +45,24 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
-WHERE p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%' 
+WHERE (p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%') 
+	  AND o.channelid = 2
+	  AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
 GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
  ),
   
@@ -70,11 +87,29 @@ GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
 			
 			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat
 						
- FROM "RAW_GREETZ"."GREETZ3".orderline ol 
+ FROM "RAW_GREETZ"."GREETZ3".orders o
+	INNER JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.ID = ol.ORDERID
     INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
     LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg ON p.ID = pg.PRODUCTID
     LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN cte_Fee fee ON ol.ID = fee.OrderLineID
+ WHERE o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
  GROUP BY   ol.ORDERID, 
 			ol.INDIVIDUALSHIPPINGID
  ),
@@ -208,7 +243,7 @@ SELECT
 	TOTAL_TAX * ex.avg_rate  AS TOTAL_TAX_GBP	,
 	ORDER_ISIV * ex.avg_rate  AS ORDER_ISIV_GBP	,
 	ORDER_CASH_PAID * ex.avg_rate  AS ORDER_CASH_PAID_GBP	,
-	ORDER_ESEV - IFNULL(sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)), 0) AS GROSS_PRODUCT_MARGIN	,
+	ORDER_ISEV - IFNULL(sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)), 0) AS GROSS_PRODUCT_MARGIN	,
 	POSTAGE_EX_TAX - IFNULL(sum(IFF(oce.subcell = 'SHIPMENT', oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)), 0) AS GROSS_SHIPPING_MARGIN	,
 	ORDER_ISEV - IFNULL(sum(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost), 0) AS TOTAL_GROSS_MARGIN	,	
 	ORDER_ESEV - IFNULL(sum(IFF(oce.subcell != 'SHIPMENT', oce.purchasecost, 0)), 0) AS COMMERCIAL_PRODUCT_MARGIN	,
@@ -227,7 +262,7 @@ SELECT
 	ORDER_ESEV  AS EVE_TOTAL_LINE_ITEM	,
 	
 	-- total cardgiftback fee (incl tax)
-	SUM(ol.totalwithvat - 100 * IFNULL(fee.KICK_BACK_FEE, 0) * ol.productamount)  AS DIFF_TOTAL_GROSS,	
+	SUM(IFF(IFNULL(fee.KICK_BACK_FEE, 0) = 0, 0, ol.totalwithvat - 100 * fee.KICK_BACK_FEE * ol.productamount))  AS DIFF_TOTAL_GROSS,
 		
 	DIFF_TOTAL_GROSS  AS DIFF_PRODUCT_SUBTOTAL	,					
 	0  AS DIFF_POSTAGE_SUBTOTAL	,
@@ -475,6 +510,24 @@ FROM
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
 		ON c.customersessioninfo = s.ID
+WHERE		
+	   o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
 
 GROUP BY 
 	o.ID, 
