@@ -28,7 +28,6 @@ SELECT
   ol.orderid, 
   ol.INDIVIDUALSHIPPINGID,
   
---  IFF(pt.MPTypeCode = 'flower', 'flower', IFF(p.productcode LIKE 'card%', p.type)  AS ptype,
 	CASE
 		WHEN p.type = 'productCardSingle' OR p.productcode LIKE 'card%' THEN 'card'
 		WHEN pt.MPTypeCode = 'flower' THEN 'flower'
@@ -36,7 +35,6 @@ SELECT
 	END  AS ptype,
   
   IFF(ptype IN ('card', 'personalizedGift'), COUNT(DISTINCT c.carddefinition), COUNT(DISTINCT ol.productid))  AS amount
-  
  -- COUNT(DISTINCT c.carddefinition) OVER (PARTITION BY ol.orderid)  AS DistinctCardsInOrder
    
 FROM
@@ -50,24 +48,7 @@ FROM
 WHERE p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%' 
 GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
  ),
- 
-cte_distinct_CardsInOrder
-AS
-(
-SELECT 
-  ol.orderid, 
-  COUNT(DISTINCT c.carddefinition)  AS amount
-   
-FROM
-	"RAW_GREETZ"."GREETZ3".orders o
-    INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol ON o.id = ol.orderid
-    INNER JOIN "RAW_GREETZ"."GREETZ3".product p on p.id = ol.productid
-	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
-	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
-WHERE p.type = 'productCardSingle' OR p.productcode LIKE 'card%' 
-GROUP BY ol.orderid
- ),
- 
+  
  cte_ISEV_groupped_0
  AS
  (
@@ -390,7 +371,7 @@ SELECT
 	
 	IFNULL(ig.gifts_ISEV, 0) + IFNULL(ig.flowers_ISEV, 0)  AS NON_CARD_SALES	,
 	
-	cds.amount  AS CARD_DISTINCT_PRODUCTS	,
+	COUNT(DISTINCT c.carddefinition)  AS CARD_DISTINCT_PRODUCTS	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, 'Multi SKU', 'Single SKU')  AS MULTI_CARD_SKU_ORDER	,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, CARD_DISTINCT_PRODUCTS, 0)  AS MULTI_CARD_VOLUME,
 	IFF(CARD_DISTINCT_PRODUCTS > 1, IFNULL(ig.cards_ISEV, 0), 0)  AS 	MULTI_CARD_SALES	,
@@ -494,13 +475,11 @@ FROM
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
 		ON c.customersessioninfo = s.ID
-	LEFT JOIN cte_distinct_CardsInOrder cds
-		ON o.ID = cds.OrderID
 
 GROUP BY 
 	o.ID, 
 	o.CREATED, o.CUSTOMERID, o.ORDERCODE, o.CURRENTORDERSTATE, o.CURRENCYCODE, ex.AVG_RATE, ex_2.AVG_RATE, ig.cards_ISEV, ig.POSTAGE_UNIT_PRICE,
-	ig.gifts_ISEV, ig.flowers_ISEV, cds.amount
+	ig.gifts_ISEV, ig.flowers_ISEV
 )
 
 SELECT 
