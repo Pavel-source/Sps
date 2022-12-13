@@ -31,12 +31,85 @@ SELECT
 	end 	AS ORDER_ADDRESS_TYPE	,
 	
 	IFF(isp.CANCELLATIONTYPE IS NOT NULL, True, False)  AS IS_ITEM_CANCELLED,
+	IFF(IS_ITEM_CANCELLED = True, SHIPMENTLASTUPDATED, NULL)  AS ITEM_CANCELLED_DATE,
 	
 	'LineItemLevel' AS ORDER_TAX_CALCULATION	,
 	True AS ORDER_TRANSACTION_FEE	,
-	o.currencycode AS ORDER_CURRENCYCODE	,
+	o.currencycode AS LI_CURRENCYCODE	,
 	ex.avg_rate AS TO_GBP_RATE,
-	ex_2.avg_rate AS MNTH_GBP_TO_EUR_RATE,
+	ex_2.avg_rate AS TO_EUR_RATE,
+	ex_2.avg_rate AS TO_USD_RATE,
+	
+	CASE LI_CURRENCYCODE 
+		WHEN 'EUR' THEN 'NL' 
+		WHEN 'GBP' THEN 'GB' 
+		WHEN 'USD' THEN 'US' 
+	END  AS LI_TAX_COUNTRY,
+	
+	0  AS LI_TAX_AMOUNT,
+	True  AS TAX_INCLUDED_IN_SUBTOTAL,
+	'Default'  AS CT_TAX_NAME,
+	'Paid'  AS PAYMENT_STATE,
+
+	IFNULL(r.addressid, a2.id)  AS ADDRESS_ID,
+	IFF(ol.packettoselfid IS NULL, 'to_them', 'to_me')  AS RECIPIENT_TYPE,
+	
+	IFF(RECIPIENT_TYPE = 'to_them', 'Send Direct Address', 'Customer Address')  AS ADDRESS_TYPE,	
+	UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z]+\\d\\d?[a-zA-Z]?)'))  AS DELIVERY_DISTRICT,
+	UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z][a-zA-Z]?)'))  AS DELIVERY_POSTAL_AREA,
+	IFNULL(a.CITY, a2.CITY)  AS DELIVERY_CITY,
+	IFNULL(a.stateprovincecounty, a2.stateprovincecounty)  AS ADDRESS_COUNTY,	
+	IFNULL(a.countrycode, a2.countrycode)  AS DELIVERY_COUNTRY_CODE,
+	ps.CLASSNAME  AS DELIVERY_METHOD,
+	ps.postalcompany  AS DELIVERY_METHOD_ID,
+	IFNULL(cn.ENGLISHCOUNTRYNAME, cn2.ENGLISHCOUNTRYNAME)  AS DELIVERY_COUNTRY,
+	
+	NULL  AS ROYAL_MAIL_AREA,
+	NULL  AS ROYAL_MAIL_DISTRIBUTION_CENTRE,
+	False  AS IS_MESSAGE_CARD,
+	'Ready'  AS SHIPMENT_STATE,
+	dp_EXPECTED.pickupdate  AS ESTIMATED_DESPATCH_DATE_ORDER,
+	'Amsterdam'  AS PRINTSITE,
+	'Amsterdam'  AS PRINTSITE_COUNTRY,
+	CONCAT('GAP_Individual_shipping_id_', isp.id)  AS CONSIGNMENT_ID,
+	'Greetz backfill'  AS CONSIGNMENT_SOURCE,
+	NULL  AS CONSIGNMENT_ACCEPTED_DATETIME,
+	NULL  AS CONSIGNMENT_PREPARED_DATETIME,
+	ESTIMATED_DESPATCH_DATE_CONSIGNMENT = ESTIMATED_DESPATCH_DATE_ORDER,
+	ESTIMATED_DESPATCH_DATE = ESTIMATED_DESPATCH_DATE_ORDER,
+	NULL  AS PROPOSED_DELIVERY_DATE,
+	NULL  AS CONSIGNMENT_SENT_DATETIME,
+	NULL  AS CONSIGNMENT_ACKNOWLEDGED_DATETIME,
+	NULL  AS FULFILMENT_CENTRE_RECEIVED_DATETIME,
+	NULL  AS FULFILMENT_CENTRE_RECEIVED_DATE,
+	dp_ACTUAL.pickupdate  AS ACTUAL_DESPATCH_DATETIME,
+	CAST(dp_ACTUAL.pickupdate AS date)  AS ACTUAL_DESPATCH_DATE
+	ACTUAL_DESPATCH_DATETIME  AS DESPATCH_DATETIME,
+	ACTUAL_DESPATCH_DATE  AS DESPATCH_DATE,
+	'NL-GRTZ-AMS'  AS FULFILMENT_CENTRE_ID,
+	'NL'  AS FULFILMENT_CENTRE_COUNTRY_CODE,
+	isp.trackandtracecode  AS TRACKING_CODE,
+	NULL  AS DESPATCH_CARRIER,
+	IFF(p.PRODUCTCODE != 'shipment_generic', ol.withvat, NULL)  AS LI_TOTAL_GROSS,
+	IFF(p.PRODUCTCODE != 'shipment_generic', ol.totalwithvat, NULL)  AS LI_TOTAL_NET,
+	LI_TOTAL_GROSS  AS LI_TOTAL_AMOUNT,
+	IFF(p.PRODUCTCODE = 'shipment_generic', ol.withvat, NULL)  AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
+	IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0, False, True)  AS HAS_DISCOUNT,
+	IFF(p.PRODUCTCODE != 'shipment_generic', ol.discountwithoutvat, NULL)  AS PRODUCT_DISCOUNT,
+	IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithoutvat, NULL)  AS POSTAGE_DISCOUNT,
+	False  AS IS_EXISTING_MEMBERSHIP_ORDER,
+	NULL  AS PRICE_MINUS_DISCOUNT_AMOUNT,
+	ORDER_DATE  AS AVA_ORDER_DATE,
+	IFF(p.PRODUCTCODE != 'shipment_generic', totalwithvat - totalwithoutvat, NULL)  AS AVA_PRODUCT_TAX, 
+	NULL  AS TAX_CODE,
+	NULL  AS TAX_CODE_ID,
+	NULL  AS LINE_NUMBER,
+	NULL  AS POSTAGE_GROUPING,
+
+
+
+	
+	
 	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_EX_TAX	,
 	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_TAX	,
 	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHVAT, 0)))  AS PRODUCT_DISCOUNT_INC_TAX	,
@@ -320,6 +393,10 @@ FROM
 		ON ex_2.month = concat(year(o.CREATED), iff(month(o.CREATED) < 10, '0',''), month(o.CREATED))
 			AND ex_2.local_currency = 'GBP'
 			AND ex_2.destination_currency = 'EUR'	
+	LEFT JOIN PROD.dw_lookup.exchange_rate_history AS ex_3
+		ON ex_3.month = concat(year(o.CREATED), iff(month(o.CREATED) < 10, '0',''), month(o.CREATED))
+			AND ex_3.local_currency = 'GBP'
+			AND ex_3.destination_currency = 'USD'	
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib 
 		ON pib.ID = ol.PRODUCTITEMINBASKETID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c 
@@ -336,6 +413,8 @@ FROM
        ON ol.individualshippingid = isp.id	
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".recipient AS r
        ON isp.recipientid = r.id
+	LEFT JOIN address a
+       on r.addressid = a.id
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".address AS a2
 	   ON o.customerid = a2.customerid 
 		  AND a2.DEFAULTADDRESS = 'Y'
@@ -357,6 +436,16 @@ FROM
             AND (to_date(IFF(fee.DATE_START = 'NULL' OR fee.DATE_START IS NULL, '01-01-1990', fee.DATE_START), 'DD-MM-YYYY' ) < o.CREATED ) 
             AND (to_date(IFF(fee.DATE_END = 'NULL' OR fee.DATE_END IS NULL, '01-01-2030', fee.DATE_END), 'DD-MM-YYYY' ) + 1 > o.CREATED )
 			AND NOT (fee.DATE_START = 'NULL' and fee.DATE_END = 'NULL')
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productshipment AS ps
+		ON ol.productid = ps.productid
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".country  AS cn
+       ON a.countrycode = cn.TWOLETTERCOUNTRYCODE
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".country  AS cn2
+       ON a.countrycode = cn2.TWOLETTERCOUNTRYCODE
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".deliverypromise AS dp_ACTUAL
+	   ON isp.ffshipmentinformationid = dp_ACTUAL.id 
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".deliverypromise AS dp_EXPECTED
+	   ON isp.shipmentinformationid = dp_EXPECTED.id 
 
 WHERE		
 	   o.channelid = 2
