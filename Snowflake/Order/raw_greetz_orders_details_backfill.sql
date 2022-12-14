@@ -1,5 +1,48 @@
 -- CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDER_ITEMS_DETAILED_BACKFILL" AS (
-
+WITH
+cte_INDIVIDUALSHIPPING
+ AS
+ (
+ SELECT 	
+		ol.INDIVIDUALSHIPPINGID,
+		SUM(IFF(p.PRODUCTCODE != 'shipment_generic', ol.PRODUCTAMOUNT, 0))  AS product_amount,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithoutvat, 0))  AS postage_discount_wOutVat,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithvat, 0))  AS postage_discount_wVat
+									
+ FROM "RAW_GREETZ"."GREETZ3".orders o
+	INNER JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.ID = ol.ORDERID
+    INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
+ WHERE o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
+		AND (p.TYPE IN ('shipment_generic', 'productCardSingle', 'standardGift', 'personalizedGift')  OR  p.productcode LIKE 'card%')
+ GROUP BY   
+		ol.INDIVIDUALSHIPPINGID
+ ),
+ 
+ cte_content AS
+(
+SELECT id, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
+FROM cte_previwImages o
+WHERE o.product_type = 'content'
+GROUP BY id, PRODUCTITEMINBASKETID
+),
 
 SELECT 
 	o.ID AS ORDER_ID,
@@ -93,21 +136,74 @@ SELECT
 	IFF(p.PRODUCTCODE != 'shipment_generic', ol.withvat, NULL)  AS LI_TOTAL_GROSS,
 	IFF(p.PRODUCTCODE != 'shipment_generic', ol.totalwithvat, NULL)  AS LI_TOTAL_NET,
 	LI_TOTAL_GROSS  AS LI_TOTAL_AMOUNT,
-	IFF(p.PRODUCTCODE = 'shipment_generic', ol.withvat, NULL)  AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
+	ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount   AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
 	IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0, False, True)  AS HAS_DISCOUNT,
-	IFF(p.PRODUCTCODE != 'shipment_generic', ol.discountwithoutvat, NULL)  AS PRODUCT_DISCOUNT,
-	IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithoutvat, NULL)  AS POSTAGE_DISCOUNT,
+	ol.discountwithoutvat  AS PRODUCT_DISCOUNT,
+	ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount  AS POSTAGE_DISCOUNT,
 	False  AS IS_EXISTING_MEMBERSHIP_ORDER,
 	NULL  AS PRICE_MINUS_DISCOUNT_AMOUNT,
 	ORDER_DATE  AS AVA_ORDER_DATE,
-	IFF(p.PRODUCTCODE != 'shipment_generic', totalwithvat - totalwithoutvat, NULL)  AS AVA_PRODUCT_TAX, 
+	totalwithvat - totalwithoutvat  AS AVA_PRODUCT_TAX, 
 	NULL  AS TAX_CODE,
 	NULL  AS TAX_CODE_ID,
 	NULL  AS LINE_NUMBER,
 	NULL  AS POSTAGE_GROUPING,
+	ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS AVA_POSTAGE,
+	ol.productamount * (c_isp.postage_cost_wOutVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS AVA_POSTAGE_TAX,
+	'NL'  AS TAX_COUNTRY,
+	'NL'  AS TAX_REGION,
+	ol.withoutvat  AS AVA_LINE_AMOUNT,
+	
+	CASE 
+		WHEN ol.VATPERCENTAGE IN (19, 21) THEN 'Standard Rate'
+		WHEN ol.VATPERCENTAGE = 0 THEN 'Zero Rate'
+		ELSE 'Reduced R'
+	END  AS TAX_NAME,
 
+	ol.VATPERCENTAGE / 100  AS TAX_RATE,
+	NULL  AS DISCOUNT_CODES,
+	NULL  AS CUSTOM_LINE_ITEMS,
+	NULL  AS TAX_GROUPING,
 
+	CASE 
+		WHEN ol.VATPERCENTAGE IN (19, 21) THEN 'STANDARD'
+		WHEN ol.VATPERCENTAGE = 0 THEN 'ZERO RATED'
+		ELSE 'REDUCED R'
+	END  AS TAX_TYPE,
+	
+	ol.discountwithvat  AS PRODUCT_DISCOUNT_INC_TAX,
+	ol.discountwithoutvat  AS PRODUCT_DISCOUNT_EX_TAX,
+	ol.discountwithvat - ol.discountwithoutvat  AS PRODUCT_DISCOUNT_TAX,
+	
+	ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount  AS POSTAGE_DISCOUNT_INC_TAX,
+	ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount  AS POSTAGE_DISCOUNT_EX_TAX,
+	ol.productamount * (c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat) / c_isp.product_amount  AS POSTAGE_DISCOUNT_TAX,
 
+	PRODUCT_DISCOUNT_INC_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_INC_TAX_GBP,
+	PRODUCT_DISCOUNT_EX_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_EX_TAX_GBP,
+	PRODUCT_DISCOUNT_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_TAX_GBP,
+	POSTAGE_DISCOUNT_INC_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_INC_TAX_GBP,
+	POSTAGE_DISCOUNT_EX_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_EX_TAX_GBP,
+	POSTAGE_DISCOUNT_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_TAX_GBP,
+
+	IFNULL(fee.KICK_BACK_FEE, 1)  AS COMMISSION_MARGIN,
+	(ol.totalwithvat + IFNULL(co.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE,
+	ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESEV,
+	c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_UNIT_PRICE,
+	ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS POSTAGE_EX_TAX,
+ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX,
+ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT  AS PRODUCT_TOTAL_TAX,
+ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV,
+ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wVat + abs(c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat)) / c_isp.product_amount  AS POSTAGE_LINE_TAX,
+ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wVat) / c_isp.product_amount  AS POSTAGE_TOTAL_TAX,
+ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SUBTOTAL,
+ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS ITEM_ISEV,
+ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount  AS TOTAL_DISCOUNT,
+ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount   AS TOTAL_TAX,
+ITEM_ISIV,
+ORDER_ISIV,
+
+	
 	
 	
 	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_EX_TAX	,
@@ -446,6 +542,12 @@ FROM
 	   ON isp.ffshipmentinformationid = dp_ACTUAL.id 
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".deliverypromise AS dp_EXPECTED
 	   ON isp.shipmentinformationid = dp_EXPECTED.id 
+	LEFT JOIN cte_INDIVIDUALSHIPPING c_isp
+		ON ol.individualshippingid = c_isp.individualshippingid
+	LEFT JOIN cte_content co
+		ON co.id = ol.orderid
+		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
+		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
 
 WHERE		
 	   o.channelid = 2
@@ -465,4 +567,9 @@ WHERE
 		   'PAYMENT_FAILED_AFTER_PRINTING',
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')
-
+		AND (
+			p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') 			
+			OR lower(p.productcode) LIKE '%envelop%'
+			OR p.productcode LIKE 'card%'
+			)
+			
