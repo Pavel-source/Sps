@@ -35,14 +35,45 @@ cte_INDIVIDUALSHIPPING
  GROUP BY   
 		ol.INDIVIDUALSHIPPINGID
  ),
+  
+cte_content_0
+AS
+(
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 AVG(totalwithvat) AS totalwithvat
+FROM orders o
+	JOIN orderline ol ON o.id = ol.orderid
+	JOIN product pn ON pn.id = ol.productid
+WHERE o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')  
+     AND pn.type = 'content'  
+	 AND ol.PRODUCTITEMINBASKETID IS NOT NULL
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
+), 
  
  cte_content AS
 (
-SELECT id, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
-FROM cte_previwImages o
-WHERE o.product_type = 'content'
-GROUP BY id, PRODUCTITEMINBASKETID
-),
+SELECT orderid, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
+FROM cte_content_0
+GROUP BY orderid, PRODUCTITEMINBASKETID
+)
 
 SELECT 
 	o.ID AS ORDER_ID,
@@ -200,9 +231,25 @@ ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SU
 ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS ITEM_ISEV,
 ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount  AS TOTAL_DISCOUNT,
 ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount   AS TOTAL_TAX,
-ITEM_ISIV,
-ORDER_ISIV,
-
+ol.TOTALWITHVAT + ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS ITEM_ISIV,
+o_st.ORDER_ISIV  AS ORDER_ISIV,
+ORDER_ISIV  AS EVE_ORDER_TOTAL_GROSS	,
+ORDER_ISIV - EVE_ORDER_TOTAL_GROSS  AS DIFF,	-- ??  = 0
+IFF(DIFF > 0.02, TRUE, FALSE)  AS LARGE_DIFF,
+PRODUCT_UNIT_PRICE * ex.avg_rate  AS PRODUCT_UNIT_PRICE_GBP,
+ITEM_ESEV * ex.avg_rate  AS ITEM_ESEV_GBP,
+POSTAGE_UNIT_PRICE * ex.avg_rate  AS POSTAGE_UNIT_PRICE_GBP,
+POSTAGE_EX_TAX * ex.avg_rate  AS POSTAGE_EX_TAX_GBP,
+PRODUCT_LINE_TAX * ex.avg_rate  AS PRODUCT_LINE_TAX_GBP,
+PRODUCT_TOTAL_TAX * ex.avg_rate  AS PRODUCT_TOTAL_TAX_GBP,
+ITEM_ESIV * ex.avg_rate  AS ITEM_ESIV_GBP,
+POSTAGE_LINE_TAX * ex.avg_rate  AS POSTAGE_LINE_TAX_GBP,
+POSTAGE_TOTAL_TAX * ex.avg_rate  AS POSTAGE_TOTAL_TAX_GBP,
+POSTAGE_SUBTOTAL * ex.avg_rate  AS POSTAGE_SUBTOTAL_GBP,
+ITEM_ISEV * ex.avg_rate  AS ITEM_ISEV_GBP,
+TOTAL_DISCOUNT * ex.avg_rate  AS TOTAL_DISCOUNT_GBP,
+TOTAL_TAX * ex.avg_rate  AS TOTAL_TAX_GBP,
+ITEM_ISIV * ex.avg_rate  AS ITEM_ISIV_GBP,
 	
 	
 	
@@ -479,6 +526,8 @@ FROM
 --	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE created > '2022-06-01' ORDER BY created LIMIT 1000) o
 -- 	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE id = 1266779435 /*1323191458 1347309071 1336681263*/) o
     "RAW_GREETZ"."GREETZ3".orders o
+	INNER JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDERS_STAGING_BACKFILL"  AS o_st
+		ON o.ID = o_st.ORDER_ID
     INNER JOIN "RAW_GREETZ"."GREETZ3".orderline AS ol 
 		ON o.id = ol.orderid
 	LEFT JOIN PROD.dw_lookup.exchange_rate_history AS ex
