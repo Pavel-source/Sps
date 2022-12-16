@@ -2,7 +2,7 @@
 
 CREATE OR REPLACE TABLE "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants (
 
-	id_auto BIGINT NOT NULL,
+--	id_auto BIGINT NOT NULL,
 	product_id BIGINT NOT NULL,
 	productKey VARCHAR(50) NOT NULL,
 	nl_product_name VARCHAR(150) NULL,
@@ -11,9 +11,9 @@ CREATE OR REPLACE TABLE "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants (
 	productTypeKey VARCHAR(100) NOT NULL,
 	designId BIGINT NULL,
 	PRODUCTCODE VARCHAR(300) NOT NULL,
-	type	 VARCHAR(100) NOT NULL,
+	type	 VARCHAR(100) NOT NULL
 	
-	PRIMARY KEY (id_auto)
+--	PRIMARY KEY (id_auto)
 )
 ;
 
@@ -75,10 +75,17 @@ SELECT
 				ON z.product = p.ID	
    WHERE
       p.channelid = '2'
-      AND p.id NOT IN (SELECT pge.productstandardgift
-					   FROM "RAW_GREETZ"."GREETZ3".productgroupentry pge
-						  JOIN "RAW_GREETZ"."GREETZ3".productgroup ppg ON pge.productGroupId = ppg.id 
-					   ) 
+	/*  and p.type not in (
+		--	'content',
+			'shipment',
+			'outerCarton',
+			'sound',
+			'packetToSelfSurcharge',
+			'trimoption')*/
+  --    AND p.removed IS NULL
+  --    AND p.endoflife != 'Y'
+  --    AND productgiftcategoryid IS NOT NULL
+      AND p.id NOT IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
 	  
    UNION ALL
    SELECT
@@ -88,16 +95,24 @@ SELECT
 	--	null      AS en_product_name,		
 		p.PRODUCTCODE AS sku_id,
 		concat('GRTZ',  cast(p.ID AS varchar(50))) AS variant_key,
+	--	CASE WHEN mv.productStandardGift IS NOT NULL THEN 1 ELSE 0 END AS ismastervariant,
 		pt.MPTypeCode AS productTypeKey,
 		NULL as	designId,
 		p.PRODUCTCODE,
 		p.type
 	FROM
-		product p 
-		left join productgift pg on pg.productid = p.id
-		join productgroupentry pge on pge.productstandardgift = p.id
+		productgift pg
+		join product p on pg.productid = p.id
+		join productgroupentry pge on pge.productstandardgift = pg.productid
 		join productgroup ppg ON pge.productGroupId = ppg.id
+	--	left join MasterVariant_productStandardGift mv
+	--	   on pge.productstandardgift = mv.productstandardgift
 		left join greetz_to_mnpg_product_types_view pt
            on pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid)
-	WHERE p.channelid = 2	
+	WHERE
+		p.channelid = '2'
+	--	and p.removed is null
+	--	and p.endoflife != 'Y'
+	--	and pg.productgiftcategoryid is not null
+		and pge.productstandardgift IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
 ;
