@@ -412,7 +412,7 @@ FROM productList_CorrectedAttributesTemplate p
 		ON tc.GreetzTypeID = p.GreetzTypeID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".Product_Category pc
 		ON pc.Code = tc.CategoryCode
-WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
+-- WHERE (p.entityProduct_key not like 'GRTZD%' OR p.MPTypeCode like '%personalised%') 
 ),
 
 Ignore_AgeCategory
