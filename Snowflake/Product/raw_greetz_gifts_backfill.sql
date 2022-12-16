@@ -494,7 +494,7 @@ grouped_products AS
 	FROM "RAW_GREETZ"."GREETZ3".productgroupentry AS pge
 		JOIN "RAW_GREETZ"."GREETZ3".productgroup ppg ON pge.productGroupId = ppg.id 
 	 	JOIN productList pl ON pl.ID = pge.productStandardGift		
---	WHERE ppg.approvalStatus != 'DEACTIVATED'			
+	WHERE pge.productstandardgift IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 		
 ),
 
 grouped_product_types_0 AS
@@ -844,12 +844,7 @@ FROM
 		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
 			
-WHERE p.id NOT IN 	(SELECT pge.productstandardgift
-					 FROM "RAW_GREETZ"."GREETZ3".productgroupentry pge
-						  JOIN "RAW_GREETZ"."GREETZ3".productgroup ppg ON pge.productGroupId = ppg.id 
-						  JOIN productList pl ON pge.productstandardgift = pl.ID
-				--	 WHERE ppg.approvalStatus != 'DEACTIVATED'
-					 )  
+WHERE p.id NOT IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
 						   
 GROUP BY p.ID,
 		 p.entityProduct_key, 
@@ -1134,8 +1129,8 @@ FROM
 			  ON a_tgt.ID = p.ID AND a_tgt.designId = p.designId AND a_tgt.INTERNALNAME = 'Target Group'			  
 		 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_relations_view_2 a_rl_2
 			  ON a_rl_2.Greetz_Name = a_tgt.Val_Name	
-				 
-GROUP BY pge.entityProduct_key,
+GROUP BY 
+		 pge.entityProduct_key,
 		 p.ID,
 		 p.PRODUCTCODE,
 		 p.entityProduct_key,
