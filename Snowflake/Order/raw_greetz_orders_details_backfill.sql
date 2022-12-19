@@ -310,12 +310,27 @@ END  AS ROYALTY_PRODUCT_CATEGORY,
 NULL  AS CONTRACT_NO	,
 	
 pv.FIRST_PUBLISHED_DATE_TIME,
-TRIM(SPLIT_PART(vars.reporting_occasion, '>', 1)) AS occasion_group
+TRIM(SPLIT_PART(pv.reporting_occasion, '>', 1)) AS OCCASION_GROUP,  
 	
+CASE 
+    WHEN LENGTH(SPLIT_PART(pv.reporting_occasion, '>', 2)) > 0 THEN TRIM(SPLIT_PART(pv.reporting_occasion, '>', 2))
+    ELSE OCCASION_GROUP
+END  AS OCCASION,
 	
-	
-	
-	
+TRIM(SPLIT_PART(pv.reporting_style, '>', 1)) AS STYLE_GROUP,
+
+CASE 
+    WHEN LENGTH(SPLIT_PART(pv.reporting_style, '>', 2)) > 0 THEN TRIM(SPLIT_PART(pv.reporting_style, '>', 2))
+    ELSE STYLE_GROUP
+END  AS STYLE,
+  
+pv.MCD_FINANCE_CATEGORY,
+pv.MCD_FINANCE_SUBCATEGORY,
+pv.LI_SKU_VARIANT  AS SKU_VARIANT,
+pv.PRODUCT_TITLE,
+pv.PRODUCT_ID,
+ol.productamount, 
+pv.VARIANT_ID,
 NULL  AS DESIGN_ID	,
 NULL  AS UPC	,	
 pv.PHOTO_COUNT	,

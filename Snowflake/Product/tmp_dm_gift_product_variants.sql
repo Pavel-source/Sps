@@ -62,7 +62,10 @@ SELECT
 			(
 			 SELECT cd.ID AS designId, ppd.id AS designProductId, ppd.product
 			  -- , cd.contentinformationid AS design_contentinformationid, cif_nl_title.TEXT AS nl_product_name_2
-			 FROM productpersonalizedgiftdesign ppd 				
+			 FROM 
+				(SELECT id, product, GIFTDEFINITION FROM	productpersonalizedgiftdesign 
+				 UNION ALL SELECT id, product, carddefinition FROM	tmp_productpersonalizedgiftdesign_extention)  ppd 
+				 
 				 JOIN carddefinition cd 
 						ON cd.ID = ppd.GIFTDEFINITION
 						--	AND cd.ENABLED = 'Y'
@@ -74,7 +77,7 @@ SELECT
 			) z
 				ON z.product = p.ID	
    WHERE
-      p.channelid = '2'
+   --   p.channelid = '2'
 	/*  and p.type not in (
 		--	'content',
 			'shipment',
@@ -85,7 +88,7 @@ SELECT
   --    AND p.removed IS NULL
   --    AND p.endoflife != 'Y'
   --    AND productgiftcategoryid IS NOT NULL
-      AND p.id NOT IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
+       p.id NOT IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
 	  
    UNION ALL
    SELECT
@@ -110,9 +113,9 @@ SELECT
 		left join greetz_to_mnpg_product_types_view pt
            on pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid)
 	WHERE
-		p.channelid = '2'
+	--	p.channelid = '2'
 	--	and p.removed is null
 	--	and p.endoflife != 'Y'
 	--	and pg.productgiftcategoryid is not null
-		and pge.productstandardgift IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
+		pge.productstandardgift IN (1142811940, 1142813663, 1142813653, 1142813658, 1142811934, 1142811937, 1142811979, 1142811982, 1142811913, 1142811916) 
 ;

@@ -23,8 +23,8 @@ FROM "RAW_GREETZ"."GREETZ3".product pl
 		  ON ct.contentcategoryid = cc.id
 			AND ct.locale = 'en_EN'
 WHERE -- pl.TYPE IN ('standardGift', 'personalizedGift', 'gift_addon')
-	  pl.CHANNELID = '2'
-	  AND c.INTERNALNAME != 'Keywords'   
+	--  pl.CHANNELID = '2'
+	   c.INTERNALNAME != 'Keywords'   
 GROUP BY pl.ID		  
 ),
 
@@ -42,7 +42,7 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 	 JOIN "RAW_GREETZ"."GREETZ3".contentcategorytype c
 	      ON cc.categorytypeid = c.id
 WHERE c.INTERNALNAME = 'Brand/Designer' 
-	  AND p.CHANNELID = '2'
+	-- AND p.CHANNELID = '2'
 GROUP BY p.id
 ),
 
@@ -267,8 +267,8 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
 	LEFT JOIN Brands b ON p.ID = b.ID
 
-WHERE -- p.TYPE IN ('standardGift', 'personalizedGift', 'gift_addon')  
-	  p.channelid = '2'	
+-- WHERE  
+	--  p.channelid = '2'	
 ),
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
