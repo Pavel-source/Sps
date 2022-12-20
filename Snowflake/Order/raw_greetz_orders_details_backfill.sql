@@ -9,11 +9,19 @@ cte_INDIVIDUALSHIPPING
 		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
 		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
 		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithoutvat, 0))  AS postage_discount_wOutVat,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithvat, 0))  AS postage_discount_wVat
-									
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithvat, 0))  AS postage_discount_wVat,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0), 0))  AS ordercostentry_shipment,
+		SUM(IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0))  AS ordercostentry_total,
+		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', IFNULL(oce.purchasecost, 0), 0))  AS ordercostentry_shipment_purchasecost
+		
  FROM "RAW_GREETZ"."GREETZ3".orders o
 	INNER JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.ID = ol.ORDERID
     INNER JOIN "RAW_GREETZ"."GREETZ3".product p ON ol.PRODUCTID = p.ID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercost AS oc
+		ON o.ordercostid = oc.ID
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercostentry AS oce
+		ON oce.ordercostid = oc.ID
+			AND oce.orderlineid = ol.ID
  WHERE o.channelid = 2
 	   AND o.currentorderstate IN
 		  ('EXPIRED_AFTER_PRINTED',
@@ -42,7 +50,7 @@ AS
 SELECT ol.orderid, 
 	 ol.PRODUCTITEMINBASKETID,
 	 ol.productId,
-	 AVG(totalwithvat) AS totalwithvat
+	 AVG(ol.totalwithvat) AS totalwithvat
 FROM orders o
 	JOIN orderline ol ON o.id = ol.orderid
 	JOIN product pn ON pn.id = ol.productid
@@ -74,6 +82,27 @@ SELECT orderid, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
 FROM cte_content_0
 GROUP BY orderid, PRODUCTITEMINBASKETID
 )
+/*
+cte_Fee_0 
+AS
+(
+SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
+FROM "RAW_GREETZ"."GREETZ3".orderline ol 
+    join "RAW_GREETZ"."GREETZ3".orders o 
+		ON ol.orderid = o.ID
+    join RAW_GREETZ.GREETZDWH.INTEGRATION_GiftCardsKickBackFeeDateInterval fee 
+        ON ol.productid = fee.PRODUCT_ID
+            AND (to_date(IFF(fee.DATE_START = 'NULL' OR fee.DATE_START IS NULL, '01-01-1990', fee.DATE_START), 'DD-MM-YYYY' ) < o.CREATED ) 
+            AND (to_date(IFF(fee.DATE_END = 'NULL' OR fee.DATE_END IS NULL, '01-01-2030', fee.DATE_END), 'DD-MM-YYYY' ) > o.CREATED )
+),
+
+cte_Fee 
+AS
+(
+SELECT ID AS OrderLineID, KICK_BACK_FEE
+FROM cte_Fee_0
+WHERE RN = 1
+)*/
 
 SELECT 
 	o.ID AS ORDER_ID,
@@ -99,9 +128,8 @@ SELECT
 	'Confirmed'  AS ITEM_STATE	,
 		
 	case 
-		when not_toself_count > 0 AND toself_count = 0 then 'DIRECT'
-		when not_toself_count = 0 AND toself_count > 0 then 'CUSTOMER'
-		when not_toself_count > 0 AND toself_count > 0 then 'SPLIT'
+		when ol.packettoselfid IS NULL  then 'DIRECT'
+		else 'CUSTOMER'
 	end 	AS ORDER_ADDRESS_TYPE	,
 	
 	IFF(isp.CANCELLATIONTYPE IS NOT NULL, True, False)  AS IS_ITEM_CANCELLED,
@@ -149,15 +177,15 @@ SELECT
 	'Greetz backfill'  AS CONSIGNMENT_SOURCE,
 	NULL  AS CONSIGNMENT_ACCEPTED_DATETIME,
 	NULL  AS CONSIGNMENT_PREPARED_DATETIME,
-	ESTIMATED_DESPATCH_DATE_CONSIGNMENT = ESTIMATED_DESPATCH_DATE_ORDER,
-	ESTIMATED_DESPATCH_DATE = ESTIMATED_DESPATCH_DATE_ORDER,
+	ESTIMATED_DESPATCH_DATE_ORDER  AS ESTIMATED_DESPATCH_DATE_CONSIGNMENT,
+	ESTIMATED_DESPATCH_DATE_ORDER  AS ESTIMATED_DESPATCH_DATE,
 	NULL  AS PROPOSED_DELIVERY_DATE,
 	NULL  AS CONSIGNMENT_SENT_DATETIME,
 	NULL  AS CONSIGNMENT_ACKNOWLEDGED_DATETIME,
 	NULL  AS FULFILMENT_CENTRE_RECEIVED_DATETIME,
 	NULL  AS FULFILMENT_CENTRE_RECEIVED_DATE,
 	dp_ACTUAL.pickupdate  AS ACTUAL_DESPATCH_DATETIME,
-	CAST(dp_ACTUAL.pickupdate AS date)  AS ACTUAL_DESPATCH_DATE
+	CAST(dp_ACTUAL.pickupdate AS date)  AS ACTUAL_DESPATCH_DATE,
 	ACTUAL_DESPATCH_DATETIME  AS DESPATCH_DATETIME,
 	ACTUAL_DESPATCH_DATE  AS DESPATCH_DATE,
 	'NL-GRTZ-AMS'  AS FULFILMENT_CENTRE_ID,
@@ -174,7 +202,7 @@ SELECT
 	False  AS IS_EXISTING_MEMBERSHIP_ORDER,
 	NULL  AS PRICE_MINUS_DISCOUNT_AMOUNT,
 	ORDER_DATE  AS AVA_ORDER_DATE,
-	totalwithvat - totalwithoutvat  AS AVA_PRODUCT_TAX, 
+	ol.totalwithvat - ol.totalwithoutvat  AS AVA_PRODUCT_TAX, 
 	NULL  AS TAX_CODE,
 	NULL  AS TAX_CODE_ID,
 	NULL  AS LINE_NUMBER,
@@ -222,7 +250,7 @@ SELECT
 	ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESEV,
 	c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_UNIT_PRICE,
 	ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS POSTAGE_EX_TAX,
-ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX,
+ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)  AS PRODUCT_LINE_TAX,
 ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT  AS PRODUCT_TOTAL_TAX,
 ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV,
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wVat + abs(c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat)) / c_isp.product_amount  AS POSTAGE_LINE_TAX,
@@ -326,7 +354,7 @@ END  AS STYLE,
   
 pv.MCD_FINANCE_CATEGORY,
 pv.MCD_FINANCE_SUBCATEGORY,
-pv.LI_SKU_VARIANT  AS SKU_VARIANT,
+pv.SKU_VARIANT  AS SKU_VARIANT,
 pv.PRODUCT_TITLE,
 pv.PRODUCT_ID,
 ol.productamount, 
@@ -341,7 +369,86 @@ pv.PRODUCT_BRAND	,
 pv.RANGE	,
 pv.SIZE	,
 pv.SEARCH_KEYWORDS	,
+
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
+		AND 
+		(
+		 lower(p.productcode) like '%xl%' 
+		 OR lower(p.productcode)  like '%large%' 
+		 OR lower(p.productcode)  like '%supersize%'
+		 ),
+	True, False)  AS IS_CARD_UPSELL,
 	
+	
+IFF(pt.MPTypeCode = 'flower'
+	   AND 
+	   (
+	    lower(p.productcode) like '%large%' 
+	    OR lower(p.productcode) like '%groot%'
+	   ),	
+	True, False)  AS IS_FLOWER_UPSELL,
+
+NULL  AS ADDED_XSELL	,
+NULL  AS REMINDERS_SET	,
+NULL  AS QUICK_VIEW_ITEMS	,
+NULL  AS FLAG_SEARCH	,
+NULL  AS GAHTS_HIT_TIME	,
+NULL  AS SESSION_ID	,
+NULL  AS FULL_VISITOR_ID	,
+NULL  AS IS_REPORTABLE	,
+NULL  AS TOTAL_ORDER_REFUND_AMOUNT	,
+NULL  AS CURRENCY_CODE	,
+0  AS LINE_ITEM_REFUND_AMOUNT	,
+0  AS TOTAL_ORDER_REFUND_AMOUNT_GBP	,
+0  AS LINE_ITEM_REFUND_AMOUNT_GBP	,
+NULL  AS REFUND_TYPE	,
+NULL  AS REFUND_TIMESTAMP	,
+NULL  AS REFUND_PAYMENT_PROVIDER	,
+False  AS IS_REFUNDED,
+pv.mcd_finance_subcategory  AS MARGIN_PRODUCT_CATEGORY,
+0  AS ESTIMATED_REFUND_RATE	,
+0  AS ESTIMATED_TOTAL_REFUND	,
+0  AS ESTIMATED_PRODUCT_REFUND	,
+0  AS ESTIMATED_SHIPPING_REFUND	,
+ROUND(ITEM_ISEV,4)  AS ESTIMATED_TOTAL_SALES	,
+ROUND(ITEM_ESEV,4)  AS ESTIMATED_PRODUCT_SALES	,
+ROUND(POSTAGE_EX_TAX,4)  AS ESTIMATED_SHIPPING_SALES	,
+oce.purchasecost  AS PRODUCT_COST,
+oce.directlaborcost  AS LABOUR_FULFILMENT_COST,
+oce.packagingcost  AS PACKAGING_COST,
+oce.othermaterialcost  AS RAW_MATERIAL_COST,
+NULL  AS ROYALTIES_COST	,
+oce.externalcontentcost  AS PRODUCTION_OVERHEADS_COST	,
+NULL  AS SHIPPING_COST	,
+NULL  AS REBATE_COST	,
+NULL  AS WAREHOUSE_COST	,
+ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)  AS GROSS_PRODUCT_MARGIN,
+POSTAGE_EX_TAX - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS GROSS_SHIPPING_MARGIN	,
+ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS TOTAL_GROSS_MARGIN,
+ORDER_ESEV - IFNULL(oce.purchasecost, 0)  AS COMMERCIAL_PRODUCT_MARGIN,
+GROSS_SHIPPING_MARGIN  AS COMMERCIAL_SHIPPING_MARGIN,	
+ORDER_ISEV - IFNULL(oce.purchasecost, 0) - (ol.productamount * c_isp.ordercostentry_shipment_purchasecost / c_isp.product_amount)  AS TOTAL_COMMERCIAL_MARGIN,
+IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', False, True)  AS IS_LOW_EFFORT_ITEM,
+IFF(IS_LOW_EFFORT_ITEM = True, False, True)  AS IS_HIGH_EFFORT_ITEM	,
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), False, True) AS IS_LOW_EFFORT_CARD_ITEM,
+IFF(IS_LOW_EFFORT_CARD_ITEM = True, False, True)  AS IS_HIGH_EFFORT_CARD_ITEM,
+NULL AS	PREPAY	,
+NULL AS	PREPAY_GBP	,
+NULL AS	BONUS	,
+NULL AS	BONUS_GBP	,
+NULL AS	CUSTOMER_SERVICE	,
+NULL AS	CUSTOMER_SERVICE_GBP	,
+NULL AS	CREDIT_USED_FLAG	,
+NULL AS	MCD_ORDER_ID	,
+NULL AS	MCD_ITEM_ID	,
+NULL AS	MCD_ADDRESS_ID	,
+NULL AS	MCD_ASSOCIATED_PRODUCT_ID	,
+NULL AS	MCD_UNIQUE_KEY	,
+NULL AS	MCD_ENCRYPTED_ORDER_ID	,
+NULL AS	MCD_CUSTOMER_ID	,
+NULL AS	MCD_PRODUCT_ID	,
+NULL AS	ARENA_ORDER_NO	,
+
 
 FROM
 --	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE created > '2022-06-01' ORDER BY created LIMIT 1000) o
@@ -389,10 +496,9 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercostentry AS oce
 		ON oce.ordercostid = oc.ID
 			AND oce.orderlineid = ol.ID
-	LEFT JOIN cte_ISEV_groupped AS ig
-		ON o.id = ig.orderid
-	LEFT JOIN cte_Fee AS fee   
-		ON ol.ID = fee.OrderLineID
+	
+	/*LEFT JOIN cte_Fee AS fee   
+		ON ol.ID = fee.OrderLineID*/
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".referrer AS rr
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
@@ -415,7 +521,7 @@ FROM
 	LEFT JOIN cte_INDIVIDUALSHIPPING c_isp
 		ON ol.individualshippingid = c_isp.individualshippingid
 	LEFT JOIN cte_content co
-		ON co.id = ol.orderid
+		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
 	LEFT JOIN tmp_dm_gift_product_variants gpv 
