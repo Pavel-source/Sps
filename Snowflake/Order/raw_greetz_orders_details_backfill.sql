@@ -81,29 +81,10 @@ GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
 SELECT orderid, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
 FROM cte_content_0
 GROUP BY orderid, PRODUCTITEMINBASKETID
-)
-/*
-cte_Fee_0 
-AS
-(
-SELECT ol.ID, fee.KICK_BACK_FEE, ROW_NUMBER() OVER (PARTITION BY ol.ID ORDER BY fee.DATE_START DESC)  AS RN
-FROM "RAW_GREETZ"."GREETZ3".orderline ol 
-    join "RAW_GREETZ"."GREETZ3".orders o 
-		ON ol.orderid = o.ID
-    join RAW_GREETZ.GREETZDWH.INTEGRATION_GiftCardsKickBackFeeDateInterval fee 
-        ON ol.productid = fee.PRODUCT_ID
-            AND (to_date(IFF(fee.DATE_START = 'NULL' OR fee.DATE_START IS NULL, '01-01-1990', fee.DATE_START), 'DD-MM-YYYY' ) < o.CREATED ) 
-            AND (to_date(IFF(fee.DATE_END = 'NULL' OR fee.DATE_END IS NULL, '01-01-2030', fee.DATE_END), 'DD-MM-YYYY' ) > o.CREATED )
 ),
 
-cte_Fee 
-AS
+cte_res AS
 (
-SELECT ID AS OrderLineID, KICK_BACK_FEE
-FROM cte_Fee_0
-WHERE RN = 1
-)*/
-
 SELECT 
 	o.ID AS ORDER_ID,
 	ol.ID  AS ORDER_LINE_ITEM_ID,
@@ -140,7 +121,8 @@ SELECT
 	o.currencycode AS LI_CURRENCYCODE	,
 	ex.avg_rate AS TO_GBP_RATE,
 	ex_2.avg_rate AS TO_EUR_RATE,
-	ex_2.avg_rate AS TO_USD_RATE,
+	ex_2.avg_rate AS MNTH_GBP_TO_EUR_RATE,
+	ex_3.avg_rate AS TO_USD_RATE,
 	
 	CASE LI_CURRENCYCODE 
 		WHEN 'EUR' THEN 'NL' 
@@ -160,12 +142,13 @@ SELECT
 	UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z]+\\d\\d?[a-zA-Z]?)'))  AS DELIVERY_DISTRICT,
 	UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z][a-zA-Z]?)'))  AS DELIVERY_POSTAL_AREA,
 	IFNULL(a.CITY, a2.CITY)  AS DELIVERY_CITY,
-	IFNULL(a.stateprovincecounty, a2.stateprovincecounty)  AS ADDRESS_COUNTY,	
+	IFNULL(a.stateprovincecounty, a2.stateprovincecounty)  AS DELIVERY_COUNTY,	
 	IFNULL(a.countrycode, a2.countrycode)  AS DELIVERY_COUNTRY_CODE,
 	ps.CLASSNAME  AS DELIVERY_METHOD,
 	ps.postalcompany  AS DELIVERY_METHOD_ID,
 	IFNULL(cn.ENGLISHCOUNTRYNAME, cn2.ENGLISHCOUNTRYNAME)  AS DELIVERY_COUNTRY,
-	
+	zc.STATE  AS DELIVERY_US_STATE	,
+	zc.STATE_ABBR  AS DELIVERY_US_STATE_ABBR	,
 	NULL  AS ROYAL_MAIL_AREA,
 	NULL  AS ROYAL_MAIL_DISTRIBUTION_CENTRE,
 	False  AS IS_MESSAGE_CARD,
@@ -298,6 +281,8 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
 else gpv.sku_id 	
 end  AS SKU_VARIANT,
 
+SKU_VARIANT  AS LI_SKU_VARIANT,
+
 case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
  then 
 	concat(	case 
@@ -354,10 +339,10 @@ END  AS STYLE,
   
 pv.MCD_FINANCE_CATEGORY,
 pv.MCD_FINANCE_SUBCATEGORY,
-pv.SKU_VARIANT  AS SKU_VARIANT,
+-- pv.SKU_VARIANT  AS SKU_VARIANT,
 pv.PRODUCT_TITLE,
 pv.PRODUCT_ID,
-ol.productamount, 
+ol.productamount  AS QUANTITY, 
 pv.VARIANT_ID,
 NULL  AS DESIGN_ID	,
 NULL  AS UPC	,	
@@ -466,7 +451,7 @@ IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 	 lower(p.productcode) like '%xl%' 
 	 OR lower(p.productcode)  like '%large%' 
 	 OR lower(p.productcode)  like '%supersize%'
-	 )
+	 ),
 	ol.productamount, 0)  AS CARD_UPSELL_QUANTITY	,
 
 IFF(pt.MPTypeCode = 'flower'
@@ -533,8 +518,166 @@ IFF(CARD_QUANTITY = 0, ol.productamount, 0)  AS NON_CARD_QUANTITY	,
 IFF(CARD_QUANTITY = 0, ITEM_ISEV * ex.avg_rate, 0)  AS NON_CARD_ISEV_GBP	,
 IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', ol.productamount, 0)  AS HIGH_EFFORT_ITEMS,
 ol.productamount - HIGH_EFFORT_ITEMS  AS LOW_EFFORT_ITEMS,
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), ol.productamount, 0)  AS HIGH_EFFORT_CARD_ITEMS	,
+ol.productamount - HIGH_EFFORT_CARD_ITEMS  AS LOW_EFFORT_CARD_ITEMS,
+o_st.ITEMS_IN_ORDER	,
+o_st.CARD_QUANTITY  AS CARD_ORDER_QUANTITY	,
+o_st.FLOWER_QUANTITY  AS FLOWER_ORDER_QUANTITY	,
+o_st.GIFT_QUANTITY  AS GIFT_ORDER_QUANTITY	,
+IFF(o_st.IS_ATTACH_ORDER = True AND (FLOWER_QUANTITY > 0 OR GIFT_QUANTITY > 0), True, False)  AS IS_ATTACH_ITEM	,
+IFF(o_st.IS_GIFT_ATTACH_ORDER = True AND GIFT_QUANTITY > 0, True, False)  AS IS_GIFT_ATTACH_ITEM	,
+IFF(o_st.IS_FLOWER_ATTACH_ORDER = True AND FLOWER_QUANTITY > 0, True, False)  AS IS_FLOWER_ATTACH_ITEM	,
+False  AS IS_ADDED_XSELL_ITEM	,
+o_st.IS_CARD_ORDER,
+o_st.IS_GIFT_ORDER,
+o_st.IS_FLOWER_ORDER,
+o_st.IS_CARD_UPSELL_ORDER,
+o_st.IS_FLOWER_UPSELL_ORDER,
+o_st.IS_UPSELL_ORDER,
+o_st.IS_ECARD_ORDER,
+o_st.IS_XSELL_ORDER,
+o_st.IS_LOW_EFFORT_ORDER,
+o_st.IS_HIGH_EFFORT_ORDER,
+o_st.IS_LOW_EFFORT_CARD_ORDER,
+o_st.IS_HIGH_EFFORT_CARD_ORDER,
+o_st.IS_DISCOUNTED_ORDER,
+o_st.IS_CARD_FLOWER_ORDER,
+o_st.IS_GIFT_ATTACH_ORDER,
+o_st.IS_FLOWER_ATTACH_ORDER,
+o_st.IS_LARGE_FLOWER_ATTACH_ORDER,
+o_st.IS_ATTACH_ORDER,
+o_st.IS_CARD_ONLY_ORDER,
+o_st.IS_FLOWER_ONLY_ORDER,
+o_st.IS_GIFT_ONLY_ORDER,
+o_st.IS_FLOWER_OR_GIFT_ONLY_ORDER,
+o_st.IS_NON_CARD_ORDER,
+o_st.IS_GIFT_OR_FLOWER_ORDER,
+o_st.IS_MULTI_CARD_ORDER,
+o_st.IS_PHOTO_UPLOAD_ORDER,
+o_st.IS_FLOWER_XSELL_ORDER,
+o_st.IS_GIFT_XSELL_ORDER,
+o_st.IS_CARD_DISCOUNTED_ORDER,
+o_st.IS_FLOWER_DISCOUNTED_ORDER,
+o_st.IS_GIFT_DISCOUNTED_ORDER,
+o_st.IS_NON_CARD_DISCOUNTED_ORDER,
+o_st.IS_MEMBERSHIP_SIGNUP_ORDER,
+o_st.IS_MEMBERSHIP_ORDER,
+o_st.IS_CUSTOMER_ADDRESS_TYPE_ORDER_ONLY,
+o_st.IS_DIRECT_ADDRESS_TYPE_ORDER_ONLY,
+o_st.IS_EMAIL_ADDRESS_TYPE_ORDER_ONLY,
+o_st.IS_SPLIT_ADDRESS_TYPE_ORDER,
+o_st.IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER,
+o_st.MULTI_CARD_VOLUME,
+o_st.MULTI_CARD_SALES,
+o_st.CARD_ONLY_VOLUME,
+o_st.CARD_ONLY_SALES,
+o_st.GIFT_ONLY_VOLUME,
+o_st.GIFT_ONLY_SALES,
+o_st.FLOWER_ONLY_VOLUME,
+o_st.FLOWER_ONLY_SALES,
+o_st.ATTACH_VOLUME_TOTAL_ITEMS,
+o_st.ATTACH_SALES_TOTAL_ITEMS,
+o_st.ATTACH_VOLUME_ATTACHED_ITEMS,
+o_st.ATTACH_SALES_ATTACHED_ITEMS,
+o_st.CARD_ATTACH_VOLUME_CARD_ITEMS,
+o_st.CARD_ATTACH_SALES_CARD_ITEMS,
+o_st.GIFT_ATTACH_VOLUME_TOTAL_ITEMS,
+o_st.GIFT_ATTACH_SALES_TOTAL_ITEMS,
+o_st.GIFT_ATTACH_VOLUME_GIFT_ITEMS,
+o_st.GIFT_ATTACH_SALES_GIFT_ITEMS,
+o_st.FLOWER_ATTACH_VOLUME_TOTAL_ITEMS,
+o_st.FLOWER_ATTACH_SALES_TOTAL_ITEMS,
+o_st.FLOWER_ATTACH_VOLUME_FLOWER_ITEMS,
+o_st.FLOWER_ATTACH_SALES_FLOWER_ITEMS,
+o_st.XSELL_VOLUME_TOTAL_ITEMS,
+o_st.XSELL_SALES_TOTAL_ITEMS,
+0  AS	XSELL_VOLUME_XSELL_ITEMS	,
+0  AS	XSELL_SALES_XSELL_ITEMS	,
+0  AS	FLOWER_XSELL_VOLUME	,
+0  AS	FLOWER_XSELL_SALES	,
+0  AS	GIFT_XSELL_VOLUME	,
+0  AS	GIFT_XSELL_SALES	,
+o_st.DISCOUNTED_VOLUME,
+o_st.DISCOUNTED_SALES,
+o_st.CARD_DISCOUNTED_VOLUME,
+o_st.CARD_DISCOUNTED_SALES,
+o_st.GIFT_DISCOUNTED_VOLUME,
+o_st.GIFT_DISCOUNTED_SALES,
+o_st.FLOWER_DISCOUNTED_VOLUME,
+o_st.FLOWER_DISCOUNTED_SALES,
+o_st.NON_CARD_DISCOUNTED_VOLUME,
+o_st.NON_CARD_DISCOUNTED_SALES,
+pv.PRODUCT_FAMILY  AS MCD_PRODUCT_FAMILY,
 
+CASE
+        WHEN pv.product_family = 'Cards' THEN 'Greeting Cards'
+        WHEN pv.product_family = 'Flowers' THEN 'Flowers'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN 'Food Gifts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+ELSE NULL
+END  AS MCD_PRODUCT_CATEGORY,
 
+CASE
+        WHEN pv.product_family = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
+        WHEN pv.product_family = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
+        WHEN pv.product_family = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
+        WHEN pv.product_family = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet')  THEN 'Food Gifts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+ELSE NULL
+END  AS MCD_PRODUCT_SUBCATEGORY	,
+
+CASE
+        WHEN pv.product_family = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
+        WHEN pv.product_family = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
+        WHEN pv.product_family = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
+        WHEN pv.product_family = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN pv.product_family = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN CONCAT(pv.product_type_name,'s')
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Ceramic Mug'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toy'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN pv.size
+        WHEN pv.product_family = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+ELSE NULL
+END  AS MCD_PRODUCT_TYPE
 
 FROM
 --	 (SELECT * FROM "RAW_GREETZ"."GREETZ3".orders WHERE created > '2022-06-01' ORDER BY created LIMIT 1000) o
@@ -615,6 +758,9 @@ FROM
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)	-- cards
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
 		ON pv.PRODUCT_ID = ol.productid AND pv.SKU_VARIANT = SKU_VARIANT
+	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
+		ON zc.ZIPCODE = IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE)
+			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
 WHERE		
 	   o.channelid = 2
 	   AND o.currentorderstate IN
@@ -638,4 +784,374 @@ WHERE
 			OR lower(p.productcode) LIKE '%envelop%'
 			OR p.productcode LIKE 'card%'
 			)
-			
+)
+
+SELECT 
+ORDER_ID	,
+ORDER_LINE_ITEM_ID	,
+ORDER_DATE	,
+ORDER_DATE_TIME	,
+ORDER_HOUR_ONLY	,
+ORDER_MINUTE_ONLY	,
+CUSTOMER_ID	,
+ORDER_COUNTRY_CODE	,
+ORDER_COUNTRY	,
+ORDER_STORE	,
+ITEM_STATE	,
+IS_ITEM_CANCELLED	,
+ITEM_CANCELLED_DATE	,
+ORDER_TAX_CALCULATION	,
+ORDER_TRANSACTION_FEE	,
+LI_CURRENCYCODE	,
+TO_GBP_RATE	,
+TO_USD_RATE	,
+TO_EUR_RATE	,
+MNTH_GBP_TO_EUR_RATE	,
+LI_TAX_COUNTRY	,
+LI_TAX_AMOUNT	,
+TAX_INCLUDED_IN_SUBTOTAL	,
+CT_TAX_NAME	,
+PAYMENT_STATE	,
+PLATFORM	,
+ORDER_NUMBER	,
+ADDRESS_ID	,
+RECIPIENT_TYPE	,
+ADDRESS_TYPE	,
+DELIVERY_DISTRICT	,
+DELIVERY_POSTAL_AREA	,
+DELIVERY_CITY	,
+DELIVERY_COUNTY	,
+DELIVERY_COUNTRY_CODE	,
+DELIVERY_METHOD	,
+DELIVERY_METHOD_ID	,
+DELIVERY_COUNTRY	,
+DELIVERY_US_STATE	,
+DELIVERY_US_STATE_ABBR	,
+ROYAL_MAIL_AREA	,
+ROYAL_MAIL_DISTRIBUTION_CENTRE	,
+IS_MESSAGE_CARD	,
+SHIPMENT_STATE	,
+ESTIMATED_DESPATCH_DATE_ORDER	,
+PRINTSITE	,
+PRINTSITE_COUNTRY	,
+CONSIGNMENT_ID	,
+CONSIGNMENT_SOURCE	,
+CONSIGNMENT_ACCEPTED_DATETIME	,
+CONSIGNMENT_PREPARED_DATETIME	,
+ESTIMATED_DESPATCH_DATE_CONSIGNMENT	,
+ESTIMATED_DESPATCH_DATE	,
+PROPOSED_DELIVERY_DATE	,
+CONSIGNMENT_SENT_DATETIME	,
+CONSIGNMENT_ACKNOWLEDGED_DATETIME	,
+FULFILMENT_CENTRE_RECEIVED_DATETIME	,
+FULFILMENT_CENTRE_RECEIVED_DATE	,
+ACTUAL_DESPATCH_DATETIME	,
+ACTUAL_DESPATCH_DATE	,
+DESPATCH_DATETIME	,
+DESPATCH_DATE	,
+FULFILMENT_CENTRE_ID	,
+FULFILMENT_CENTRE_COUNTRY_CODE	,
+TRACKING_CODE	,
+DESPATCH_CARRIER	,
+LI_TOTAL_GROSS	,
+LI_TOTAL_NET	,
+LI_TOTAL_AMOUNT	,
+POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT	,
+HAS_DISCOUNT	,
+PRODUCT_DISCOUNT	,
+POSTAGE_DISCOUNT	,
+IS_EXISTING_MEMBERSHIP_ORDER	,
+PRICE_MINUS_DISCOUNT_AMOUNT	,
+AVA_ORDER_DATE	,
+AVA_PRODUCT_TAX	,
+TAX_CODE	,
+TAX_CODE_ID	,
+LINE_NUMBER	,
+POSTAGE_GROUPING	,
+AVA_POSTAGE	,
+AVA_POSTAGE_TAX	,
+TAX_COUNTRY	,
+TAX_REGION	,
+AVA_LINE_AMOUNT	,
+TAX_NAME	,
+TAX_RATE	,
+DISCOUNT_CODES	,
+CUSTOM_LINE_ITEMS	,
+TAX_GROUPING	,
+TAX_TYPE	,
+PRODUCT_DISCOUNT_INC_TAX	,
+PRODUCT_DISCOUNT_EX_TAX	,
+PRODUCT_DISCOUNT_TAX	,
+POSTAGE_DISCOUNT_INC_TAX	,
+POSTAGE_DISCOUNT_EX_TAX	,
+POSTAGE_DISCOUNT_TAX	,
+PRODUCT_DISCOUNT_INC_TAX_GBP	,
+PRODUCT_DISCOUNT_EX_TAX_GBP	,
+PRODUCT_DISCOUNT_TAX_GBP	,
+POSTAGE_DISCOUNT_INC_TAX_GBP	,
+POSTAGE_DISCOUNT_EX_TAX_GBP	,
+POSTAGE_DISCOUNT_TAX_GBP	,
+COMMISSION_MARGIN	,
+PRODUCT_UNIT_PRICE	,
+ITEM_ESEV	,
+POSTAGE_UNIT_PRICE	,
+POSTAGE_EX_TAX	,
+PRODUCT_LINE_TAX	,
+PRODUCT_TOTAL_TAX	,
+ITEM_ESIV	,
+POSTAGE_LINE_TAX	,
+POSTAGE_TOTAL_TAX	,
+POSTAGE_SUBTOTAL	,
+ITEM_ISEV	,
+TOTAL_DISCOUNT	,
+TOTAL_TAX	,
+ITEM_ISIV	,
+ORDER_ISIV	,
+EVE_ORDER_TOTAL_GROSS	,
+DIFF	,
+LARGE_DIFF	,
+PRODUCT_UNIT_PRICE_GBP	,
+ITEM_ESEV_GBP	,
+POSTAGE_UNIT_PRICE_GBP	,
+POSTAGE_EX_TAX_GBP	,
+PRODUCT_LINE_TAX_GBP	,
+PRODUCT_TOTAL_TAX_GBP	,
+ITEM_ESIV_GBP	,
+POSTAGE_LINE_TAX_GBP	,
+POSTAGE_TOTAL_TAX_GBP	,
+POSTAGE_SUBTOTAL_GBP	,
+ITEM_ISEV_GBP	,
+TOTAL_DISCOUNT_GBP	,
+TOTAL_TAX_GBP	,
+ITEM_ISIV_GBP	,
+SKU	,
+SKU_VARIANT	,
+CARD_VARIANT	,
+PRODUCT_FAMILY	,
+CATEGORY_NAME	,
+CATEGORY_PARENT	,
+HIERARCHY_RANK_1	,
+HIERARCHY_RANK_2	,
+HIERARCHY_RANK_3	,
+HIERARCHY_RANK_4	,
+PRODUCT_TYPE_NAME	,
+PRODUCT_KEY	,
+FINANCE_PRODUCT_HIERARCHY	,
+IS_ECARD	,
+SUPPLIER_NAME	,
+SUPPLIER_NAME_SAP	,
+LEGACY_SUPPLIER_ID	,
+ROYALTY_RATE	,
+ROYALTY_FLAT_FEE	,
+ROYALTY_FLAT_FEE_EUR	,
+ROYALTY_PRODUCT_CATEGORY	,
+ROYALTY_WEBSITE	,
+CONTRACT_NO	,
+FIRST_PUBLISHED_DATE_TIME	,
+OCCASION_GROUP	,
+OCCASION	,
+STYLE_GROUP	,
+STYLE	,
+MCD_FINANCE_CATEGORY	,
+MCD_FINANCE_SUBCATEGORY	,
+LI_SKU_VARIANT	,
+PRODUCT_TITLE	,
+PRODUCT_ID	,
+QUANTITY	,
+VARIANT_ID	,
+DESIGN_ID	,
+UPC	,
+PHOTO_COUNT	,
+DELIVERY_TYPE	,
+LETTERBOX_FRIENDLY	,
+SHAPE	,
+PRODUCT_BRAND	,
+RANGE	,
+SIZE	,
+SEARCH_KEYWORDS	,
+IS_CARD_UPSELL	,
+IS_FLOWER_UPSELL	,
+ADDED_XSELL	,
+REMINDERS_SET	,
+QUICK_VIEW_ITEMS	,
+FLAG_SEARCH	,
+GAHTS_HIT_TIME	,
+SESSION_ID	,
+FULL_VISITOR_ID	,
+IS_REPORTABLE	,
+TOTAL_ORDER_REFUND_AMOUNT	,
+CURRENCY_CODE	,
+LINE_ITEM_REFUND_AMOUNT	,
+TOTAL_ORDER_REFUND_AMOUNT_GBP	,
+LINE_ITEM_REFUND_AMOUNT_GBP	,
+REFUND_TYPE	,
+REFUND_TIMESTAMP	,
+REFUND_PAYMENT_PROVIDER	,
+IS_REFUNDED	,
+MARGIN_PRODUCT_CATEGORY	,
+ESTIMATED_REFUND_RATE	,
+ESTIMATED_TOTAL_REFUND	,
+ESTIMATED_PRODUCT_REFUND	,
+ESTIMATED_SHIPPING_REFUND	,
+ESTIMATED_TOTAL_SALES	,
+ESTIMATED_PRODUCT_SALES	,
+ESTIMATED_SHIPPING_SALES	,
+PRODUCT_COST	,
+LABOUR_FULFILMENT_COST	,
+PACKAGING_COST	,
+RAW_MATERIAL_COST	,
+ROYALTIES_COST	,
+PRODUCTION_OVERHEADS_COST	,
+SHIPPING_COST	,
+REBATE_COST	,
+WAREHOUSE_COST	,
+GROSS_PRODUCT_MARGIN	,
+GROSS_SHIPPING_MARGIN	,
+TOTAL_GROSS_MARGIN	,
+COMMERCIAL_PRODUCT_MARGIN	,
+COMMERCIAL_SHIPPING_MARGIN	,
+TOTAL_COMMERCIAL_MARGIN	,
+IS_LOW_EFFORT_ITEM	,
+IS_HIGH_EFFORT_ITEM	,
+IS_LOW_EFFORT_CARD_ITEM	,
+IS_HIGH_EFFORT_CARD_ITEM	,
+PREPAY	,
+PREPAY_GBP	,
+BONUS	,
+BONUS_GBP	,
+CUSTOMER_SERVICE	,
+CUSTOMER_SERVICE_GBP	,
+CREDIT_USED_FLAG	,
+MCD_ORDER_ID	,
+MCD_ITEM_ID	,
+MCD_ADDRESS_ID	,
+MCD_ASSOCIATED_PRODUCT_ID	,
+MCD_UNIQUE_KEY	,
+MCD_ENCRYPTED_ORDER_ID	,
+MCD_CUSTOMER_ID	,
+MCD_PRODUCT_ID	,
+ARENA_ORDER_NO	,
+MESSAGE_TIMESTAMP	,
+IMPORT_DATETIME	,
+SOURCE_DATA	,
+DBT_MODEL_NAME	,
+DBT_INVOCATION_ID	,
+DBT_JOB_STARTED_AT	,
+BRAND	,
+BRAND_ROYALTY	,
+CARD_QUANTITY	,
+GIFT_QUANTITY	,
+FLOWER_QUANTITY	,
+CARD_UPSELL_QUANTITY	,
+FLOWER_UPSELL_QUANTITY	,
+TOTAL_UPSELL_QUANTITY	,
+ECARD_QUANTITY	,
+GIANT_CARD_QUANTITY	,
+LARGE_CARD_QUANTITY	,
+LARGE_SQUARE_CARD_QUANTITY	,
+STANDARD_SQUARE_CARD_QUANTITY	,
+STANDARD_CARD_QUANTITY	,
+POSTCARD_QUANTITY	,
+CARD_ITEM_ISEV_GBP	,
+GIFT_ITEM_ISEV_GBP	,
+FLOWER_ITEM_ISEV_GBP	,
+CARD_FLOWER_QUANTITY	,
+CARD_FLOWER_ISEV_GBP	,
+NON_CARD_QUANTITY	,
+NON_CARD_ISEV_GBP	,
+LOW_EFFORT_ITEMS	,
+HIGH_EFFORT_ITEMS	,
+LOW_EFFORT_CARD_ITEMS	,
+HIGH_EFFORT_CARD_ITEMS	,
+ITEMS_IN_ORDER	,
+CARD_ORDER_QUANTITY	,
+FLOWER_ORDER_QUANTITY	,
+GIFT_ORDER_QUANTITY	,
+IS_ATTACH_ITEM	,
+IS_GIFT_ATTACH_ITEM	,
+IS_FLOWER_ATTACH_ITEM	,
+IS_ADDED_XSELL_ITEM	,
+IS_CARD_ORDER	,
+IS_GIFT_ORDER	,
+IS_FLOWER_ORDER	,
+IS_CARD_UPSELL_ORDER	,
+IS_FLOWER_UPSELL_ORDER	,
+IS_UPSELL_ORDER	,
+IS_ECARD_ORDER	,
+IS_XSELL_ORDER	,
+IS_LOW_EFFORT_ORDER	,
+IS_HIGH_EFFORT_ORDER	,
+IS_LOW_EFFORT_CARD_ORDER	,
+IS_HIGH_EFFORT_CARD_ORDER	,
+IS_DISCOUNTED_ORDER	,
+IS_CARD_FLOWER_ORDER	,
+IS_GIFT_ATTACH_ORDER	,
+IS_FLOWER_ATTACH_ORDER	,
+IS_LARGE_FLOWER_ATTACH_ORDER	,
+IS_ATTACH_ORDER	,
+IS_CARD_ONLY_ORDER	,
+IS_FLOWER_ONLY_ORDER	,
+IS_GIFT_ONLY_ORDER	,
+IS_FLOWER_OR_GIFT_ONLY_ORDER	,
+IS_NON_CARD_ORDER	,
+IS_GIFT_OR_FLOWER_ORDER	,
+IS_MULTI_CARD_ORDER	,
+IS_PHOTO_UPLOAD_ORDER	,
+IS_FLOWER_XSELL_ORDER	,
+IS_GIFT_XSELL_ORDER	,
+IS_CARD_DISCOUNTED_ORDER	,
+IS_FLOWER_DISCOUNTED_ORDER	,
+IS_GIFT_DISCOUNTED_ORDER	,
+IS_NON_CARD_DISCOUNTED_ORDER	,
+IS_MEMBERSHIP_SIGNUP_ORDER	,
+IS_MEMBERSHIP_ORDER	,
+IS_CUSTOMER_ADDRESS_TYPE_ORDER_ONLY	,
+IS_DIRECT_ADDRESS_TYPE_ORDER_ONLY	,
+IS_EMAIL_ADDRESS_TYPE_ORDER_ONLY	,
+IS_SPLIT_ADDRESS_TYPE_ORDER	,
+IS_SPLIT_EMAIL_ADDRESS_TYPE_ORDER	,
+MULTI_CARD_VOLUME	,
+MULTI_CARD_SALES	,
+CARD_ONLY_VOLUME	,
+CARD_ONLY_SALES	,
+GIFT_ONLY_VOLUME	,
+GIFT_ONLY_SALES	,
+FLOWER_ONLY_VOLUME	,
+FLOWER_ONLY_SALES	,
+ATTACH_VOLUME_TOTAL_ITEMS	,
+ATTACH_SALES_TOTAL_ITEMS	,
+ATTACH_VOLUME_ATTACHED_ITEMS	,
+ATTACH_SALES_ATTACHED_ITEMS	,
+CARD_ATTACH_VOLUME_CARD_ITEMS	,
+CARD_ATTACH_SALES_CARD_ITEMS	,
+GIFT_ATTACH_VOLUME_TOTAL_ITEMS	,
+GIFT_ATTACH_SALES_TOTAL_ITEMS	,
+GIFT_ATTACH_VOLUME_GIFT_ITEMS	,
+GIFT_ATTACH_SALES_GIFT_ITEMS	,
+FLOWER_ATTACH_VOLUME_TOTAL_ITEMS	,
+FLOWER_ATTACH_SALES_TOTAL_ITEMS	,
+FLOWER_ATTACH_VOLUME_FLOWER_ITEMS	,
+FLOWER_ATTACH_SALES_FLOWER_ITEMS	,
+XSELL_VOLUME_TOTAL_ITEMS	,
+XSELL_SALES_TOTAL_ITEMS	,
+XSELL_VOLUME_XSELL_ITEMS	,
+XSELL_SALES_XSELL_ITEMS	,
+FLOWER_XSELL_VOLUME	,
+FLOWER_XSELL_SALES	,
+GIFT_XSELL_VOLUME	,
+GIFT_XSELL_SALES	,
+DISCOUNTED_VOLUME	,
+DISCOUNTED_SALES	,
+CARD_DISCOUNTED_VOLUME	,
+CARD_DISCOUNTED_SALES	,
+GIFT_DISCOUNTED_VOLUME	,
+GIFT_DISCOUNTED_SALES	,
+FLOWER_DISCOUNTED_VOLUME	,
+FLOWER_DISCOUNTED_SALES	,
+NON_CARD_DISCOUNTED_VOLUME	,
+NON_CARD_DISCOUNTED_SALES	,
+MCD_PRODUCT_FAMILY	,
+MCD_PRODUCT_CATEGORY	,
+MCD_PRODUCT_SUBCATEGORY	,
+MCD_PRODUCT_TYPE	
+FROM cte_Res;		
