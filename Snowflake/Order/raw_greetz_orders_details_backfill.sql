@@ -448,6 +448,92 @@ NULL AS	MCD_ENCRYPTED_ORDER_ID	,
 NULL AS	MCD_CUSTOMER_ID	,
 NULL AS	MCD_PRODUCT_ID	,
 NULL AS	ARENA_ORDER_NO	,
+current_timestamp()  AS MESSAGE_TIMESTAMP	,
+current_timestamp()  AS IMPORT_DATETIME	,
+NULL AS	SOURCE_DATA	,
+NULL AS	DBT_MODEL_NAME	,
+NULL AS	DBT_INVOCATION_ID	,
+NULL AS	DBT_JOB_STARTED_AT	,
+'grtz'  AS BRAND,
+NULL AS	BRAND_ROYALTY,
+IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ol.productamount, 0)  AS CARD_QUANTITY,
+IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.productamount, 0)  AS GIFT_QUANTITY	,
+IFF(pt.MPTypeCode = 'flower', ol.productamount, 0)  AS FLOWER_QUANTITY	,
+
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
+	AND 
+	(
+	 lower(p.productcode) like '%xl%' 
+	 OR lower(p.productcode)  like '%large%' 
+	 OR lower(p.productcode)  like '%supersize%'
+	 )
+	ol.productamount, 0)  AS CARD_UPSELL_QUANTITY	,
+
+IFF(pt.MPTypeCode = 'flower'
+	   AND 
+	   (
+	    lower(p.productcode) like '%large%' 
+	    OR lower(p.productcode) like '%groot%'
+	   )
+	, ol.productamount, 0)  AS FLOWER_UPSELL_QUANTITY	,
+
+CARD_UPSELL_QUANTITY + FLOWER_UPSELL_QUANTITY  AS TOTAL_UPSELL_QUANTITY	,
+0  AS ECARD_QUANTITY	,
+
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+		AND 
+		(
+		 lower(p.productcode) like '%xl%' 
+		 OR lower(p.productcode)  like '%supersize%'
+		 )
+	   , ol.productamount, 0)  AS GIANT_CARD_QUANTITY	,
+	   
+	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+		AND 
+		(
+		 lower(p.productcode) like '%large%' 
+		 AND cd.cardratio = 'STANDARD'
+		 )
+	   , ol.productamount, 0) AS LARGE_CARD_QUANTITY	,
+
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+		AND 
+		(
+		 lower(p.productcode) like '%large%' 
+		 AND cd.cardratio = 'SQUARE'
+		 )
+	   , ol.productamount, 0) AS LARGE_SQUARE_CARD_QUANTITY	,
+	
+	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')  
+		AND 
+		(
+		 lower(p.productcode) like '%medium%' 
+		 AND cd.cardratio = 'SQUARE'
+		 )
+	   , ol.productamount, 0) AS STANDARD_SQUARE_CARD_QUANTITY	,
+	
+	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+		AND 
+		(
+		 lower(p.productcode) like '%medium%' 
+		 AND cd.cardratio = 'STANDARD'
+		 )
+	   , ol.productamount, 0) AS STANDARD_CARD_QUANTITY	,
+	
+	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.NUMBEROFPANELS = 1, ol.productamount, 0)  AS POSTCARD_QUANTITY,
+
+IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ITEM_ISEV  * ex.avg_rate, 0)  AS CARD_ITEM_ISEV_GBP	,
+IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ITEM_ISEV  * ex.avg_rate, 0)  AS GIFT_ITEM_ISEV_GBP	,
+IFF(pt.MPTypeCode = 'flower', ITEM_ISEV * ex.avg_rate, 0)  AS FLOWER_ITEM_ISEV_GBP	,
+
+CARD_QUANTITY + FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
+
+IFF(CARD_QUANTITY > 0 OR GIFT_QUANTITY > 0, ITEM_ISEV * ex.avg_rate, 0)  AS CARD_FLOWER_ISEV_GBP	,
+IFF(CARD_QUANTITY = 0, ol.productamount, 0)  AS NON_CARD_QUANTITY	,
+IFF(CARD_QUANTITY = 0, ITEM_ISEV * ex.avg_rate, 0)  AS NON_CARD_ISEV_GBP	,
+IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', ol.productamount, 0)  AS HIGH_EFFORT_ITEMS,
+ol.productamount - HIGH_EFFORT_ITEMS  AS LOW_EFFORT_ITEMS,
+
 
 
 FROM
