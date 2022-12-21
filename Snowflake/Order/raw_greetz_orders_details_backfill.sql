@@ -725,9 +725,6 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".ordercostentry AS oce
 		ON oce.ordercostid = oc.ID
 			AND oce.orderlineid = ol.ID
-	
-	/*LEFT JOIN cte_Fee AS fee   
-		ON ol.ID = fee.OrderLineID*/
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".referrer AS rr
 		ON o.referrerid = rr.ID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".customersessioninfo AS s
@@ -753,13 +750,13 @@ FROM
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-	LEFT JOIN tmp_dm_gift_product_variants gpv 
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
 		ON (gpv.product_id = ol.productid AND (gpv.designId = c.carddefinition OR (gpv.designId IS NULL  AND  c.carddefinition IS NULL)))	-- gifts
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)	-- cards
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
 		ON pv.PRODUCT_ID = ol.productid AND pv.SKU_VARIANT = SKU_VARIANT
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
-		ON zc.ZIPCODE = IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE)
+		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
 WHERE		
 	   o.channelid = 2
