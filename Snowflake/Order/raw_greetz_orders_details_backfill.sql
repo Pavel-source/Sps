@@ -39,7 +39,11 @@ cte_INDIVIDUALSHIPPING
 		   'PAYMENT_FAILED_AFTER_PRINTING',
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')
-		AND (p.TYPE IN ('shipment_generic', 'productCardSingle', 'standardGift', 'personalizedGift')  OR  p.productcode LIKE 'card%')
+		AND (
+			p.type IN ('shipment', 'productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') 			
+			OR lower(p.productcode) LIKE '%envelop%'
+			OR p.productcode LIKE 'card%'
+			)
  GROUP BY   
 		ol.INDIVIDUALSHIPPINGID
  ),
@@ -175,13 +179,15 @@ SELECT
 	'NL'  AS FULFILMENT_CENTRE_COUNTRY_CODE,
 	isp.trackandtracecode  AS TRACKING_CODE,
 	NULL  AS DESPATCH_CARRIER,
-	IFF(p.PRODUCTCODE != 'shipment_generic', ol.withvat, NULL)  AS LI_TOTAL_GROSS,
-	IFF(p.PRODUCTCODE != 'shipment_generic', ol.totalwithvat, NULL)  AS LI_TOTAL_NET,
+--	IFF(p.PRODUCTCODE != 'shipment_generic', ol.withvat, NULL)  AS LI_TOTAL_GROSS,
+--	IFF(p.PRODUCTCODE != 'shipment_generic', ol.totalwithvat, NULL)  AS LI_TOTAL_NET,
+	ol.withvat  AS LI_TOTAL_GROSS,
+	ol.totalwithvat  AS LI_TOTAL_NET,
 	LI_TOTAL_GROSS  AS LI_TOTAL_AMOUNT,
 	ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount   AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
 	IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0, False, True)  AS HAS_DISCOUNT,
-	ol.discountwithoutvat  AS PRODUCT_DISCOUNT,
-	ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount  AS POSTAGE_DISCOUNT,
+	ABS(ol.discountwithoutvat)  AS PRODUCT_DISCOUNT,
+	ABS(ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount)  AS POSTAGE_DISCOUNT,
 	False  AS IS_EXISTING_MEMBERSHIP_ORDER,
 	NULL  AS PRICE_MINUS_DISCOUNT_AMOUNT,
 	ORDER_DATE  AS AVA_ORDER_DATE,
@@ -191,7 +197,7 @@ SELECT
 	NULL  AS LINE_NUMBER,
 	NULL  AS POSTAGE_GROUPING,
 	ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS AVA_POSTAGE,
-	ol.productamount * (c_isp.postage_cost_wOutVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS AVA_POSTAGE_TAX,
+	ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS AVA_POSTAGE_TAX,
 	'NL'  AS TAX_COUNTRY,
 	'NL'  AS TAX_REGION,
 	ol.withoutvat  AS AVA_LINE_AMOUNT,
@@ -213,13 +219,13 @@ SELECT
 		ELSE 'REDUCED R'
 	END  AS TAX_TYPE,
 	
-	ol.discountwithvat  AS PRODUCT_DISCOUNT_INC_TAX,
-	ol.discountwithoutvat  AS PRODUCT_DISCOUNT_EX_TAX,
-	ol.discountwithvat - ol.discountwithoutvat  AS PRODUCT_DISCOUNT_TAX,
+	ABS(ol.discountwithvat)  AS PRODUCT_DISCOUNT_INC_TAX,
+	ABS(ol.discountwithoutvat)  AS PRODUCT_DISCOUNT_EX_TAX,
+	ABS(ol.discountwithvat - ol.discountwithoutvat)  AS PRODUCT_DISCOUNT_TAX,
 	
-	ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount  AS POSTAGE_DISCOUNT_INC_TAX,
-	ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount  AS POSTAGE_DISCOUNT_EX_TAX,
-	ol.productamount * (c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat) / c_isp.product_amount  AS POSTAGE_DISCOUNT_TAX,
+	ABS(ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount)  AS POSTAGE_DISCOUNT_INC_TAX,
+	ABS(ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount)  AS POSTAGE_DISCOUNT_EX_TAX,
+	ABS(ol.productamount * (c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat) / c_isp.product_amount)  AS POSTAGE_DISCOUNT_TAX,
 
 	PRODUCT_DISCOUNT_INC_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_INC_TAX_GBP,
 	PRODUCT_DISCOUNT_EX_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_EX_TAX_GBP,
@@ -240,7 +246,7 @@ ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wVat + abs(c_is
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wVat) / c_isp.product_amount  AS POSTAGE_TOTAL_TAX,
 ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SUBTOTAL,
 ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS ITEM_ISEV,
-ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount  AS TOTAL_DISCOUNT,
+ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount)  AS TOTAL_DISCOUNT,
 ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount   AS TOTAL_TAX,
 ol.TOTALWITHVAT + ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS ITEM_ISIV,
 o_st.ORDER_ISIV  AS ORDER_ISIV,
@@ -281,7 +287,23 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
 else gpv.sku_id 	
 end  AS SKU_VARIANT,
 
-SKU_VARIANT  AS LI_SKU_VARIANT,
+-- SKU_VARIANT  AS LI_SKU_VARIANT,
+case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
+ then 
+	concat('GRTZ', 
+			IFNULL(c.carddefinition, 0), 
+			'-',
+			case 
+				when lower(p.PRODUCTCODE) like '%standard%' then 'STANDARD'
+				when lower(p.PRODUCTCODE) like '%square%large%' then 'STANDARD'
+				when lower(p.PRODUCTCODE) like '%xxl%' then 'LARGE'
+				when lower(p.PRODUCTCODE) like '%supersize%' then 'GIANT'
+				else 'STANDARD'
+			end,	
+			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
+			'CARD') 
+else gpv.sku_id 	
+end  AS LI_SKU_VARIANT,	
 
 case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
  then 
@@ -754,7 +776,7 @@ FROM
 		ON (gpv.product_id = ol.productid AND (gpv.designId = c.carddefinition OR (gpv.designId IS NULL  AND  c.carddefinition IS NULL)))	-- gifts
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)	-- cards
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
-		ON pv.PRODUCT_ID = ol.productid AND pv.SKU_VARIANT = SKU_VARIANT
+		ON pv.PRODUCT_ID = ol.productid AND pv.SKU_VARIANT = LI_SKU_VARIANT
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
