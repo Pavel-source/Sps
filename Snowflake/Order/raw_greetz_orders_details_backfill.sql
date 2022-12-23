@@ -183,9 +183,9 @@ NULL  AS DESPATCH_CARRIER,
 --	IFF(p.PRODUCTCODE != 'shipment_generic', ol.totalwithvat, NULL)  AS LI_TOTAL_NET,
 ol.withvat  AS LI_TOTAL_GROSS,
 ol.totalwithvat  AS LI_TOTAL_NET,
-LI_TOTAL_GROSS  AS LI_TOTAL_AMOUNT,
+ol.withvat  AS LI_TOTAL_AMOUNT,
 ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount   AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
-IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0, False, True)  AS HAS_DISCOUNT,
+IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0 AND c_isp.postage_discount_wOutVat = 0, False, True)  AS HAS_DISCOUNT,
 ABS(ol.discountwithoutvat)  AS PRODUCT_DISCOUNT,
 ABS(ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount)  AS POSTAGE_DISCOUNT,
 False  AS IS_EXISTING_MEMBERSHIP_ORDER,
@@ -248,10 +248,10 @@ ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SU
 ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS ITEM_ISEV,
 ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount)  AS TOTAL_DISCOUNT,
 ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount   AS TOTAL_TAX,
-ol.TOTALWITHVAT + ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS ITEM_ISIV,
+ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS ITEM_ISIV,
 o_st.ORDER_ISIV  AS ORDER_ISIV,
-o_st.ORDER_ISIV  AS EVE_ORDER_TOTAL_GROSS	,
-o_st.ORDER_ISIV - o_st.ORDER_ISIV  AS DIFF,	-- ??  = 0
+o_st.ORDER_CASH_PAID  AS EVE_ORDER_TOTAL_GROSS	,
+o_st.ORDER_CASH_PAID - o_st.ORDER_ISIV  AS DIFF,
 IFF(DIFF > 0.02, TRUE, FALSE)  AS LARGE_DIFF,
 ex.avg_rate * (ol.totalwithvat + IFNULL(co.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE_GBP,
 ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1) * ex.avg_rate  AS ITEM_ESEV_GBP,
@@ -268,7 +268,11 @@ ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discoun
 ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount)  AS TOTAL_TAX_GBP,
 ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
-gpv.PRODUCTKEY  AS SKU,
+case 
+	when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
+	then concat('GRTZ', IFNULL(c.carddefinition, 0), 
+	else gpv.PRODUCTKEY  
+end  AS SKU,
 
 case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
  then 
@@ -417,7 +421,7 @@ pv.mcd_finance_subcategory  AS MARGIN_PRODUCT_CATEGORY,
 0  AS ESTIMATED_TOTAL_REFUND	,
 0  AS ESTIMATED_PRODUCT_REFUND	,
 0  AS ESTIMATED_SHIPPING_REFUND	,
-ROUND(ITEM_ISEV,4)  AS ESTIMATED_TOTAL_SALES	,
+ROUND(ITEM_ISEV, 4)  AS ESTIMATED_TOTAL_SALES	,
 ROUND(ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1),4)  AS ESTIMATED_PRODUCT_SALES	,
 ROUND(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount, 4)  AS ESTIMATED_SHIPPING_SALES	,
 oce.purchasecost  AS PRODUCT_COST,
