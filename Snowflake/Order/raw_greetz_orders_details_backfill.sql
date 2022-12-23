@@ -322,7 +322,11 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
 			'CARD') 
 end  AS CARD_VARIANT,
 
-pv.PRODUCT_FAMILY	,
+case 
+	when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'  then 'Cards' 
+	else pv.PRODUCT_FAMILY 
+end  AS PRODUCT_FAMILY,
+
 pv.CATEGORY_NAME	,
 pv.CATEGORY_PARENT	,
 pv.HIERARCHY_RANK_1	,
@@ -788,7 +792,8 @@ FROM
 		ON (gpv.product_id = ol.productid AND (gpv.designId = c.carddefinition OR (gpv.designId IS NULL  AND  c.carddefinition IS NULL)))	-- gifts
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)	-- cards
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
-		ON pv.PRODUCT_ID = ol.productid AND pv.SKU_VARIANT = LI_SKU_VARIANT
+		ON pv.PRODUCT_ID = IFNULL(c.carddefinition, ol.productid) 
+			AND pv.SKU_VARIANT = LI_SKU_VARIANT
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
