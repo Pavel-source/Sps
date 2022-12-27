@@ -270,7 +270,7 @@ ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
 case 
 	when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
-	then concat('GRTZ', IFNULL(c.carddefinition, 0), 
+	then concat('GRTZ', IFNULL(c.carddefinition, 0))
 	else gpv.PRODUCTKEY  
 end  AS SKU,
 
@@ -789,10 +789,10 @@ FROM
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
-		ON (gpv.product_id = ol.productid AND (gpv.designId = c.carddefinition OR (gpv.designId IS NULL  AND  c.carddefinition IS NULL)))	-- gifts
-		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)	-- cards
+		ON gpv.product_id = ol.productid 
+			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
-		ON pv.PRODUCT_ID = IFNULL(c.carddefinition, ol.productid) 
+		ON (pv.PRODUCT_ID = ol.productid OR (c.carddefinition = ol.productid  AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')))
 			AND pv.SKU_VARIANT = LI_SKU_VARIANT
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
