@@ -1,25 +1,6 @@
 CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CARDS_BACKFILL" AS (
 
-WITH Invitations
-AS
-(
-SELECT DISTINCT cd.id as carddefinitionid
-FROM RAW_GREETZ.GREETZ3.carddefinition cd
-	JOIN RAW_GREETZ.GREETZ3.contentinformation_category ci 
-		ON cd.contentinformationid = ci.contentinformationid
-	JOIN RAW_GREETZ.GREETZ3.contentcategory cc
-		ON cc.id = ci.contentcategoryid
-	JOIN RAW_GREETZ.GREETZ3.contentcategorytype cct
-		ON cct.ID = cc.categorytypeid
-	JOIN RAW_GREETZ.GREETZ3.contentcategorytranslation ct
-		ON ct.contentcategoryid = cc.id AND ct.locale = 'en_EN'
-WHERE -- (cd.APPROVALSTATUS = 'APPROVED' OR cd.APPROVALSTATUS IS NULL)
-	  -- AND (cd.ENABLED = 'Y' OR cd.ENABLED IS NULL)
-	  cct.INTERNALNAME = 'Occasion'
-	  AND lower(ct.TEXT) LIKE '%invit%'
-),
-
-ProductList
+WITH ProductList
 AS
 (
 SELECT DISTINCT 
@@ -45,10 +26,15 @@ SELECT DISTINCT
 				end  AS  Attribute_Shape,
 
 				case 
-					when pc.CARDSIZE = 'MEDIUM' AND pc.cardratio = 'STANDARD' then 'standard'
+					when pc.CARDSIZE = 'MEDIUM' /*AND pc.cardratio = 'STANDARD'*/ then 'standard'
 					when pc.CARDSIZE = 'LARGE' AND pc.cardratio = 'SQUARE' then 'standard'
 					when pc.CARDSIZE = 'XXL' then 'large'
 					when pc.CARDSIZE = 'SUPERSIZE' then 'giant'
+					
+					when pc.CARDSIZE = 'XL' then 'xl'
+					when pc.CARDSIZE = 'MINI' then 'mini'
+					when pc.CARDSIZE = 'SMALL' then 'small'
+					when pc.CARDSIZE = 'LARGE' then 'large'
 				end  AS Attribute_Size,
 
                 pc.AMOUNTOFPANELS                     
@@ -59,40 +45,24 @@ FROM RAW_GREETZ.GREETZ3.productcard pc
 				AND cd.OBLONG = pc.OBLONG 
 				AND (cd.NUMBEROFPANELS = pc.AMOUNTOFPANELS 
 					 OR (pc.AMOUNTOFPANELS = 1 AND cd.NUMBEROFPANELS = 2 AND cd.allowsinglepanel = 'Y'))
-	 LEFT JOIN Invitations i ON cd.ID = i.carddefinitionid
      JOIN RAW_GREETZ.GREETZ3.product p 
 		ON pc.PRODUCTID = p.ID 
 			AND p.TYPE = 'productCardSingle' 
 			AND p.CHANNELID = 2 
-			AND ((i.carddefinitionid IS NULL  AND p.onlyAvailableForFlow IS NULL) OR (i.carddefinitionid IS NOT NULL  AND  p.ID IN (1142760910, 1142760911, 1142760912))) -- ('invite_card_Standard_Medium_1panel', 'invite_card_Standard_Medium_2panel', 'invite_card_Square_Large_2panel')) 
-     
      JOIN RAW_GREETZ.GREETZ3.carddefinition_limitedcardsize cdl 
 		ON cdl.CARDDEFINITIONID = cd.ID 
 			AND pc.CARDSIZE = cdl.CARDSIZE
-	 JOIN RAW_GREETZ.GREETZ3.carddefinition_channel cdc
-			ON cdc.CARDDEFINITIONID = cd.ID
-				AND pc.CARDSIZE = cdl.CARDSIZE
-				AND (cd.ID IN (
-3000087418,
-3000087433,
-3000090766,
-3000092146,
-3000092151,
-3000092176,
-3000092181,
-3000093491
-				) OR (i.carddefinitionid IS NULL  OR  cdc.CHANNELFLOWID = p.onlyAvailableForFlow)) 
 	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_title
 		  ON cif_nl_title.contentinformationid = cd.contentinformationid
 			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
 
-WHERE
+/*WHERE
 	  cdc.channelID = '2'
 	  AND (
 			(pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'STANDARD'  AND pc.CARDSIZE IN ('MEDIUM', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 2 AND pc.cardratio = 'SQUARE' AND pc.CARDSIZE IN ('LARGE', 'XXL', 'SUPERSIZE')) 
 			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
-		  )	 
+		  )	 */
 	-- AND cif_nl_title.text IS NOT NULL
 ),
 
@@ -274,8 +244,8 @@ IFNULL(a_rl_2.MP_Name, 'Non relations')	AS	REPORTING_RELATION	,
 'Anonymous'	AS	REPORTING_ARTIST	,
 NULL	AS	REPORTING_SUPPLIER	,
 NULL	AS	REPORTING_SUPPLIER_NO	,
-case Attribute_Size when 'standard' then 'Standard' when 'large' then 'Large' when 'giant' then 'Giant' end AS	SIZE,	
-case Attribute_Size when 'standard' then 'Standard Card' when 'large' then 'Large Card' when 'giant' then 'Giant Card' end  AS	MCD_SIZE	,
+initcap(Attribute_Size)  AS	SIZE,	
+concat(initcap(Attribute_Size), ' Card')  AS	MCD_SIZE	,
 
 CONCAT('{"categories":[',
 				IFNULL(
@@ -377,17 +347,15 @@ FROM ProductList pl
 		  ON pr.content_collection_ID = pl.CONTENTCOLLECTIONID	
 	 LEFT JOIN RAW_GREETZ.GREETZ3.greetz_to_mnpg_multioccasions_view_2 a_oc_2
 		  ON a_oc_2.design_id = pl.carddefinitionid		
-	 LEFT JOIN Invitations inv
-		  ON inv.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN Ignore_AgeCategory ig
 		  ON ig.carddefinitionid = pl.carddefinitionid	
 	 LEFT JOIN RAW_GREETZ.GREETZ3.export_productranges_view_2 spl
 			ON pr.product_range_key = spl.entity_key
 	 LEFT JOIN Brands b 
 			ON pl.carddefinitionid = b.carddefinitionid
-WHERE
-		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
-		AND (nl_product_name IS NOT NULL  OR cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL  OR pl.contentinformationid IS NOT NULL)
+-- WHERE
+--		((inv.carddefinitionid IS NULL AND Attribute_Size IS NOT NULL) OR  Attribute_Size = 'standard')
+--		AND (nl_product_name IS NOT NULL  OR cif_nl_descr.text IS NOT NULL  OR  cif_nl_descr_2.text IS NOT NULL  OR pl.contentinformationid IS NOT NULL)
 GROUP BY 
 	pl.entity_key,
 	 pl.Attribute_Size,
