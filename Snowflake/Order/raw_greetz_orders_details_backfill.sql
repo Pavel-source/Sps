@@ -55,9 +55,9 @@ SELECT ol.orderid,
 	 ol.PRODUCTITEMINBASKETID,
 	 ol.productId,
 	 AVG(ol.totalwithvat) AS totalwithvat
-FROM orders o
-	JOIN orderline ol ON o.id = ol.orderid
-	JOIN product pn ON pn.id = ol.productid
+FROM "RAW_GREETZ"."GREETZ3".orders o
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
 WHERE o.channelid = 2
 	   AND o.currentorderstate IN
 		  ('EXPIRED_AFTER_PRINTED',
@@ -278,12 +278,12 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
  then 
 	concat('GRTZ', 
 			IFNULL(c.carddefinition, 0), 
-			'-',
+			case lower(p.PRODUCTCODE) like '%square%' then '-SQ' else '' end,
 			case 
-				when lower(p.PRODUCTCODE) like '%standard%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%square%large%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%xxl%' then 'LARGE'
-				when lower(p.PRODUCTCODE) like '%supersize%' then 'GIANT'
+				when lower(p.PRODUCTCODE) like '%standard%' then '-STANDARD'
+				when lower(p.PRODUCTCODE) like '%square%large%' then '-STANDARD'
+				when lower(p.PRODUCTCODE) like '%xxl%' then '-LARGE'
+				when lower(p.PRODUCTCODE) like '%supersize%' then '-GIANT'
 				else 'STANDARD'
 			end,	
 			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
@@ -296,12 +296,12 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
  then 
 	concat('GRTZ', 
 			IFNULL(c.carddefinition, 0), 
-			'-',
+			case lower(p.PRODUCTCODE) like '%square%' then '-SQ' else '' end,
 			case 
-				when lower(p.PRODUCTCODE) like '%standard%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%square%large%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%xxl%' then 'LARGE'
-				when lower(p.PRODUCTCODE) like '%supersize%' then 'GIANT'
+				when lower(p.PRODUCTCODE) like '%standard%' then '-STANDARD'
+				when lower(p.PRODUCTCODE) like '%square%large%' then '-STANDARD'
+				when lower(p.PRODUCTCODE) like '%xxl%' then '-LARGE'
+				when lower(p.PRODUCTCODE) like '%supersize%' then '-GIANT'
 				else 'STANDARD'
 			end,	
 			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
@@ -322,11 +322,7 @@ case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
 			'CARD') 
 end  AS CARD_VARIANT,
 
-case 
-	when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'  then 'Cards' 
-	else pv.PRODUCT_FAMILY 
-end  AS PRODUCT_FAMILY,
-
+pv.PRODUCT_FAMILY 	,
 pv.CATEGORY_NAME	,
 pv.CATEGORY_PARENT	,
 pv.HIERARCHY_RANK_1	,
@@ -792,7 +788,8 @@ FROM
 		ON gpv.product_id = ol.productid 
 			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	
 	LEFT JOIN PROD.DW_CORE.PRODUCT_VARIANTS  AS pv
-		ON (pv.PRODUCT_ID = ol.productid OR (c.carddefinition = ol.productid  AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')))
+		ON ((pv.PRODUCT_ID = ol.productid AND p.type != 'productCardSingle'  AND  p.productcode NOT LIKE 'card%') 
+			OR (pv.PRODUCT_ID = c.carddefinition AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')))
 			AND pv.SKU_VARIANT = LI_SKU_VARIANT
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))

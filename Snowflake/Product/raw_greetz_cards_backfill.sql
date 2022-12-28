@@ -248,10 +248,10 @@ case
 		else cif_nl_descr.text												           
 end		AS	PRODUCT_DESCRIPTION	,
 		
-NULL		AS	CATEGORY_NAME	,
-NULL		AS	CATEGORY_PARENT	,
-NULL		AS	HIERARCHY_RANK_1	,
-NULL		AS	HIERARCHY_RANK_2	,
+case pl.AMOUNTOFPANELS when 1 then 'Postcards'	 else 'Greeting Cards' end    AS	CATEGORY_NAME	,
+'Cards'		AS	CATEGORY_PARENT	,
+'Cards'     AS	HIERARCHY_RANK_1	,
+case pl.AMOUNTOFPANELS when 1 then 'Postcards'	 else 'Greeting Cards' end    AS	HIERARCHY_RANK_2	,
 NULL		AS	HIERARCHY_RANK_3	,
 NULL		AS	HIERARCHY_RANK_4	,
 NULL		AS	HIERARCHY_RANK_5	,
@@ -354,7 +354,9 @@ current_timestamp()	AS	MESSAGE_TIMESTAMP	,
 'grtz'	AS	BRAND	,
 IFNULL(pr.product_range_key,'range-tangled')	AS	RANGE_ID	,
 NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
-'Greetz'	AS	BRAND_DESCRIPTION	
+'Greetz'	AS	BRAND_DESCRIPTION	,
+
+pl.carddefinitionid	AS	GREETZ_PRODUCT_ID	
 
 FROM ProductList pl	
 	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_descr
@@ -404,7 +406,8 @@ GROUP BY
 	a_oc_2.occasion_name,
 	ig.carddefinitionid,
 	spl.channel_key,
-	b.Brand	
+	b.Brand,
+	pl.AMOUNTOFPANELS
 ORDER BY 
 	pl.entity_key,
 	pl.Attribute_Size	

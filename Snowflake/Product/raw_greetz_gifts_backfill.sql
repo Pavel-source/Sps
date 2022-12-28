@@ -793,7 +793,9 @@ AS	SEARCH_KEYWORDS	,
 		'grtz'	AS	BRAND	,
 		NULL	AS	RANGE_ID	,
 		NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
-		'Greetz'	AS	BRAND_DESCRIPTION	
+		'Greetz'	AS	BRAND_DESCRIPTION	,
+		
+		 p.ID	AS GREETZ_PRODUCT_ID
 
 FROM 
          productList p		  
@@ -872,7 +874,7 @@ GROUP BY p.ID,
 		 a_rl_2.MP_Name,
 		 p.Brand,
 		 P.TYPE
-		 
+		 		 
 UNION ALL
 
 SELECT 
@@ -1104,7 +1106,9 @@ AS	SEARCH_KEYWORDS	,
 		'grtz'	AS	BRAND	,
 		NULL	AS	RANGE_ID	,
 		NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
-		'Greetz'	AS	BRAND_DESCRIPTION	
+		'Greetz'	AS	BRAND_DESCRIPTION,
+
+		p.ID	AS GREETZ_PRODUCT_ID	
 
 FROM 
          productList p
