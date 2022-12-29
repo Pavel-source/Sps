@@ -324,9 +324,7 @@ current_timestamp()	AS	MESSAGE_TIMESTAMP	,
 'grtz'	AS	BRAND	,
 IFNULL(pr.product_range_key,'range-tangled')	AS	RANGE_ID	,
 NULL	AS	FINANCE_PRODUCT_HIERARCHY	,
-'Greetz'	AS	BRAND_DESCRIPTION	,
-
-pl.carddefinitionid	AS	GREETZ_PRODUCT_ID	
+'Greetz'	AS	BRAND_DESCRIPTION	
 
 FROM ProductList pl	
 	 LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_descr
@@ -376,6 +374,7 @@ GROUP BY
 	spl.channel_key,
 	b.Brand,
 	pl.AMOUNTOFPANELS
+	
 ORDER BY 
 	pl.entity_key,
 	pl.Attribute_Size	
