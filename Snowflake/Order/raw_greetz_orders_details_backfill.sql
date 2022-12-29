@@ -268,87 +268,19 @@ ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discoun
 ex.avg_rate * (ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount)  AS TOTAL_TAX_GBP,
 ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
-case 
-	when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
-	then concat('GRTZ', IFNULL(c.carddefinition, 0), IFF(cd.NUMBEROFPANELS = 1, '-P', ''))
-	else gpv.PRODUCTKEY  
-end  AS SKU,
-
-case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
- then 
-	concat('GRTZ', 
-			IFNULL(c.carddefinition, 0), 
-			IFF(cd.NUMBEROFPANELS = 1, '-P', ''),
-			case when lower(p.PRODUCTCODE) like '%square%' then '-SQ' else '' end,
-			case 
-				when lower(p.PRODUCTCODE) like '%medium%' then '-STANDARD'
-				when lower(p.PRODUCTCODE) like '%square%large%' then '-STANDARD'
-				when lower(p.PRODUCTCODE) like '%xxl%' then '-LARGE'
-				when lower(p.PRODUCTCODE) like '%supersize%' then '-GIANT'
-				
-				when lower(p.PRODUCTCODE) like '%xl%' then '-XL'
-				when lower(p.PRODUCTCODE) like '%mini%' then '-MINI'
-				when lower(p.PRODUCTCODE) like '%large%' then '-LARGE'
-				when lower(p.PRODUCTCODE) like '%small%' then '-SMALL'
-				else 'STANDARD'
-			end,	
-			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
-			'CARD') 
-else gpv.sku_id 	
-end  AS SKU_VARIANT,
-
--- SKU_VARIANT  AS LI_SKU_VARIANT,
-case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
- then 
-		concat('GRTZ', 
-			IFNULL(c.carddefinition, 0), 
-			IFF(cd.NUMBEROFPANELS = 1, '-P', ''),
-			case when lower(p.PRODUCTCODE) like '%square%' then '-SQ' else '' end,
-			case 
-				when lower(p.PRODUCTCODE) like '%medium%' then '-STANDARD'
-				when lower(p.PRODUCTCODE) like '%square%large%' then '-STANDARD'
-				when lower(p.PRODUCTCODE) like '%xxl%' then '-LARGE'
-				when lower(p.PRODUCTCODE) like '%supersize%' then '-GIANT'
-				
-				when lower(p.PRODUCTCODE) like '%xl%' then '-XL'
-				when lower(p.PRODUCTCODE) like '%mini%' then '-MINI'
-				when lower(p.PRODUCTCODE) like '%large%' then '-LARGE'
-				when lower(p.PRODUCTCODE) like '%small%' then '-SMALL'
-				else 'STANDARD'
-			end,	
-			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
-			'CARD') 
-else gpv.sku_id 	
-end  AS LI_SKU_VARIANT,	
-
-case when p.type = 'productCardSingle' OR  p.productcode LIKE 'card%'
- then 
-	concat(	case 
-				when lower(p.PRODUCTCODE) like '%medium%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%square%large%' then 'STANDARD'
-				when lower(p.PRODUCTCODE) like '%xxl%' then 'LARGE'
-				when lower(p.PRODUCTCODE) like '%supersize%' then 'GIANT'
-				
-				when lower(p.PRODUCTCODE) like '%xl%' then 'XL'
-				when lower(p.PRODUCTCODE) like '%mini%' then 'MINI'
-				when lower(p.PRODUCTCODE) like '%large%' then 'LARGE'
-				when lower(p.PRODUCTCODE) like '%small%' then 'SMALL'
-				else 'STANDARD'
-			end,	
-			case when lower(p.PRODUCTCODE) like '%square%' then 'SQUARE' else '' end,
-			'CARD') 
-end  AS CARD_VARIANT,
-
-IFNULL(pv.PRODUCT_FAMILY, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', 'Cards', NULL)) AS loc_PRODUCT_FAMILY,
-loc_PRODUCT_FAMILY  AS PRODUCT_FAMILY,
-IFNULL(pv.CATEGORY_NAME, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', IFF(cd.NUMBEROFPANELS = 1, 'Postcards', 'Greeting Cards'), NULL)) AS CATEGORY_NAME,
-IFNULL(pv.CATEGORY_PARENT, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', 'Cards', NULL)) AS CATEGORY_PARENT,
-IFNULL(pv.HIERARCHY_RANK_1, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', 'Cards', NULL)) AS HIERARCHY_RANK_1,
-IFNULL(pv.HIERARCHY_RANK_2, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', IFF(cd.NUMBEROFPANELS = 1, 'Postcards', 'Greeting Cards'), NULL)) AS HIERARCHY_RANK_2,
+pv.SKU,
+pv.SKU_VARIANT,
+pv.SKU_VARIANT  AS LI_SKU_VARIANT,	
+pv.CARD_VARIANT,
+pv.PRODUCT_FAMILY,
+pv.CATEGORY_NAME,
+pv.CATEGORY_PARENT,
+pv.HIERARCHY_RANK_1,
+pv.HIERARCHY_RANK_2,
 pv.HIERARCHY_RANK_3	,
 pv.HIERARCHY_RANK_4	,
-IFNULL(pv.PRODUCT_TYPE_NAME, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', 'Wenskaarten', NULL)) AS PRODUCT_TYPE_NAME	,
-IFNULL(pv.PRODUCT_KEY, IFF(p.type = 'productCardSingle' OR  p.productcode LIKE 'card%', 'greetingcard', NULL)) AS PRODUCT_KEY	,
+pv.PRODUCT_TYPE_NAME  AS PRODUCT_TYPE_NAME	,
+pv.PRODUCT_KEY  AS PRODUCT_KEY	,
 pv.FINANCE_PRODUCT_HIERARCHY	,
 False  AS IS_ECARD,
 pv.SUPPLIER_NAME,
@@ -360,7 +292,7 @@ NULL  AS ROYALTY_FLAT_FEE_EUR	,
 
 CASE
 	WHEN lower(pv.product_type_name) in ('personalised mug', 'personalised t-shirt') THEN lower(pv.mcd_finance_subcategory)
-	ELSE lower(loc_PRODUCT_FAMILY)
+	ELSE lower(pv.PRODUCT_FAMILY)
 END  AS ROYALTY_PRODUCT_CATEGORY,
 
 'NL'  AS ROYALTY_WEBSITE	,
@@ -396,18 +328,7 @@ pv.LETTERBOX_FRIENDLY	,
 IFNULL(pv.SHAPE, IFF(lower(p.PRODUCTCODE) like '%square%', 'Square', 'Rectangular'))  AS SHAPE	,
 pv.PRODUCT_BRAND	,
 pv.RANGE	,
-IFNULL(pv.SIZE, case 
-				when lower(p.PRODUCTCODE) like '%medium%' then 'Standard'
-				when lower(p.PRODUCTCODE) like '%square%large%' then 'Standard'
-				when lower(p.PRODUCTCODE) like '%xxl%' then 'Large'
-				when lower(p.PRODUCTCODE) like '%supersize%' then 'Giant'
-				
-				when lower(p.PRODUCTCODE) like '%xl%' then 'XL'
-				when lower(p.PRODUCTCODE) like '%mini%' then 'Mini'
-				when lower(p.PRODUCTCODE) like '%large%' then 'Large'
-				when lower(p.PRODUCTCODE) like '%small%' then 'Small'
-				else 'Standard'
-			end)  AS  SIZE	,
+pv.SIZE	,
 pv.SEARCH_KEYWORDS	,
 
 IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
@@ -813,13 +734,12 @@ FROM
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
+/*	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
 		ON gpv.product_id = ol.productid 
-			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	
-	LEFT JOIN "RAW_GREETZ"."GREETZ3"."test_PRODUCT_VARIANTS" AS pv  -- PROD.DW_CORE.PRODUCT_VARIANTS  AS pv		 
-		ON ((pv.GREETZ_PRODUCT_ID = ol.productid AND p.type != 'productCardSingle'  AND  p.productcode NOT LIKE 'card%') 
-			OR (pv.GREETZ_PRODUCT_ID = c.carddefinition AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')))
-			AND pv.SKU_VARIANT = LI_SKU_VARIANT
+			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	*/
+	LEFT JOIN "RAW_GREETZ"."GREETZ3"."tmp_PRODUCT_VARIANTS" AS pv  -- PROD.DW_CORE.PRODUCT_VARIANTS  AS pv		 
+		ON pv.GREETZ_PRODUCT_ID = ol.productid 
+			AND (pv.designId = c.carddefinition  OR  pv.designId = 0)
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
