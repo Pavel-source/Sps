@@ -386,9 +386,9 @@ NULL  AS WAREHOUSE_COST	,
 ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)  AS GROSS_PRODUCT_MARGIN,
 (ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS GROSS_SHIPPING_MARGIN	,
 ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS TOTAL_GROSS_MARGIN,
-o_st.ORDER_ESEV - IFNULL(oce.purchasecost, 0)  AS COMMERCIAL_PRODUCT_MARGIN,
+ITEM_ESEV - IFNULL(oce.purchasecost, 0)  AS COMMERCIAL_PRODUCT_MARGIN,
 (ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS COMMERCIAL_SHIPPING_MARGIN,	
-o_st.ORDER_ISEV - IFNULL(oce.purchasecost, 0) - (ol.productamount * c_isp.ordercostentry_shipment_purchasecost / c_isp.product_amount)  AS TOTAL_COMMERCIAL_MARGIN,
+ITEM_ISEV - IFNULL(oce.purchasecost, 0) - (ol.productamount * c_isp.ordercostentry_shipment_purchasecost / c_isp.product_amount)  AS TOTAL_COMMERCIAL_MARGIN,
 IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', False, True)  AS IS_LOW_EFFORT_ITEM,
 IFF(IS_LOW_EFFORT_ITEM = True, False, True)  AS IS_HIGH_EFFORT_ITEM	,
 IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), False, True) AS IS_LOW_EFFORT_CARD_ITEM,
@@ -449,15 +449,15 @@ ol_FLOWER_UPSELL_QUANTITY  AS FLOWER_UPSELL_QUANTITY,
 ol_CARD_UPSELL_QUANTITY + ol_FLOWER_UPSELL_QUANTITY  AS TOTAL_UPSELL_QUANTITY	,
 0  AS ECARD_QUANTITY	,
 
-IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
-		AND 
+IFF(pv.CATEGORY_NAME = 'Greeting Cards' 	-- not 'Postcards'
+		AND
 		(
 		 lower(p.productcode) like '%xl%' 
 		 OR lower(p.productcode)  like '%supersize%'
 		 )
 	   , ol.productamount, 0)  AS GIANT_CARD_QUANTITY	,
 	   	   
-	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+IFF(pv.CATEGORY_NAME = 'Greeting Cards' 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -473,7 +473,7 @@ IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		 )
 	   , ol.productamount, 0) AS LARGE_SQUARE_CARD_QUANTITY	,
 	
-	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')  
+IFF(pv.CATEGORY_NAME = 'Greeting Cards'
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -481,7 +481,7 @@ IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		 )
 	   , ol.productamount, 0) AS STANDARD_SQUARE_CARD_QUANTITY	,
 	
-	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') 
+IFF(pv.CATEGORY_NAME = 'Greeting Cards'
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -489,14 +489,11 @@ IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		 )
 	   , ol.productamount, 0) AS STANDARD_CARD_QUANTITY	,
 	
-	IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.NUMBEROFPANELS = 1, ol.productamount, 0)  AS POSTCARD_QUANTITY,
-
+IFF(pv.CATEGORY_NAME = 'Postcards', ol.productamount, 0)  AS POSTCARD_QUANTITY,
 IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ITEM_ISEV  * ex.avg_rate, 0)  AS CARD_ITEM_ISEV_GBP	,
 IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ITEM_ISEV  * ex.avg_rate, 0)  AS GIFT_ITEM_ISEV_GBP	,
 IFF(pt.MPTypeCode = 'flower', ITEM_ISEV * ex.avg_rate, 0)  AS FLOWER_ITEM_ISEV_GBP	,
-
 ol_CARD_QUANTITY + ol_FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
-
 IFF(ol_CARD_QUANTITY > 0 OR ol_GIFT_QUANTITY > 0, ITEM_ISEV * ex.avg_rate, 0)  AS CARD_FLOWER_ISEV_GBP	,
 IFF(ol_CARD_QUANTITY = 0, ol.productamount, 0)  AS NON_CARD_QUANTITY	,
 IFF(ol_CARD_QUANTITY = 0, ITEM_ISEV * ex.avg_rate, 0)  AS NON_CARD_ISEV_GBP	,
@@ -591,75 +588,75 @@ o_st.FLOWER_DISCOUNTED_VOLUME,
 o_st.FLOWER_DISCOUNTED_SALES,
 o_st.NON_CARD_DISCOUNTED_VOLUME,
 o_st.NON_CARD_DISCOUNTED_SALES,
-loc_PRODUCT_FAMILY  AS MCD_PRODUCT_FAMILY,
+pv.PRODUCT_FAMILY  AS MCD_PRODUCT_FAMILY,
 
 CASE
-        WHEN loc_PRODUCT_FAMILY = 'Cards' THEN 'Greeting Cards'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' THEN 'Flowers'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN 'Food Gifts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+        WHEN pv.PRODUCT_FAMILY = 'Cards' THEN 'Greeting Cards'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' THEN 'Flowers'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN 'Food Gifts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_CATEGORY,
 
 CASE
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet')  THEN 'Food Gifts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet')  THEN 'Food Gifts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Mugs'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toys'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_SUBCATEGORY	,
 
 CASE
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
-        WHEN loc_PRODUCT_FAMILY = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
-        WHEN loc_PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN CONCAT(pv.product_type_name,'s')
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Ceramic Mug'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toy'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN pv.size
-        WHEN loc_PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) = 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(pv.size,CHARINDEX('CARD',pv.size) - 1))),' Card')
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND RIGHT(pv.size,4) <> 'CARD' AND pv.size NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(pv.size,' Card')
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND pv.size IN ('ECard','ECARD') THEN 'eCard'
+        WHEN pv.PRODUCT_FAMILY = 'Cards' AND pv.size = 'POSTCARD' THEN 'Postcard'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN pv.PRODUCT_FAMILY = 'Flowers' AND LOWER(pv.size) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Balloon' THEN 'Balloon'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Beauty' THEN 'Beauty'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name IN ('Biscuit','Chocolate','Hamper','Sweet') THEN CONCAT(pv.product_type_name,'s')
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised Mug' THEN 'Ceramic Mug'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Soft Toy' THEN 'Soft Toy'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Personalised T-shirt' THEN pv.size
+        WHEN pv.PRODUCT_FAMILY = 'Gifts' AND pv.product_type_name = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_TYPE
 
@@ -739,7 +736,7 @@ FROM
 			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	*/
 	LEFT JOIN "RAW_GREETZ"."GREETZ3"."tmp_PRODUCT_VARIANTS" AS pv  -- PROD.DW_CORE.PRODUCT_VARIANTS  AS pv		 
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
-			AND (pv.designId = c.carddefinition  OR  pv.designId = 0)
+			AND (pv.GREETZ_CARDDEFINITION_ID = IFNULL(c.carddefinition , 0)  OR  (pv.GREETZ_CARDDEFINITION_ID = 0 AND p.TYPE != 'productCardSingle'))
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'

@@ -196,8 +196,8 @@ GROUP BY INTERNALNAME,
 
 SELECT 
 pl.carddefinitionid	AS	PRODUCT_ID,
-ROW_NUMBER() OVER(PARTITION BY pl.carddefinitionid ORDER BY pl.Attribute_Size DESC) 	AS	VARIANT_ID	,
-CONCAT(pl.carddefinitionid, '-', ROW_NUMBER() OVER(PARTITION BY pl.carddefinitionid ORDER BY pl.Attribute_Size DESC))	AS	PRODUCT_VARIANT_ID	,
+ROW_NUMBER() OVER(PARTITION BY pl.entity_key ORDER BY pl.Attribute_Size, pl.productid) 	AS	VARIANT_ID	,
+CONCAT(pl.carddefinitionid, '-', ROW_NUMBER() OVER(PARTITION BY pl.entity_key ORDER BY pl.Attribute_Size, pl.productid))	AS	PRODUCT_VARIANT_ID	,
 pl.entity_key	AS	SKU	,
 
 concat(pl.entity_key, 
