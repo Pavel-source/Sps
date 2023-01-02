@@ -1,6 +1,6 @@
-INSERT INTO "RAW_GREETZ"."GREETZ3"."tmp_PRODUCT_VARIANTS" 
+INSERT INTO "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" 
 
-WITH ProductList
+WITH ProductList_0
 AS
 (
 SELECT DISTINCT 
@@ -17,7 +17,7 @@ SELECT DISTINCT
 				cd.ID AS carddefinitionid,
 				cd.contentinformationid, pc.productid, 
 				p.PRODUCTCODE, cd.showonstore, pc.CARDSIZE, pc.cardratio, cd.ORIENTATION, 
-				cd.CONTENTCOLLECTIONID, numberofphotos,
+				cd.CONTENTCOLLECTIONID, cd.numberofphotos,
 				cif_nl_title.text  		AS nl_product_name,
 
 				case pc.cardratio
@@ -64,6 +64,86 @@ FROM RAW_GREETZ.GREETZ3.productcard pc
 			OR (pc.AMOUNTOFPANELS = 1 AND pc.CARDSIZE = 'MEDIUM')
 		  )	 */
 	-- AND cif_nl_title.text IS NOT NULL
+),
+
+ProductList_1
+AS
+(
+SELECT  DISTINCT
+				concat( case when cd.NUMBEROFPANELS = 2 
+							then concat('GRTZ', cast(cd.ID as varchar(50))) 
+							else concat('GRTZ', cast(cd.ID as varchar(50)), '-P') 
+						end,
+						case cd.CARDRATIO when 'SQUARE' 
+							then '-SQ'
+							else ''
+						end)
+				AS entity_key, 
+				
+				cd.ID AS carddefinitionid,
+				cd.contentinformationid, ol.productid, 
+				p.PRODUCTCODE, cd.showonstore, 
+				NULL  AS CARDSIZE, 
+				cd.CARDRATIO, cd.ORIENTATION, 
+				cd.CONTENTCOLLECTIONID, cd.numberofphotos,
+				cif_nl_title.text  		AS nl_product_name,
+
+				case cd.CARDRATIO
+					when 'STANDARD' then 'rectangular'
+					when 'SQUARE'   then 'square'
+				end  AS  Attribute_Shape,
+
+			case 
+				when lower(p.PRODUCTCODE) like '%medium%' then 'standard'
+				when lower(p.PRODUCTCODE) like '%square%large%' then 'standard'
+				when lower(p.PRODUCTCODE) like '%xxl%' then 'large'
+				when lower(p.PRODUCTCODE) like '%supersize%' then 'giant'
+				
+				when lower(p.PRODUCTCODE) like '%xl%' then 'xl'
+				when lower(p.PRODUCTCODE) like '%mini%' then 'mini'
+				when lower(p.PRODUCTCODE) like '%large%' then 'large'
+				when lower(p.PRODUCTCODE) like '%small%' then 'small'
+				else 'standard'
+			end  AS Attribute_Size,
+
+                cd.NUMBEROFPANELS  AS AMOUNTOFPANELS                     
+				
+FROM 
+	"RAW_GREETZ"."GREETZ3".orderline AS ol 
+    JOIN "RAW_GREETZ"."GREETZ3".orders AS o ON ol.orderid = o.id
+    JOIN "RAW_GREETZ"."GREETZ3".product p on ol.productid = p.id
+    JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
+    JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
+	JOIN "RAW_GREETZ"."GREETZ3".carddefinition AS cd ON c.carddefinition = cd.ID
+	LEFT JOIN ProductList_0 pl ON ol.productid = pl.productid AND cd.ID = pl.carddefinitionid
+	LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_title
+		  ON cif_nl_title.contentinformationid = cd.contentinformationid
+			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
+where p.TYPE = 'productCardSingle' 
+       AND o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
+		AND pl.carddefinitionid IS NULL
+
+),
+
+ProductList AS
+(
+SELECT * FROM ProductList_0 UNION ALL SELECT * FROM ProductList_1
 ),
 
 Carddefinition_Grouped AS
@@ -385,4 +465,4 @@ GROUP BY
 	
 ORDER BY 
 	pl.entity_key,
-	pl.Attribute_Size	
+	pl.Attribute_Size;	

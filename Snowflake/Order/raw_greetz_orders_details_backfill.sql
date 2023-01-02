@@ -1,4 +1,5 @@
--- CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDER_ITEMS_DETAILED_BACKFILL" AS (
+CREATE OR REPLACE TABLE "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."RAW_GREETZ_CT_ORDER_ITEMS_DETAILED_BACKFILL" AS (
+
 WITH
 cte_INDIVIDUALSHIPPING
  AS
@@ -85,9 +86,15 @@ GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
  
  cte_content AS
 (
-SELECT orderid, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
+SELECT  orderid, 
+		PRODUCTITEMINBASKETID, 
+		sum(totalwithvat) AS totalwithvat,
+		sum(totalwithoutvat) AS totalwithoutvat,
+		sum(withvat) AS withvat,
+		sum(withoutvat) AS withoutvat
 FROM cte_content_0
-GROUP BY orderid, PRODUCTITEMINBASKETID
+GROUP BY orderid, 
+		 PRODUCTITEMINBASKETID
 ),
 
 cte_res AS
@@ -697,7 +704,7 @@ FROM
        ON ol.individualshippingid = isp.id	
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".recipient AS r
        ON isp.recipientid = r.id
-	LEFT JOIN address a
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".address a
        on r.addressid = a.id
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".address AS a2
 	   ON o.customerid = a2.customerid 
@@ -732,10 +739,7 @@ FROM
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-/*	LEFT JOIN "RAW_GREETZ"."GREETZ3".tmp_dm_gift_product_variants gpv 
-		ON gpv.product_id = ol.productid 
-			AND (gpv.designId = c.carddefinition  OR  gpv.designId IS NULL)	*/
-	LEFT JOIN "RAW_GREETZ"."GREETZ3"."tmp_PRODUCT_VARIANTS" AS pv  -- PROD.DW_CORE.PRODUCT_VARIANTS  AS pv		 
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv  --   "tmp_PRODUCT_VARIANTS" AS pv    
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
 			AND (pv.GREETZ_CARDDEFINITION_ID = IFNULL(c.carddefinition , 0)  OR  (pv.GREETZ_CARDDEFINITION_ID = 0 AND p.TYPE != 'productCardSingle'))
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
@@ -1134,4 +1138,5 @@ MCD_PRODUCT_FAMILY	,
 MCD_PRODUCT_CATEGORY	,
 MCD_PRODUCT_SUBCATEGORY	,
 MCD_PRODUCT_TYPE	
-FROM cte_Res;		
+FROM cte_Res
+);		
