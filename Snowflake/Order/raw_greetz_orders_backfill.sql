@@ -81,9 +81,20 @@ GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
 
 			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost,
 			
-			IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  AS cards_ISEV,
-			IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  AS gifts_ISEV,
-			IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count)))  AS flowers_ISEV,
+			case when cards_count + gifts_count + flowers_count > 0 then
+			  IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  
+			else 0
+			end 	AS cards_ISEV,
+			
+			case when cards_count + gifts_count + flowers_count > 0 then
+			  IFF(gifts_count = 0, 0, gifts_cost + postage_cost * (gifts_count / (cards_count + gifts_count + flowers_count)))  
+			else 0
+			end  	AS gifts_ISEV,
+			 
+			case when cards_count + gifts_count + flowers_count > 0 then
+			  IFF(flowers_count = 0, 0, flowers_cost + postage_cost * (flowers_count / (cards_count + gifts_count + flowers_count))) 
+			else 0
+			end  	AS flowers_ISEV,
 			
 			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat
 						
@@ -126,8 +137,11 @@ GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
 			SUM(IFNULL(d_card.amount, 0))  AS cards_count_distinct,
 			SUM(IFNULL(d_gift_standard.amount, 0) + IFNULL(d_gift_personalized.amount, 0))  AS gifts_count_distinct,
 			SUM(IFNULL(d_flower.amount, 0))  AS flowers_count_distinct,
-			SUM(postage_cost_wVat) * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / SUM(cards_count + gifts_count + flowers_count)  AS postage_unit_price
-
+			
+			case when SUM(cards_count + gifts_count + flowers_count) > 0 then
+			SUM(postage_cost_wVat) * (cards_count_distinct + gifts_count_distinct + flowers_count_distinct) / SUM(cards_count + gifts_count + flowers_count)  
+			else 0 end  AS postage_unit_price
+			
  FROM cte_ISEV_groupped_0 ol
 	LEFT JOIN cte_distinct_InShipping d_card 
 		ON ol.ORDERID = d_card.ORDERID AND ol.INDIVIDUALSHIPPINGID = d_card.INDIVIDUALSHIPPINGID

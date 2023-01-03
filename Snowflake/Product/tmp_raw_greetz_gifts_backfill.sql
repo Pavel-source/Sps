@@ -46,7 +46,7 @@ WHERE c.INTERNALNAME = 'Brand/Designer'
 GROUP BY p.id
 ),
 
-productList_0 AS
+productList_00 AS
 (
 SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.CategoryCode,
 		p.removed, p.type,
@@ -269,6 +269,253 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 
 -- WHERE  
 	--  p.channelid = '2'	
+),
+
+productList_01 AS
+(
+SELECT DISTINCT p.ID, pt.entity_key, p.contentinformationid, pt.DefaultCategoryKey, pt.CategoryCode,
+		p.removed, p.type,
+
+		case 
+			  when p.TYPE = 'gift_addon' then 'addon' 
+			  when pgt.internalname = 'Personalised Beverage' then 'personalised-alcohol'
+			  
+when p.id IN (
+1142781265,
+1142814538,
+1142818063,
+1142811901,
+1142815458	,
+1142815453	,
+1142815638	,
+1142812815	,
+1142812809	,
+1142812824	,
+1142815483	,
+1142812818	,
+1142815468	,
+1142815473	,
+1142815478	,
+1142815463	,
+1142812827	,
+1142815548	,
+1142815438  ,
+1142818558  ,
+1142818653  
+					) then 'home-gift'			  
+			  
+			  when p.id IN (
+1142812722,			  
+1142811995,
+1142811998,
+1142812019,
+1142812064,
+1142812067,
+1142812076,
+1142812097,
+1142812133,
+1142812136,
+1142812322,
+1142812370,
+1142812749,
+1142812755,
+1142815268,
+1142815288,
+1142815293,
+1142815333,
+1142815348,
+1142815363,
+1142815408,
+1142815418,
+1142812001,
+1142812013,
+1142812031,
+1142812037,
+1142812043,
+1142812049,
+1142812058,
+1142812073,
+1142812079,
+1142812091,
+1142812109,
+1142812115,
+1142812121,
+1142812124,
+1142812127,
+1142813423,
+1142813458,
+1142813498,
+1142813528,
+1142813948,
+1142813998,
+1142816713,
+1142816743,
+1142816818,
+1142816823,
+1142816883,
+1142816918,
+1142816928,
+1142816933,
+1142818353,
+1142818223,
+1142818543)
+					then 'alcohol'
+					
+when p.id IN (
+1142817103,
+1142817108,
+1142817368				
+			 ) then 'beauty'					
+					
+when p.id IN (1142809358) then 'personalised-sweets'		
+					
+when p.id IN (
+422257661	,
+422258704	,
+422258732	,
+1078909975	,
+1078910660	,
+1142780920	,
+1142780923	,
+1142780926	,
+1142791311	,
+1142791314	,
+1142793957	,
+1142793990	,
+1142805791	,
+1142809994	,
+1142810951	,
+1142812713	,
+1142812716	,
+1142812719	,
+1142812785	,
+1142812788	,	
+1142812920	,
+1142812932	,
+1142814193	,
+1142814198	,
+1142814283	,
+1142814288	,
+1142814293	,
+1142814298	,
+1142814303	,
+1142814308	,
+1142814313	,
+1142814318	,
+1142814323	,
+1142815518	,
+1142815523	,
+1142815528	,
+1142815533	,
+1142815538	,
+1142815608	,
+1142815613	,
+1142815643	,
+1142815648	,
+1142815653	,
+1142815658	,
+1142815763	,
+1142815818	,
+1142815823	,
+1142815828	,
+1142815838	,
+1142815843	,
+1142815848	,
+1142815853	,
+1142815858	,
+1142815863	,
+1142815868	,
+1142815873	,
+1142815888	,
+1142815893	,
+1142815898	,
+1142815903	,
+1142815908	,
+1142815913	,
+1142815918	,
+1142815923	,
+1142815928	,
+1142815933	,
+1142815938	,
+1142815943	,
+1142815948	,
+1142815953	,
+1142816243	,
+1142816563				
+			 ) then 'soft-toy'	
+
+when p.id IN (1142817533, 1142817818) then 'toy-game'
+when p.id IN (1142816018) then 'jewellery'
+when p.id IN (1142819226) then 'flower'
+when p.id IN (1142810372, 1142810201, 1142810204, 1142810198, 439432719) then 'fruit'
+when p.id IN (1142818268) then 'chocolate'
+
+					
+			  when pgt.internalname like 'Personalised%Merci%' OR pgt.internalname like 'Personalised_Australian%'  
+					OR pgt.internalname like 'Personalised_Tonys%' OR pgt.internalname like 'Personalised_Leonidas%' then 'personalised-chocolate'
+			  when lower(pgt.internalname) like '%balloon%' then 'balloon'
+			  when lower(pgt.internalname) = 'mug'  then 'personalised-mug'
+			  when pl_a.jewellery > 0 then 'jewellery'
+			  when pl_a.gadget > 0 then 'gadget-novelty'			  
+			  else pt.MPTypeCode 
+		end  
+		AS MPTypeCode, 
+		
+		pt.MPTypeCode AS MPTypeCode_ForCategories,
+		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, IFNULL(c.carddefinition, 0) AS designId, 
+		cd.contentinformationid AS design_contentinformationid, nl_product_name_2,
+		concat('GRTZD', cast(c.carddefinition as varchar(50)))		AS entityProduct_key,
+		pt.GreetzTypeID, b.Brand
+
+FROM 
+	"RAW_GREETZ"."GREETZ3".orderline AS ol 
+    JOIN "RAW_GREETZ"."GREETZ3".orders AS o ON ol.orderid = o.id
+    JOIN "RAW_GREETZ"."GREETZ3".product p on ol.productid = p.id
+    JOIN "RAW_GREETZ"."GREETZ3".productiteminbasket AS pib ON pib.ID = ol.PRODUCTITEMINBASKETID
+    JOIN "RAW_GREETZ"."GREETZ3".customercreatedcard AS c ON pib.CONTENTSELECTIONID = c.ID
+	JOIN "RAW_GREETZ"."GREETZ3".carddefinition AS cd ON c.carddefinition = cd.ID
+	LEFT JOIN RAW_GREETZ.GREETZ3.contentinformationfield cif_nl_title
+		  ON cif_nl_title.contentinformationid = cd.contentinformationid
+			 AND cif_nl_title.type = 'TITLE' AND cif_nl_title.locale = 'nl_NL'
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgift pg  ON pg.productid = p.id
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".productgifttype pgt ON pgt.ID = pg.productgifttypeid
+	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view_2 pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
+	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
+	LEFT JOIN Brands b ON p.ID = b.ID
+	LEFT JOIN ProductList_00 pl ON ol.productid = pl.ID AND cd.ID = pl.designId
+	
+WHERE p.TYPE != 'productCardSingle' 
+		AND
+	 (
+		p.type IN ( 'standardGift', 'personalizedGift', 'gift_addon') 			
+		OR lower(p.productcode) LIKE '%envelop%'
+		OR p.productcode LIKE 'card%'
+	  )
+       AND o.channelid = 2
+	   AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')
+		AND pl.designId IS NULL
+	
+),
+
+productList_0
+AS
+(
+SELECT * FROM productList_00 UNION ALL SELECT * FROM productList_01
 ),
 
 -- -------------- attributes Occasion, Style, Relation   ---------------------------
