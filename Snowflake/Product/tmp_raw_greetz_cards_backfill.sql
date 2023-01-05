@@ -37,7 +37,7 @@ SELECT DISTINCT
 					when pc.CARDSIZE = 'LARGE' then 'large'
 				end  AS Attribute_Size,
 
-                pc.AMOUNTOFPANELS                     
+                pc.AMOUNTOFPANELS, p.CHANNELID                     
 				
 FROM RAW_GREETZ.GREETZ3.productcard pc
 	 JOIN RAW_GREETZ.GREETZ3.carddefinition cd 
@@ -106,7 +106,7 @@ SELECT  DISTINCT
 				else 'standard'
 			end  AS Attribute_Size,
 
-                cd.NUMBEROFPANELS  AS AMOUNTOFPANELS                     
+                cd.NUMBEROFPANELS  AS AMOUNTOFPANELS, p.CHANNELID                     
 				
 FROM 
 	"RAW_GREETZ"."GREETZ3".orderline AS ol 
@@ -284,7 +284,8 @@ concat(pl.entity_key,
 '-', 
 upper(pl.Attribute_Size), 
 case pl.Attribute_Shape when 'square' then 'SQUARE' else '' end, 
-'CARD')	AS	SKU_VARIANT	,
+'CARD',
+case when pl.channelid = 2 then '' else concat('_c_', pl.channelid) end)	AS	SKU_VARIANT	,
 
 current_timestamp()	AS	PRODUCT_CREATED_AT	,
 current_timestamp()	AS	VARIANT_CREATED_AT	,

@@ -487,8 +487,7 @@ FROM
 WHERE p.TYPE != 'productCardSingle' 
 		AND
 	 (
-		p.type IN ( 'standardGift', 'personalizedGift', 'gift_addon') 			
-		OR lower(p.productcode) LIKE '%envelop%'
+		p.type IN ( 'standardGift', 'personalizedGift') 			
 		OR p.productcode LIKE 'card%'
 	  )
        AND o.channelid = 2
@@ -839,7 +838,8 @@ SELECT
 		p.entityProduct_key		AS	SKU	,
 		
 		Concat(case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then p.entityProduct_key else p.PRODUCTCODE end
-			  ,case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then '-STANDARD' else '' end) 	
+			  ,case when p.MPTypeCode like '%personalised%' OR p.entityProduct_key like 'GRTZD%' then '-STANDARD' else '' end
+			  ,case when p.channelid = 2 then '' else concat('_c_', p.channelid) end) 	
 		AS	SKU_VARIANT,
 		current_timestamp()	AS	PRODUCT_CREATED_AT	,
 		current_timestamp()	AS	VARIANT_CREATED_AT	,

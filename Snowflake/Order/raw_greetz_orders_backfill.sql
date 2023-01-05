@@ -79,7 +79,7 @@ GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
 			SUM(IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS gifts_cost,
 			SUM(IFF(pt.MPTypeCode = 'flower', ol.TOTALWITHOUTVAT, 0)) AS flowers_cost,
 
-			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost,
+			SUM(IFF(p.type = 'shipment', ol.TOTALWITHOUTVAT, 0))  AS postage_cost,
 			
 			case when cards_count + gifts_count + flowers_count > 0 then
 			  IFF(cards_count = 0, 0, cards_cost + postage_cost * (cards_count / (cards_count + gifts_count + flowers_count)))  
@@ -96,7 +96,7 @@ GROUP BY ol.orderid, ol.INDIVIDUALSHIPPINGID, ptype
 			else 0
 			end  	AS flowers_ISEV,
 			
-			SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat
+			SUM(IFF(p.type = 'shipment', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat
 						
  FROM "RAW_GREETZ"."GREETZ3".orders o
 	INNER JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.ID = ol.ORDERID
@@ -209,12 +209,12 @@ SELECT
 	o.currencycode AS ORDER_CURRENCYCODE	,
 	ex.avg_rate AS TO_GBP_RATE,
 	ex_2.avg_rate AS MNTH_GBP_TO_EUR_RATE,
-	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_EX_TAX	,
-	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_TAX	,
-	abs(sum(IFF(p.productcode != 'shipment_generic', ol.DISCOUNTWITHVAT, 0)))  AS PRODUCT_DISCOUNT_INC_TAX	,
-	abs(sum(IFF(p.productcode = 'shipment_generic', ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_EX_TAX	,
-	abs(sum(IFF(p.productcode = 'shipment_generic', ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_TAX	,
-	abs(sum(IFF(p.productcode = 'shipment_generic', ol.DISCOUNTWITHVAT, 0)))  AS POSTAGE_DISCOUNT_INC_TAX	,
+	abs(sum(IFF(p.type != 'shipment', ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_EX_TAX	,
+	abs(sum(IFF(p.type != 'shipment', ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT, 0)))  AS PRODUCT_DISCOUNT_TAX	,
+	abs(sum(IFF(p.type != 'shipment', ol.DISCOUNTWITHVAT, 0)))  AS PRODUCT_DISCOUNT_INC_TAX	,
+	abs(sum(IFF(p.type = 'shipment', ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_EX_TAX	,
+	abs(sum(IFF(p.type = 'shipment', ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT, 0)))  AS POSTAGE_DISCOUNT_TAX	,
+	abs(sum(IFF(p.type = 'shipment', ol.DISCOUNTWITHVAT, 0)))  AS POSTAGE_DISCOUNT_INC_TAX	,
 	
 	PRODUCT_DISCOUNT_EX_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_EX_TAX_GBP	,
 	PRODUCT_DISCOUNT_TAX * ex.avg_rate  AS PRODUCT_DISCOUNT_TAX_GBP	,
@@ -222,21 +222,21 @@ SELECT
 	POSTAGE_DISCOUNT_EX_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_EX_TAX_GBP	,
 	POSTAGE_DISCOUNT_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_TAX_GBP	,
 	POSTAGE_DISCOUNT_INC_TAX * ex.avg_rate  AS POSTAGE_DISCOUNT_INC_TAX_GBP	,
-	sum(IFF(p.productcode != 'shipment_generic', cast(ol.totalwithvat/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
+	sum(IFF(p.type != 'shipment', cast(ol.totalwithvat/ol.productamount as DECIMAL(10,2)), 0)) AS	PRODUCT_UNIT_PRICE	,					-- to do later
 	
-	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESEV	,
+	sum(IFF(p.type != 'shipment', ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESEV	,
 	sum(IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') OR lower(p.productcode) LIKE '%envelop%', ol.productamount, 0))  AS total_amount,
 	IFNULL(ig.postage_unit_price, 0)  AS POSTAGE_UNIT_PRICE	, 		
-	abs(sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
+	abs(sum(IFF(p.type = 'shipment', ol.TOTALWITHOUTVAT, 0)))  AS POSTAGE_EX_TAX	,
 	-- PRODUCT_LINE_TAX = PRODUCT_TOTAL_TAX + PRODUCT_DISCOUNT_TAX
-	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
-	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT, 0)) AS PRODUCT_TOTAL_TAX	,
-	sum(IFF(p.productcode != 'shipment_generic', ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESIV	,
+	sum(IFF(p.type != 'shipment', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0))  AS PRODUCT_LINE_TAX	,
+	sum(IFF(p.type != 'shipment', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT, 0)) AS PRODUCT_TOTAL_TAX	,
+	sum(IFF(p.type != 'shipment', ol.TOTALWITHVAT * IFNULL(fee.KICK_BACK_FEE, 1), 0)) AS ORDER_ESIV	,
 	-- POSTAGE_LINE_TAX = POSTAGE_TOTAL_TAX + POSTAGE_DISCOUNT_TAX
-	sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0)) AS POSTAGE_LINE_TAX	,
-	sum(IFF(p.productcode = 'shipment_generic', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT, 0)) AS POSTAGE_TOTAL_TAX	,
+	sum(IFF(p.type = 'shipment', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT), 0)) AS POSTAGE_LINE_TAX	,
+	sum(IFF(p.type = 'shipment', ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT, 0)) AS POSTAGE_TOTAL_TAX	,
 	-- POSTAGE_SUBTOTAL = POSTAGE_EX_TAX + POSTAGE_TOTAL_TAX
-	sum(IFF(p.productcode = 'shipment_generic', /*ol.TOTALWITHOUTVAT +*/ ol.TOTALWITHVAT /*- ol.TOTALWITHOUTVAT*/, 0)) AS POSTAGE_SUBTOTAL	,
+	sum(IFF(p.type = 'shipment', /*ol.TOTALWITHOUTVAT +*/ ol.TOTALWITHVAT /*- ol.TOTALWITHOUTVAT*/, 0)) AS POSTAGE_SUBTOTAL	,
 	sum(ol.TOTALWITHOUTVAT * IFNULL(fee.KICK_BACK_FEE, 1)) AS ORDER_ISEV	,
 	abs(sum(ol.DISCOUNTWITHVAT)) AS TOTAL_DISCOUNT	,
 	sum(ol.TOTALWITHVAT - ol.TOTALWITHOUTVAT) AS TOTAL_TAX	,

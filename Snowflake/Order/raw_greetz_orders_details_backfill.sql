@@ -6,14 +6,14 @@ cte_INDIVIDUALSHIPPING
  (
  SELECT 	
 		ol.INDIVIDUALSHIPPINGID,
-		SUM(IFF(p.PRODUCTCODE != 'shipment_generic', ol.PRODUCTAMOUNT, 0))  AS product_amount,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithoutvat, 0))  AS postage_discount_wOutVat,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', ol.discountwithvat, 0))  AS postage_discount_wVat,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0), 0))  AS ordercostentry_shipment,
+		SUM(IFF(p.type != 'shipment', ol.PRODUCTAMOUNT, 0))  AS product_amount,
+		SUM(IFF(p.type = 'shipment', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
+		SUM(IFF(p.type = 'shipment', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
+		SUM(IFF(p.type = 'shipment', ol.discountwithoutvat, 0))  AS postage_discount_wOutVat,
+		SUM(IFF(p.type = 'shipment', ol.discountwithvat, 0))  AS postage_discount_wVat,
+		SUM(IFF(p.type = 'shipment', IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0), 0))  AS ordercostentry_shipment,
 		SUM(IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0))  AS ordercostentry_total,
-		SUM(IFF(p.PRODUCTCODE = 'shipment_generic', IFNULL(oce.purchasecost, 0), 0))  AS ordercostentry_shipment_purchasecost
+		SUM(IFF(p.type = 'shipment', IFNULL(oce.purchasecost, 0), 0))  AS ordercostentry_shipment_purchasecost
 		
  FROM "RAW_GREETZ"."GREETZ3".orders o
 	INNER JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.ID = ol.ORDERID
@@ -40,11 +40,11 @@ cte_INDIVIDUALSHIPPING
 		   'PAYMENT_FAILED_AFTER_PRINTING',
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')
-		AND (
+		/*AND (
 			p.type IN ('shipment', 'productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') 			
 			OR lower(p.productcode) LIKE '%envelop%'
 			OR p.productcode LIKE 'card%'
-			)
+			)*/
  GROUP BY   
 		ol.INDIVIDUALSHIPPINGID
  ),
@@ -305,12 +305,14 @@ END  AS ROYALTY_PRODUCT_CATEGORY,
 
 'NL'  AS ROYALTY_WEBSITE	,
 NULL  AS CONTRACT_NO	,
-	
 pv.FIRST_PUBLISHED_DATE_TIME,
-TRIM(SPLIT_PART(pv.reporting_occasion, '>', 1)) AS OCCASION_GROUP,  
+
+IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%',
+    TRIM(SPLIT_PART(pv.reporting_occasion, '>', 1)),
+	NULL)	AS OCCASION_GROUP,  
 	
 CASE 
-    WHEN LENGTH(SPLIT_PART(pv.reporting_occasion, '>', 2)) > 0 THEN TRIM(SPLIT_PART(pv.reporting_occasion, '>', 2))
+    WHEN OCCASION_GROUP IS NOT NULL AND LENGTH(SPLIT_PART(pv.reporting_occasion, '>', 2)) > 0 THEN TRIM(SPLIT_PART(pv.reporting_occasion, '>', 2))
     ELSE OCCASION_GROUP
 END  AS OCCASION,
 	
@@ -739,9 +741,15 @@ FROM
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv  --   "tmp_PRODUCT_VARIANTS" AS pv    
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv_0
+		ON pv_0.GREETZ_PRODUCT_ID = ol.productid 
+			AND pv_0.GREETZ_CARDDEFINITION_ID = c.carddefinition 
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
-			AND pv.GREETZ_CARDDEFINITION_ID = IFNULL(c.carddefinition , 0)  
+			AND (
+				 pv_0.GREETZ_CARDDEFINITION_ID IS NOT NULL  AND  pv.GREETZ_CARDDEFINITION_ID = c.carddefinition  
+				 OR pv_0.GREETZ_CARDDEFINITION_ID IS NULL  AND pv.GREETZ_CARDDEFINITION_ID = 0	
+				) 
 	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
 		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
 			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
