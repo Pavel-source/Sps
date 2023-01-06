@@ -6,7 +6,7 @@ cte_INDIVIDUALSHIPPING
  (
  SELECT 	
 		ol.INDIVIDUALSHIPPINGID,
-		SUM(IFF(p.type != 'shipment', ol.PRODUCTAMOUNT, 0))  AS product_amount,
+		SUM(IFF(p.type NOT IN ('shipment', 'content'), ol.PRODUCTAMOUNT, 0))  AS product_amount,
 		SUM(IFF(p.type = 'shipment', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
 		SUM(IFF(p.type = 'shipment', ol.TOTALWITHVAT, 0))  AS postage_cost_wVat,
 		SUM(IFF(p.type = 'shipment', ol.discountwithoutvat, 0))  AS postage_discount_wOutVat,
@@ -40,11 +40,7 @@ cte_INDIVIDUALSHIPPING
 		   'PAYMENT_FAILED_AFTER_PRINTING',
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')
-		/*AND (
-			p.type IN ('shipment', 'productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') 			
-			OR lower(p.productcode) LIKE '%envelop%'
-			OR p.productcode LIKE 'card%'
-			)*/
+		
  GROUP BY   
 		ol.INDIVIDUALSHIPPINGID
  ),
@@ -253,10 +249,10 @@ ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT -  IFNULL(co.t
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat + abs(c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat)) / c_isp.product_amount  AS POSTAGE_LINE_TAX,
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS POSTAGE_TOTAL_TAX,
 ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SUBTOTAL,
-(ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS ITEM_ISEV,
-ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount)  AS TOTAL_DISCOUNT,
-ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount   AS TOTAL_TAX,
-(ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS ITEM_ISIV,
+(ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + IFNULL(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount, 0)  AS ITEM_ISEV,
+ABS(ol.DISCOUNTWITHVAT + IFNULL(ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount, 0))  AS TOTAL_DISCOUNT,
+ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0)   AS TOTAL_TAX,
+(ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * IFNULL(c_isp.postage_cost_wVat / c_isp.product_amount, 0)  AS ITEM_ISIV,
 o_st.ORDER_ISIV  AS ORDER_ISIV,
 o_st.ORDER_CASH_PAID  AS EVE_ORDER_TOTAL_GROSS	,
 o_st.ORDER_CASH_PAID - o_st.ORDER_ISIV  AS DIFF,
@@ -272,8 +268,8 @@ ex.avg_rate * (ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_
 ex.avg_rate * (ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount) AS POSTAGE_TOTAL_TAX_GBP,
 ex.avg_rate * (ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount)  AS POSTAGE_SUBTOTAL_GBP,
 ex.avg_rate * ITEM_ISEV  AS ITEM_ISEV_GBP,
-ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount))  AS TOTAL_DISCOUNT_GBP,
-ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount)  AS TOTAL_TAX_GBP,
+ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * IFNULL(c_isp.postage_discount_wVat / c_isp.product_amount, 0)))  AS TOTAL_DISCOUNT_GBP,
+ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0))  AS TOTAL_TAX_GBP,
 ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
 pv.SKU,
@@ -394,11 +390,11 @@ NULL  AS SHIPPING_COST	,
 NULL  AS REBATE_COST	,
 NULL  AS WAREHOUSE_COST	,
 ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0)  AS GROSS_PRODUCT_MARGIN,
-(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS GROSS_SHIPPING_MARGIN	,
-ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS TOTAL_GROSS_MARGIN,
+IFNULL((ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount), 0) - IFNULL((ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount), 0)  AS GROSS_SHIPPING_MARGIN	,
+ITEM_ISEV - IFNULL(oce.purchasecost - oce.externalcontentcost - oce.othermaterialcost - oce.directlaborcost - oce.packagingcost, 0) - (ol.productamount * IFNULL(c_isp.ordercostentry_shipment / c_isp.product_amount, 0))  AS TOTAL_GROSS_MARGIN,
 ITEM_ESEV - IFNULL(oce.purchasecost, 0)  AS COMMERCIAL_PRODUCT_MARGIN,
-(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount) - (ol.productamount * c_isp.ordercostentry_shipment / c_isp.product_amount)  AS COMMERCIAL_SHIPPING_MARGIN,	
-ITEM_ISEV - IFNULL(oce.purchasecost, 0) - (ol.productamount * c_isp.ordercostentry_shipment_purchasecost / c_isp.product_amount)  AS TOTAL_COMMERCIAL_MARGIN,
+(ol.productamount * IFNULL(c_isp.postage_cost_wOutVat / c_isp.product_amount, 0)) - (ol.productamount * IFNULL(c_isp.ordercostentry_shipment / c_isp.product_amount, 0))  AS COMMERCIAL_SHIPPING_MARGIN,	
+ITEM_ISEV - IFNULL(oce.purchasecost, 0) - (ol.productamount * IFNULL(c_isp.ordercostentry_shipment_purchasecost / c_isp.product_amount, 0))  AS TOTAL_COMMERCIAL_MARGIN,
 IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', False, True)  AS IS_LOW_EFFORT_ITEM,
 IFF(IS_LOW_EFFORT_ITEM = True, False, True)  AS IS_HIGH_EFFORT_ITEM	,
 IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), False, True) AS IS_LOW_EFFORT_CARD_ITEM,
@@ -505,12 +501,12 @@ IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower'
 IFF(pt.MPTypeCode = 'flower', ITEM_ISEV * ex.avg_rate, 0)  AS FLOWER_ITEM_ISEV_GBP	,
 ol_CARD_QUANTITY + ol_FLOWER_QUANTITY  AS CARD_FLOWER_QUANTITY	,
 IFF(ol_CARD_QUANTITY > 0 OR ol_GIFT_QUANTITY > 0, ITEM_ISEV * ex.avg_rate, 0)  AS CARD_FLOWER_ISEV_GBP	,
-IFF(ol_CARD_QUANTITY = 0, ol.productamount, 0)  AS NON_CARD_QUANTITY	,
-IFF(ol_CARD_QUANTITY = 0, ITEM_ISEV * ex.avg_rate, 0)  AS NON_CARD_ISEV_GBP	,
+IFF(ol_CARD_QUANTITY = 0 AND ol_GIFT_QUANTITY + ol_FLOWER_QUANTITY > 0, ol.productamount, 0)  AS NON_CARD_QUANTITY	,
+IFF(ol_CARD_QUANTITY = 0 AND ol_GIFT_QUANTITY + ol_FLOWER_QUANTITY > 0, ITEM_ISEV * ex.avg_rate, 0)  AS NON_CARD_ISEV_GBP	,
 IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', ol.productamount, 0)  AS HIGH_EFFORT_ITEMS,
 ol.productamount - (IFF(cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF') OR p.TYPE = 'personalizedGift', ol.productamount, 0))  AS LOW_EFFORT_ITEMS,
 IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), ol.productamount, 0)  AS HIGH_EFFORT_CARD_ITEMS	,
-ol.productamount - (IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND cd.CONTENTTYPE IN ('PHOTO_TEMPLATE','PHOTO_SELF'), ol.productamount, 0))  AS LOW_EFFORT_CARD_ITEMS,
+IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%') AND IFNULL(cd.CONTENTTYPE, '') NOT IN ('PHOTO_TEMPLATE','PHOTO_SELF'), ol.productamount, 0)  AS LOW_EFFORT_CARD_ITEMS,
 o_st.ITEMS_IN_ORDER	,
 o_st.CARD_QUANTITY  AS CARD_ORDER_QUANTITY	,
 o_st.FLOWER_QUANTITY  AS FLOWER_ORDER_QUANTITY	,
@@ -771,11 +767,7 @@ WHERE
 		   'PAYMENT_FAILED_AFTER_PRINTING',
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')
-		AND (
-			p.type IN ('productCardSingle', 'standardGift', 'personalizedGift', 'gift_addon') 			
-			OR lower(p.productcode) LIKE '%envelop%'
-			OR p.productcode LIKE 'card%'
-			)
+		AND p.type NOT IN ('shipment' , 'content')
 )
 
 SELECT 

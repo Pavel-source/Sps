@@ -266,9 +266,8 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view_2 pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
 	LEFT JOIN Brands b ON p.ID = b.ID
-
--- WHERE  
-	--  p.channelid = '2'	
+	
+WHERE p.channelid = 2	-- only in this CTE
 ),
 
 productList_01 AS
@@ -464,7 +463,7 @@ when p.id IN (1142818268) then 'chocolate'
 		pt.MPTypeCode AS MPTypeCode_ForCategories,
 		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, IFNULL(c.carddefinition, 0) AS designId, 
 		cd.contentinformationid AS design_contentinformationid, nl_product_name_2,
-		concat('GRTZD', cast(c.carddefinition as varchar(50)))		AS entityProduct_key,
+		concat('GRTZD', concat(ol.productid, '_', right(cast(c.carddefinition as varchar(50)), 5)))		AS entityProduct_key,
 		pt.GreetzTypeID, b.Brand
 
 FROM 
@@ -1012,6 +1011,7 @@ AS	SEARCH_KEYWORDS	,
 			WHEN p.MPTypeCode = 'personalised-sweets' THEN 'Gepersonaliseerd snoep'
 			WHEN p.MPTypeCode = 'sweet' THEN 'Snoep'
 			WHEN p.MPTypeCode = 'toy-game' THEN 'Toy / Game'
+			WHEN p.type NOT IN ('standardGift', 'personalizedGift', 'gift_addon') THEN 'Legacy'
 			WHEN p.MPTypeCode IS NOT NULL  THEN initcap(replace(p.MPTypeCode, '-', ' ')) 
 			ELSE p.type
 		END  AS PRODUCT_TYPE_NAME, 				
@@ -1123,7 +1123,8 @@ GROUP BY p.ID,
 		 a_rl_2.MP_Name,
 		 p.Brand,
 		 P.TYPE,
-		 p.designId
+		 p.designId,
+		 p.channelid
 		 		 
 UNION ALL
 
@@ -1328,6 +1329,7 @@ AS	SEARCH_KEYWORDS	,
 			WHEN p.MPTypeCode = 'personalised-sweets' THEN 'Gepersonaliseerd snoep'
 			WHEN p.MPTypeCode = 'sweet' THEN 'Snoep'
 			WHEN p.MPTypeCode = 'toy-game' THEN 'Toy / Game'
+			WHEN p.type NOT IN ('standardGift', 'personalizedGift', 'gift_addon') THEN 'Legacy'
 			WHEN p.MPTypeCode IS NOT NULL  THEN initcap(replace(p.MPTypeCode, '-', ' ')) 
 			ELSE p.type
 		END  AS PRODUCT_TYPE_NAME, 				

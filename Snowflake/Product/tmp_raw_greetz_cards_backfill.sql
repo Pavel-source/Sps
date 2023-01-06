@@ -462,7 +462,8 @@ GROUP BY
 	spl.channel_key,
 	b.Brand,
 	pl.productid,
-	pl.AMOUNTOFPANELS
+	pl.AMOUNTOFPANELS,
+	pl.channelid
 	
 ORDER BY 
 	pl.entity_key,
