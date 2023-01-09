@@ -276,7 +276,7 @@ SELECT
 	ORDER_ESEV  AS EVE_TOTAL_LINE_ITEM	,
 	
 	-- total cardgiftback fee (incl tax)
-	SUM(IFF(IFNULL(fee.KICK_BACK_FEE, 0) = 0, 0, ol.totalwithvat - 100 * fee.KICK_BACK_FEE * ol.productamount))  AS DIFF_TOTAL_GROSS,
+	SUM(IFF(IFNULL(fee.KICK_BACK_FEE, 0) = 0, 0, ol.totalwithvat  - (ol.totalwithvat * fee.KICK_BACK_FEE * ol.productamount)))  AS DIFF_TOTAL_GROSS,
 		
 	DIFF_TOTAL_GROSS  AS DIFF_PRODUCT_SUBTOTAL	,					
 	0  AS DIFF_POSTAGE_SUBTOTAL	,

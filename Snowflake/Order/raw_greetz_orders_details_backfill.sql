@@ -4,7 +4,8 @@ WITH
 cte_INDIVIDUALSHIPPING
  AS
  (
- SELECT 	
+ SELECT 
+		ol.ORDERID,
 		ol.INDIVIDUALSHIPPINGID,
 		SUM(IFF(p.type NOT IN ('shipment', 'content'), ol.PRODUCTAMOUNT, 0))  AS product_amount,
 		SUM(IFF(p.type = 'shipment', ol.TOTALWITHOUTVAT, 0))  AS postage_cost_wOutVat,
@@ -42,6 +43,7 @@ cte_INDIVIDUALSHIPPING
 		   'REFUNDED_CANCELLEDCARD_WALLET')
 		
  GROUP BY   
+		ol.ORDERID,
 		ol.INDIVIDUALSHIPPINGID
  ),
   
@@ -732,15 +734,16 @@ FROM
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".deliverypromise AS dp_EXPECTED
 	   ON isp.shipmentinformationid = dp_EXPECTED.id 
 	LEFT JOIN cte_INDIVIDUALSHIPPING c_isp
-		ON ol.individualshippingid = c_isp.individualshippingid
+		ON ol.orderid = c_isp.orderid
+			AND IFNULL(ol.individualshippingid, 0) = IFNULL(c_isp.individualshippingid, 0)
 	LEFT JOIN cte_content co
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
 		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv_0
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv_0
 		ON pv_0.GREETZ_PRODUCT_ID = ol.productid 
 			AND pv_0.GREETZ_CARDDEFINITION_ID = c.carddefinition 
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS" AS pv
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
 			AND (
 				 pv_0.GREETZ_CARDDEFINITION_ID IS NOT NULL  AND  pv.GREETZ_CARDDEFINITION_ID = c.carddefinition  
