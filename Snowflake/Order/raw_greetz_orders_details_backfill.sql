@@ -60,6 +60,7 @@ SELECT ol.orderid,
 FROM "RAW_GREETZ"."GREETZ3".orders o
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV" t  ON ol.orderid = t.order_id
 WHERE o.channelid = 2
 	   AND o.currentorderstate IN
 		  ('EXPIRED_AFTER_PRINTED',
@@ -78,8 +79,44 @@ WHERE o.channelid = 2
 		   'REFUNDED_CANCELLEDCARD_VOUCHER',
 		   'REFUNDED_CANCELLEDCARD_WALLET')  
      AND pn.type = 'content'  
-	 AND ol.PRODUCTITEMINBASKETID IS NOT NULL
+--	 AND ol.PRODUCTITEMINBASKETID IS NOT NULL
+	 AND t.order_id IS NULL
 GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
+
+UNION ALL
+
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 sum(ol.totalwithvat) AS totalwithvat,
+	 sum(ol.totalwithoutvat) AS totalwithoutvat,
+	 sum(ol.withvat) AS withvat,
+	 sum(ol.withoutvat) AS withoutvat
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" t  ON ol.orderid = t.order_id
+WHERE pn.type = 'content'  
+	  AND t.order_id IS NULL
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
+
+UNION ALL
+
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 avg(ol.totalwithvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS totalwithvat,
+	 avg(ol.totalwithoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS totalwithoutvat,
+	 avg(ol.withvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withvat,
+	 avg(ol.withoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withoutvat
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_3" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+WHERE pn.type = 'content'  
+      AND pn.ChannelID = 2
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID , ol.productId
 ), 
  
  cte_content AS
@@ -93,6 +130,38 @@ SELECT  orderid,
 FROM cte_content_0
 GROUP BY orderid, 
 		 PRODUCTITEMINBASKETID
+),
+
+cte_content_2
+AS
+(
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+--	 ol.productId,
+	 totalwithvat,
+	 totalwithoutvat,
+	 withvat,
+	 withoutvat,
+     ROW_NUMBER() OVER (PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID)  AS RN
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_3" t  ON ol.orderid = t.order_id
+WHERE pn.type = 'content'  
+	  AND t.order_id IS NULL
+), 
+
+cte_content_2_Cards AS
+(   
+
+SELECT  ol.ID, 
+		ROW_NUMBER() OVER(PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID) AS RN
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid 
+WHERE pn.type = 'productCardSingle'  OR  pn.productcode LIKE 'card%'  
 ),
 
 cte_res AS
@@ -187,9 +256,9 @@ ACTUAL_DESPATCH_DATE  AS DESPATCH_DATE,
 'NL'  AS FULFILMENT_CENTRE_COUNTRY_CODE,
 isp.trackandtracecode  AS TRACKING_CODE,
 NULL  AS DESPATCH_CARRIER,
-ol.withvat + IFNULL(co.withvat, 0)  AS LI_TOTAL_GROSS,
-ol.totalwithvat + IFNULL(co.totalwithvat, 0)  AS LI_TOTAL_NET,
-ol.withvat + IFNULL(co.withvat, 0)  AS LI_TOTAL_AMOUNT,
+ol.withvat + COALESCE(co.withvat, co2.withvat, 0)  AS LI_TOTAL_GROSS,
+ol.totalwithvat + COALESCE(co.totalwithvat, co2.totalwithvat, 0)  AS LI_TOTAL_NET,
+ol.withvat + COALESCE(co.withvat, co2.withvat, 0)  AS LI_TOTAL_AMOUNT,
 ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount   AS POSTAGE_AMOUNT_INC_TAX_AFTER_DISCOUNT,
 IFF(ol.discountwithvat = 0 AND ol.discountwithoutvat = 0 AND c_isp.postage_discount_wOutVat = 0, False, True)  AS HAS_DISCOUNT,
 ABS(ol.discountwithoutvat)  AS PRODUCT_DISCOUNT,
@@ -197,7 +266,7 @@ ABS(ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount)  A
 False  AS IS_EXISTING_MEMBERSHIP_ORDER,
 NULL  AS PRICE_MINUS_DISCOUNT_AMOUNT,
 ORDER_DATE  AS AVA_ORDER_DATE,
-ol.totalwithvat + IFNULL(co.totalwithvat, 0) - ol.totalwithoutvat - IFNULL(co.totalwithoutvat, 0)  AS AVA_PRODUCT_TAX, 
+ol.totalwithvat + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.totalwithoutvat - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)  AS AVA_PRODUCT_TAX, 
 NULL  AS TAX_CODE,
 NULL  AS TAX_CODE_ID,
 NULL  AS LINE_NUMBER,
@@ -206,7 +275,7 @@ ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS AVA_POS
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS AVA_POSTAGE_TAX,
 'NL'  AS TAX_COUNTRY,
 'NL'  AS TAX_REGION,
-ol.withoutvat + IFNULL(co.withoutvat, 0)  AS AVA_LINE_AMOUNT,
+ol.withoutvat + COALESCE(co.withoutvat, co2.withoutvat, 0)  AS AVA_LINE_AMOUNT,
 
 CASE 
 	WHEN ol.VATPERCENTAGE IN (19, 21) THEN 'Standard Rate'
@@ -241,37 +310,37 @@ ABS(ol.productamount * c_isp.postage_discount_wOutVat / c_isp.product_amount) * 
 ABS(ol.productamount * (c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat) / c_isp.product_amount) * ex.avg_rate  AS POSTAGE_DISCOUNT_TAX_GBP,
 
 IFNULL(fee.KICK_BACK_FEE, 1)  AS COMMISSION_MARGIN,
-(ol.totalwithvat + IFNULL(co.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE,
-(ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESEV,
+(ol.totalwithvat + COALESCE(co.totalwithvat, co2.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE,
+(ol.TOTALWITHOUTVAT + COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESEV,
 c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_UNIT_PRICE,
 ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS POSTAGE_EX_TAX,
-ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)  AS PRODUCT_LINE_TAX,
-ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT -  IFNULL(co.totalwithoutvat, 0)  AS PRODUCT_TOTAL_TAX,
-(ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV,
+ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0) + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT)  AS PRODUCT_LINE_TAX,
+ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)  AS PRODUCT_TOTAL_TAX,
+(ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV,
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat + abs(c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat)) / c_isp.product_amount  AS POSTAGE_LINE_TAX,
 ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount  AS POSTAGE_TOTAL_TAX,
 ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_SUBTOTAL,
-(ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + IFNULL(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount, 0)  AS ITEM_ISEV,
+(ol.TOTALWITHOUTVAT + COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + IFNULL(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount, 0)  AS ITEM_ISEV,
 ABS(ol.DISCOUNTWITHVAT + IFNULL(ol.productamount * c_isp.postage_discount_wVat / c_isp.product_amount, 0))  AS TOTAL_DISCOUNT,
-ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0)   AS TOTAL_TAX,
-(ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * IFNULL(c_isp.postage_cost_wVat / c_isp.product_amount, 0)  AS ITEM_ISIV,
+ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0)   AS TOTAL_TAX,
+(ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) + ol.productamount * IFNULL(c_isp.postage_cost_wVat / c_isp.product_amount, 0)  AS ITEM_ISIV,
 o_st.ORDER_ISIV  AS ORDER_ISIV,
 o_st.ORDER_CASH_PAID  AS EVE_ORDER_TOTAL_GROSS	,
 o_st.ORDER_CASH_PAID - o_st.ORDER_ISIV  AS DIFF,
 IFF(DIFF > 0.02, TRUE, FALSE)  AS LARGE_DIFF,
-ex.avg_rate * (ol.totalwithvat + IFNULL(co.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE_GBP,
-(ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) * ex.avg_rate  AS ITEM_ESEV_GBP,
+ex.avg_rate * (ol.totalwithvat + COALESCE(co.totalwithvat, co2.totalwithvat, 0)) / ol.productamount AS PRODUCT_UNIT_PRICE_GBP,
+(ol.TOTALWITHOUTVAT + COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1) * ex.avg_rate  AS ITEM_ESEV_GBP,
 ex.avg_rate * c_isp.postage_cost_wVat / c_isp.product_amount  AS POSTAGE_UNIT_PRICE_GBP,
 ex.avg_rate * ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount  AS POSTAGE_EX_TAX_GBP,
-ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT))  AS PRODUCT_LINE_TAX_GBP,
-ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0))  AS PRODUCT_TOTAL_TAX_GBP,
-ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV_GBP,
+ex.avg_rate * (ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0) + abs(ol.DISCOUNTWITHVAT - ol.DISCOUNTWITHOUTVAT))  AS PRODUCT_LINE_TAX_GBP,
+ex.avg_rate * (ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0))  AS PRODUCT_TOTAL_TAX_GBP,
+ex.avg_rate * (ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1)  AS ITEM_ESIV_GBP,
 ex.avg_rate * (ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat + abs(c_isp.postage_discount_wVat - c_isp.postage_discount_wOutVat)) / c_isp.product_amount)  AS POSTAGE_LINE_TAX_GBP,
 ex.avg_rate * (ol.productamount * (c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount) AS POSTAGE_TOTAL_TAX_GBP,
 ex.avg_rate * (ol.productamount * c_isp.postage_cost_wVat / c_isp.product_amount)  AS POSTAGE_SUBTOTAL_GBP,
 ex.avg_rate * ITEM_ISEV  AS ITEM_ISEV_GBP,
 ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * IFNULL(c_isp.postage_discount_wVat / c_isp.product_amount, 0)))  AS TOTAL_DISCOUNT_GBP,
-ex.avg_rate * (ol.TOTALWITHVAT + IFNULL(co.totalwithvat, 0) - ol.TOTALWITHOUTVAT - IFNULL(co.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0))  AS TOTAL_TAX_GBP,
+ex.avg_rate * (ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0))  AS TOTAL_TAX_GBP,
 ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
 IFNULL(pv.SKU, pv2.SKU)  AS SKU,
@@ -379,7 +448,7 @@ IFNULL(pv.mcd_finance_subcategory, pv2.mcd_finance_subcategory)  AS MARGIN_PRODU
 0  AS ESTIMATED_PRODUCT_REFUND	,
 0  AS ESTIMATED_SHIPPING_REFUND	,
 ROUND(ITEM_ISEV, 4)  AS ESTIMATED_TOTAL_SALES	,
-ROUND((ol.TOTALWITHOUTVAT + IFNULL(co.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1),4)  AS ESTIMATED_PRODUCT_SALES	,
+ROUND((ol.TOTALWITHOUTVAT + COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0)) * IFNULL(fee.KICK_BACK_FEE, 1),4)  AS ESTIMATED_PRODUCT_SALES	,
 ROUND(ol.productamount * c_isp.postage_cost_wOutVat / c_isp.product_amount, 4)  AS ESTIMATED_SHIPPING_SALES	,
 oce.purchasecost  AS PRODUCT_COST,
 oce.directlaborcost  AS LABOUR_FULFILMENT_COST,
@@ -738,7 +807,13 @@ FROM
 	LEFT JOIN cte_content co
 		ON co.orderid = ol.orderid
 		   AND (p.type = 'productCardSingle'  OR  p.productcode LIKE 'card%')
-		   AND ol.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID
+		   AND IFNULL(ol.PRODUCTITEMINBASKETID, 0) = IFNULL(co.PRODUCTITEMINBASKETID, 0)
+    LEFT JOIN cte_content_2_Cards AS cc
+        ON cc.ID = ol.ID
+    LEFT JOIN cte_content_2 AS co2
+        ON co2.orderid = ol.orderid
+            AND IFNULL(co2.PRODUCTITEMINBASKETID, 0) = IFNULL(ol.PRODUCTITEMINBASKETID, 0)
+            AND co2.RN = cc.RN		   
 	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
 			AND pv.GREETZ_CARDDEFINITION_ID = c.carddefinition 
