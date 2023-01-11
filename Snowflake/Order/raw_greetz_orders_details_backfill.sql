@@ -60,7 +60,7 @@ SELECT ol.orderid,
 FROM "RAW_GREETZ"."GREETZ3".orders o
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV" t  ON ol.orderid = t.order_id
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV" t  ON ol.orderid = t.order_id
 WHERE o.channelid = 2
 	   AND o.currentorderstate IN
 		  ('EXPIRED_AFTER_PRINTED',
@@ -92,11 +92,11 @@ SELECT ol.orderid,
 	 sum(ol.totalwithoutvat) AS totalwithoutvat,
 	 sum(ol.withvat) AS withvat,
 	 sum(ol.withoutvat) AS withoutvat
-FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV" e
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV" e
     JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" t  ON ol.orderid = t.order_id
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" t  ON ol.orderid = t.order_id
 WHERE pn.type = 'content'  
 	  AND t.order_id IS NULL
 GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
@@ -110,7 +110,7 @@ SELECT ol.orderid,
 	 avg(ol.totalwithoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS totalwithoutvat,
 	 avg(ol.withvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withvat,
 	 avg(ol.withoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withoutvat
-FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_3" e
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_3" e
     JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
@@ -143,11 +143,11 @@ SELECT ol.orderid,
 	 withvat,
 	 withoutvat,
      ROW_NUMBER() OVER (PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID)  AS RN
-FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" e
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" e
     JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
-	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_3" t  ON ol.orderid = t.order_id
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_3" t  ON ol.orderid = t.order_id
 WHERE pn.type = 'content'  
 	  AND t.order_id IS NULL
 ), 
@@ -157,7 +157,7 @@ cte_content_2_Cards AS
 
 SELECT  ol.ID, 
 		ROW_NUMBER() OVER(PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID) AS RN
-FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP2_DIFF_ESIV_2" e
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" e
     JOIN "RAW_GREETZ"."GREETZ3".orders o on e.order_id = o.id
 	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid 

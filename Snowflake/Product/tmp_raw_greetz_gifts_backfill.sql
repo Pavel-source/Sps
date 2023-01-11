@@ -240,7 +240,11 @@ when p.id IN (1142818268) then 'chocolate'
 				
 		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, IFNULL(z.designId, 0) AS designId, z.design_contentinformationid, nl_product_name_2,
 		
-		concat('GRTZ', case when z.designProductId IS NULL then cast(p.ID as varchar(50)) else concat('D', cast(z.designProductId as varchar(50))) end)
+		concat('GRTZ', 
+				case 
+				when z.designProductId IS NULL then concat(IFF(a.id IS NULL, '', 'P'), cast(p.ID as varchar(50)))
+				else concat('D', cast(z.designProductId as varchar(50))) 
+				end)
 		AS entityProduct_key,
 		
 		pt.GreetzTypeID, b.Brand
@@ -266,6 +270,7 @@ FROM "RAW_GREETZ"."GREETZ3".product p
 	LEFT JOIN "RAW_GREETZ"."GREETZ3".greetz_to_mnpg_product_types_view_2 pt  ON pt.GreetzTypeID = IFNULL(pg.productgiftcategoryid, pg.productgifttypeid) 
 	LEFT JOIN productList_withAttributes pl_a ON pl_a.ID = p.id
 	LEFT JOIN Brands b ON p.ID = b.ID
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_AMBIGUOUS_IDS" a ON p.id = a.id
 	
 WHERE p.channelid = 2	-- only in this CTE
 	  OR p.ID IN (1142775413, 1142775419, 1142783693, 1142796205, 1142781767, 1142783208, 1142793321)
@@ -464,7 +469,9 @@ when p.id IN (1142818268) then 'chocolate'
 		pt.MPTypeCode AS MPTypeCode_ForCategories,
 		p.channelid, p.PRODUCTCODE, p.INTERNALNAME, pg.showonstore, IFNULL(c.carddefinition, 0) AS designId, 
 		cd.contentinformationid AS design_contentinformationid, nl_product_name_2,
+		
 		concat('GRTZD', concat(ol.productid, '_', right(cast(c.carddefinition as varchar(50)), 5)))		AS entityProduct_key,
+		
 		pt.GreetzTypeID, b.Brand
 
 FROM 
