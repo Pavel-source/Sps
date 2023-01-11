@@ -220,16 +220,16 @@ IFNULL(r.addressid, a2.id)  AS ADDRESS_ID,
 IFF(ol.packettoselfid IS NULL, 'to_them', 'to_me')  AS RECIPIENT_TYPE,
 
 IFF(RECIPIENT_TYPE = 'to_them', 'Send Direct Address', 'Customer Address')  AS ADDRESS_TYPE,	
-UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z]+\\d\\d?[a-zA-Z]?)'))  AS DELIVERY_DISTRICT,
-UPPER(REGEXP_SUBSTR(IFNULL(a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z][a-zA-Z]?)'))  AS DELIVERY_POSTAL_AREA,
-IFNULL(a.CITY, a2.CITY)  AS DELIVERY_CITY,
-IFNULL(a.stateprovincecounty, a2.stateprovincecounty)  AS DELIVERY_COUNTY,	
-IFNULL(a.countrycode, a2.countrycode)  AS DELIVERY_COUNTRY_CODE,
+UPPER(REGEXP_SUBSTR(IFF(a.id IS NOT NULL, a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z]+\\d\\d?[a-zA-Z]?)'))  AS DELIVERY_DISTRICT,
+UPPER(REGEXP_SUBSTR(IFF(a.id IS NOT NULL, a.zippostalcode, a2.zippostalcode), '(^[a-zA-Z][a-zA-Z]?)'))  AS DELIVERY_POSTAL_AREA,
+IFF(a.id IS NOT NULL, a.CITY, a2.CITY)  AS DELIVERY_CITY,
+IFF(a.id IS NOT NULL, a.stateprovincecounty, a2.stateprovincecounty)  AS DELIVERY_COUNTY,	
+IFF(a.id IS NOT NULL, a.countrycode, a2.countrycode)  AS DELIVERY_COUNTRY_CODE,
 ps.CLASSNAME  AS DELIVERY_METHOD,
 ps.postalcompany  AS DELIVERY_METHOD_ID,
-IFNULL(cn.ENGLISHCOUNTRYNAME, cn2.ENGLISHCOUNTRYNAME)  AS DELIVERY_COUNTRY,
-zc.STATE  AS DELIVERY_US_STATE	,
-zc.STATE_ABBR  AS DELIVERY_US_STATE_ABBR	,
+IFF(a.id IS NOT NULL, cn.ENGLISHCOUNTRYNAME, cn2.ENGLISHCOUNTRYNAME)  AS DELIVERY_COUNTRY,
+IFF(a.id IS NOT NULL, zc1.STATE, zc2.STATE)  AS DELIVERY_US_STATE	,
+IFF(a.id IS NOT NULL, zc1.STATE_ABBR, zc2.STATE_ABBR)  AS DELIVERY_US_STATE_ABBR	,
 NULL  AS ROYAL_MAIL_AREA,
 NULL  AS ROYAL_MAIL_DISTRIBUTION_CENTRE,
 False  AS IS_MESSAGE_CARD,
@@ -343,69 +343,69 @@ ex.avg_rate * (ABS(ol.DISCOUNTWITHVAT + ol.productamount * IFNULL(c_isp.postage_
 ex.avg_rate * (ol.TOTALWITHVAT + COALESCE(co.totalwithvat, co2.totalwithvat, 0) - ol.TOTALWITHOUTVAT - COALESCE(co.totalwithoutvat, co2.totalwithoutvat, 0) + ol.productamount * IFNULL((c_isp.postage_cost_wVat - c_isp.postage_cost_wOutVat) / c_isp.product_amount, 0))  AS TOTAL_TAX_GBP,
 ex.avg_rate * ITEM_ISIV  AS ITEM_ISIV_GBP,
 
-IFNULL(pv.SKU, pv2.SKU)  AS SKU,
-IFNULL(pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS SKU_VARIANT,
-IFNULL(pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS LI_SKU_VARIANT,	
-IFNULL(pv.CARD_VARIANT, pv2.CARD_VARIANT)  AS CARD_VARIANT,
-IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY)  AS PRODUCT_FAMILY,
-IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME)  AS CATEGORY_NAME,
-IFNULL(pv.CATEGORY_PARENT, pv2.CATEGORY_PARENT)  AS CATEGORY_PARENT,
-IFNULL(pv.HIERARCHY_RANK_1, pv2.HIERARCHY_RANK_1)  AS HIERARCHY_RANK_1,
-IFNULL(pv.HIERARCHY_RANK_2, pv2.HIERARCHY_RANK_2)  AS HIERARCHY_RANK_2,
-IFNULL(pv.HIERARCHY_RANK_3, pv2.HIERARCHY_RANK_3)  AS HIERARCHY_RANK_3,
-IFNULL(pv.HIERARCHY_RANK_4, pv2.HIERARCHY_RANK_4)  AS HIERARCHY_RANK_4,
-IFNULL(pv.PRODUCT_TYPE_NAME, pv2.PRODUCT_TYPE_NAME)  AS PRODUCT_TYPE_NAME	,
-IFNULL(pv.PRODUCT_KEY, pv2.PRODUCT_KEY)  AS PRODUCT_KEY	,
-IFNULL(pv.FINANCE_PRODUCT_HIERARCHY, pv2.FINANCE_PRODUCT_HIERARCHY)  AS FINANCE_PRODUCT_HIERARCHY,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SKU, pv2.SKU)  AS SKU,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS SKU_VARIANT,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS LI_SKU_VARIANT,	
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CARD_VARIANT, pv2.CARD_VARIANT)  AS CARD_VARIANT,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY)  AS PRODUCT_FAMILY,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME)  AS CATEGORY_NAME,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_PARENT, pv2.CATEGORY_PARENT)  AS CATEGORY_PARENT,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.HIERARCHY_RANK_1, pv2.HIERARCHY_RANK_1)  AS HIERARCHY_RANK_1,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.HIERARCHY_RANK_2, pv2.HIERARCHY_RANK_2)  AS HIERARCHY_RANK_2,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.HIERARCHY_RANK_3, pv2.HIERARCHY_RANK_3)  AS HIERARCHY_RANK_3,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.HIERARCHY_RANK_4, pv2.HIERARCHY_RANK_4)  AS HIERARCHY_RANK_4,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_TYPE_NAME, pv2.PRODUCT_TYPE_NAME)  AS PRODUCT_TYPE_NAME	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_KEY, pv2.PRODUCT_KEY)  AS PRODUCT_KEY	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.FINANCE_PRODUCT_HIERARCHY, pv2.FINANCE_PRODUCT_HIERARCHY)  AS FINANCE_PRODUCT_HIERARCHY,
 False  AS IS_ECARD,
-IFNULL(pv.SUPPLIER_NAME, pv2.SUPPLIER_NAME)  AS SUPPLIER_NAME,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SUPPLIER_NAME, pv2.SUPPLIER_NAME)  AS SUPPLIER_NAME,
 NULL  AS SUPPLIER_NAME_SAP,
-IFNULL(pv.LEGACY_SUPPLIER_ID, pv2.LEGACY_SUPPLIER_ID)  AS LEGACY_SUPPLIER_ID,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.LEGACY_SUPPLIER_ID, pv2.LEGACY_SUPPLIER_ID)  AS LEGACY_SUPPLIER_ID,
 NULL  AS ROYALTY_RATE	,
 NULL  AS ROYALTY_FLAT_FEE	,
 NULL  AS ROYALTY_FLAT_FEE_EUR	,
 
 CASE
-	WHEN lower(IFNULL(pv.product_type_name, pv2.product_type_name)) in ('personalised mug', 'personalised t-shirt') THEN lower(IFNULL(pv.mcd_finance_subcategory, pv2.mcd_finance_subcategory))
-	ELSE lower(IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY))
+	WHEN lower(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name)) in ('personalised mug', 'personalised t-shirt') THEN lower(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.mcd_finance_subcategory, pv2.mcd_finance_subcategory))
+	ELSE lower(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY))
 END  AS ROYALTY_PRODUCT_CATEGORY,
 
 'NL'  AS ROYALTY_WEBSITE	,
 NULL  AS CONTRACT_NO	,
-IFNULL(pv.FIRST_PUBLISHED_DATE_TIME, pv2.FIRST_PUBLISHED_DATE_TIME)  AS FIRST_PUBLISHED_DATE_TIME,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.FIRST_PUBLISHED_DATE_TIME, pv2.FIRST_PUBLISHED_DATE_TIME)  AS FIRST_PUBLISHED_DATE_TIME,
 
 IFF(p.type IN ('productCardSingle', 'standardGift', 'personalizedGift') OR p.productcode LIKE 'card%',
-    TRIM(SPLIT_PART(IFNULL(pv.reporting_occasion, pv2.reporting_occasion), '>', 1)),
+    TRIM(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_occasion, pv2.reporting_occasion), '>', 1)),
 	NULL)	AS OCCASION_GROUP,  
 	
 CASE 
-    WHEN OCCASION_GROUP IS NOT NULL AND LENGTH(SPLIT_PART(IFNULL(pv.reporting_occasion, pv2.reporting_occasion), '>', 2)) > 0 THEN TRIM(SPLIT_PART(IFNULL(pv.reporting_occasion, pv2.reporting_occasion), '>', 2))
+    WHEN OCCASION_GROUP IS NOT NULL AND LENGTH(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_occasion, pv2.reporting_occasion), '>', 2)) > 0 THEN TRIM(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_occasion, pv2.reporting_occasion), '>', 2))
     ELSE OCCASION_GROUP
 END  AS OCCASION,
 	
-TRIM(SPLIT_PART(IFNULL(pv.reporting_style, pv2.reporting_style), '>', 1)) AS STYLE_GROUP,
+TRIM(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_style, pv2.reporting_style), '>', 1)) AS STYLE_GROUP,
 
 CASE 
-    WHEN LENGTH(SPLIT_PART(IFNULL(pv.reporting_style, pv2.reporting_style), '>', 2)) > 0 THEN TRIM(SPLIT_PART(IFNULL(pv.reporting_style, pv2.reporting_style), '>', 2))
+    WHEN LENGTH(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_style, pv2.reporting_style), '>', 2)) > 0 THEN TRIM(SPLIT_PART(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.reporting_style, pv2.reporting_style), '>', 2))
     ELSE STYLE_GROUP
 END  AS STYLE,
   
-IFNULL(pv.MCD_FINANCE_CATEGORY, pv2.MCD_FINANCE_CATEGORY)  AS MCD_FINANCE_CATEGORY,
-IFNULL(pv.MCD_FINANCE_SUBCATEGORY, pv2.MCD_FINANCE_SUBCATEGORY)  AS MCD_FINANCE_SUBCATEGORY,
-IFNULL(IFNULL(pv.PRODUCT_TITLE, pv2.PRODUCT_TITLE), ol.productcode)  AS PRODUCT_TITLE,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.MCD_FINANCE_CATEGORY, pv2.MCD_FINANCE_CATEGORY)  AS MCD_FINANCE_CATEGORY,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.MCD_FINANCE_SUBCATEGORY, pv2.MCD_FINANCE_SUBCATEGORY)  AS MCD_FINANCE_SUBCATEGORY,
+IFNULL(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_TITLE, pv2.PRODUCT_TITLE), ol.productcode)  AS PRODUCT_TITLE,
 ol.productid  AS PRODUCT_ID,
 ol.productamount  AS QUANTITY, 
-IFNULL(pv.VARIANT_ID, pv2.VARIANT_ID)  AS VARIANT_ID,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.VARIANT_ID, pv2.VARIANT_ID)  AS VARIANT_ID,
 NULL  AS DESIGN_ID	,
 NULL  AS UPC	,	
 IFF(cd.numberofphotos > 0, cd.numberofphotos, 0)  AS PHOTO_COUNT	,
-IFNULL(pv.DELIVERY_TYPE, pv2.DELIVERY_TYPE)  AS DELIVERY_TYPE	,  -- NULL
-IFNULL(pv.LETTERBOX_FRIENDLY, pv2.LETTERBOX_FRIENDLY)  AS LETTERBOX_FRIENDLY	,
-IFNULL(IFNULL(pv.SHAPE, pv2.SHAPE), IFF(lower(p.PRODUCTCODE) like '%square%', 'Square', 'Rectangular'))  AS SHAPE	,
-IFNULL(pv.PRODUCT_BRAND, pv2.PRODUCT_BRAND)  AS PRODUCT_BRAND	,
-IFNULL(pv.RANGE, pv2.RANGE)  AS RANGE	,
-IFNULL(pv.SIZE, pv2.SIZE)  AS SIZE	,
-IFNULL(pv.SEARCH_KEYWORDS, pv2.SEARCH_KEYWORDS)  AS SEARCH_KEYWORDS	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.DELIVERY_TYPE, pv2.DELIVERY_TYPE)  AS DELIVERY_TYPE	,  -- NULL
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.LETTERBOX_FRIENDLY, pv2.LETTERBOX_FRIENDLY)  AS LETTERBOX_FRIENDLY	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SHAPE, pv2.SHAPE)  AS SHAPE	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_BRAND, pv2.PRODUCT_BRAND)  AS PRODUCT_BRAND	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.RANGE, pv2.RANGE)  AS RANGE	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SIZE, pv2.SIZE)  AS SIZE	,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.SEARCH_KEYWORDS, pv2.SEARCH_KEYWORDS)  AS SEARCH_KEYWORDS	,
 
 IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		AND 
@@ -442,7 +442,7 @@ NULL  AS REFUND_TYPE	,
 NULL  AS REFUND_TIMESTAMP	,
 NULL  AS REFUND_PAYMENT_PROVIDER	,
 False  AS IS_REFUNDED,
-IFNULL(pv.mcd_finance_subcategory, pv2.mcd_finance_subcategory)  AS MARGIN_PRODUCT_CATEGORY,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.mcd_finance_subcategory, pv2.mcd_finance_subcategory)  AS MARGIN_PRODUCT_CATEGORY,
 0  AS ESTIMATED_REFUND_RATE	,
 0  AS ESTIMATED_TOTAL_REFUND	,
 0  AS ESTIMATED_PRODUCT_REFUND	,
@@ -525,7 +525,7 @@ ol_FLOWER_UPSELL_QUANTITY  AS FLOWER_UPSELL_QUANTITY,
 ol_CARD_UPSELL_QUANTITY + ol_FLOWER_UPSELL_QUANTITY  AS TOTAL_UPSELL_QUANTITY	,
 0  AS ECARD_QUANTITY	,
 
-IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards' 	-- not 'Postcards'
+IFF(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards' 	-- not 'Postcards'
 		AND
 		(
 		 lower(p.productcode) like '%xl%' 
@@ -533,7 +533,7 @@ IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards' 	-- not 'Post
 		 )
 	   , ol.productamount, 0)  AS GIANT_CARD_QUANTITY	,
 	   	   
-IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards' 
+IFF(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards' 
 		AND 
 		(
 		 lower(p.productcode) like '%large%' 
@@ -549,7 +549,7 @@ IFF((p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%')
 		 )
 	   , ol.productamount, 0) AS LARGE_SQUARE_CARD_QUANTITY	,
 	
-IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
+IFF(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -557,7 +557,7 @@ IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
 		 )
 	   , ol.productamount, 0) AS STANDARD_SQUARE_CARD_QUANTITY	,
 	
-IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
+IFF(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
 		AND 
 		(
 		 lower(p.productcode) like '%medium%' 
@@ -565,7 +565,7 @@ IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Greeting Cards'
 		 )
 	   , ol.productamount, 0) AS STANDARD_CARD_QUANTITY	,
 	
-IFF(IFNULL(pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Postcards', ol.productamount, 0)  AS POSTCARD_QUANTITY,
+IFF(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.CATEGORY_NAME, pv2.CATEGORY_NAME) = 'Postcards', ol.productamount, 0)  AS POSTCARD_QUANTITY,
 IFF(p.TYPE = 'productCardSingle' OR p.productcode LIKE 'card%', ITEM_ISEV  * ex.avg_rate, 0)  AS CARD_ITEM_ISEV_GBP	,
 IFF(p.TYPE IN ('standardGift', 'personalizedGift') AND pt.MPTypeCode != 'flower', ITEM_ISEV  * ex.avg_rate, 0)  AS GIFT_ITEM_ISEV_GBP	,
 IFF(pt.MPTypeCode = 'flower', ITEM_ISEV * ex.avg_rate, 0)  AS FLOWER_ITEM_ISEV_GBP	,
@@ -664,75 +664,75 @@ o_st.FLOWER_DISCOUNTED_VOLUME,
 o_st.FLOWER_DISCOUNTED_SALES,
 o_st.NON_CARD_DISCOUNTED_VOLUME,
 o_st.NON_CARD_DISCOUNTED_SALES,
-IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY)  AS MCD_PRODUCT_FAMILY,
+IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY)  AS MCD_PRODUCT_FAMILY,
 
 CASE
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' THEN 'Greeting Cards'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' THEN 'Flowers'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet') THEN 'Food Gifts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Mugs'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toys'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN 'T-Shirts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' THEN 'Greeting Cards'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' THEN 'Flowers'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet') THEN 'Food Gifts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Mugs'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toys'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_CATEGORY,
 
 CASE
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFNULL(pv.size, pv2.size),4) = 'CARD' AND IFNULL(pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(IFNULL(pv.size, pv2.size),CHARINDEX('CARD',IFNULL(pv.size, pv2.size)) - 1))),' Card')
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFNULL(pv.size, pv2.size),4) <> 'CARD' AND IFNULL(pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(IFNULL(pv.size, pv2.size),' Card')
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFNULL(pv.size, pv2.size) IN ('ECard','ECARD') THEN 'eCard'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFNULL(pv.size, pv2.size) = 'POSTCARD' THEN 'Postcard'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) = 'large' THEN 'Flowers - Extra Stems'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) = 'letterbox' THEN 'Letterbox Flowers'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) NOT IN ('large', 'letterbox') THEN 'Flowers'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet')  THEN 'Food Gifts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Mugs'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toys'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN 'T-Shirts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),4) = 'CARD' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),CHARINDEX('CARD',IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) - 1))),' Card')
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),4) <> 'CARD' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),' Card')
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) IN ('ECard','ECARD') THEN 'eCard'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) = 'POSTCARD' THEN 'Postcard'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet')  THEN 'Food Gifts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Mugs'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toys'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN 'T-Shirts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_SUBCATEGORY	,
 
 CASE
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFNULL(pv.size, pv2.size),4) = 'CARD' AND IFNULL(pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(IFNULL(pv.size, pv2.size),CHARINDEX('CARD',IFNULL(pv.size, pv2.size)) - 1))),' Card')
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFNULL(pv.size, pv2.size),4) <> 'CARD' AND IFNULL(pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(IFNULL(pv.size, pv2.size),' Card')
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFNULL(pv.size, pv2.size) IN ('ECard','ECARD') THEN 'eCard'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFNULL(pv.size, pv2.size) = 'POSTCARD' THEN 'Postcard'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) = 'large' THEN 'Flowers - Extra Stems'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) = 'letterbox' THEN 'Letterbox Flowers'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFNULL(pv.size, pv2.size)) NOT IN ('large', 'letterbox') THEN 'Flowers'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet') THEN CONCAT(IFNULL(pv.product_type_name, pv2.product_type_name),'s')
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Ceramic Mug'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toy'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN IFNULL(pv.size, pv2.size)
-        WHEN IFNULL(pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFNULL(pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),4) = 'CARD' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(INITCAP(LOWER(LEFT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),CHARINDEX('CARD',IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) - 1))),' Card')
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND RIGHT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),4) <> 'CARD' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) NOT IN ('ECard', 'ECARD', 'POSTCARD') THEN CONCAT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size),' Card')
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) IN ('ECard','ECARD') THEN 'eCard'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Cards' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size) = 'POSTCARD' THEN 'Postcard'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) = 'large' THEN 'Flowers - Extra Stems'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) = 'letterbox' THEN 'Letterbox Flowers'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Flowers' AND LOWER(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)) NOT IN ('large', 'letterbox') THEN 'Flowers'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Alcohol','Personalised Alcohol') THEN 'Alcohol Gift'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Balloon' THEN 'Balloon'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Beauty' THEN 'Beauty'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) IN ('Biscuit','Chocolate','Hamper','Sweet') THEN CONCAT(IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name),'s')
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gadget / Novelty' THEN 'Gadgets & Novelties'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift Experience' THEN 'Gift Experiences'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Gift for Home' THEN 'Gifts For Home'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Jewellery' THEN 'Jewellery & Accessories'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Arena Gift Set' THEN 'Letterbox Gifts'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised Mug' THEN 'Ceramic Mug'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Soft Toy' THEN 'Soft Toy'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Stationery / Craft' THEN 'Stationery & Craft'
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Personalised T-shirt' THEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.size, pv2.size)
+        WHEN IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.PRODUCT_FAMILY, pv2.PRODUCT_FAMILY) = 'Gifts' AND IFF(pv.GREETZ_PRODUCT_ID IS NOT NULL, pv.product_type_name, pv2.product_type_name) = 'Toy / Game' THEN 'Toys & Games'
 ELSE NULL
 END  AS MCD_PRODUCT_TYPE
 
@@ -820,9 +820,12 @@ FROM
 	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv2
 		ON pv2.GREETZ_PRODUCT_ID = ol.productid 
 			AND pv2.GREETZ_CARDDEFINITION_ID = 0	
-	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc
-		ON zc.ZIPCODE = TRY_TO_NUMBER(IFNULL(a.ZIPPOSTALCODE, a2.ZIPPOSTALCODE))
-			AND IFNULL(a.COUNTRYCODE, a2.COUNTRYCODE) = 'US'
+	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc1
+		ON zc1.ZIPCODE = TRY_TO_NUMBER(a.ZIPPOSTALCODE)
+			AND a.COUNTRYCODE = 'US'
+	LEFT JOIN prod.raw_seeds.us_zipcodes AS zc2
+		ON zc2.ZIPCODE = TRY_TO_NUMBER(a2.ZIPPOSTALCODE)
+			AND a2.COUNTRYCODE = 'US'			
 WHERE		
 	   o.channelid = 2
 	   AND o.currentorderstate IN
