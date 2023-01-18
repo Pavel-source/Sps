@@ -192,10 +192,10 @@ SELECT
 															 )
 													, ''),
 
-												IFNULL(CONCAT(',"streetName": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.street else a2.street end, '\r\n', ' '),'\n', ' '))), ''),
-                                                IFNULL(CONCAT(',"city": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.city else a2.city end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"state": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.STATEPROVINCECOUNTY else a2.STATEPROVINCECOUNTY end, '\r\n', ' '),'\n', ' '))), ''),
-                                                IFNULL(CONCAT(',"postcode": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.zippostalcode else a2.zippostalcode end, '\r\n', ' '),'\n', ' '))), ''),
+												IFNULL(CONCAT(',"streetName": ', '"', replace(replace(case when a.ID IS NOT NULL then a.street else a2.street end, '\r\n', ' '),'\n', ' '), '"'), ''),
+                                                IFNULL(CONCAT(',"city": ', '"', replace(replace(case when a.ID IS NOT NULL then a.city else a2.city end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"state": ', '"', replace(replace(case when a.ID IS NOT NULL then a.STATEPROVINCECOUNTY else a2.STATEPROVINCECOUNTY end, '\r\n', ' '),'\n', ' '), '"'), ''),
+                                                IFNULL(CONCAT(',"postcode": ', '"', replace(replace(case when a.ID IS NOT NULL then a.zippostalcode else a2.zippostalcode end, '\r\n', ' '),'\n', ' '), '"'), ''),
 												IFNULL(CONCAT(',"country": ', CONCAT('"', case when a.ID IS NOT NULL then c.ENGLISHCOUNTRYNAME else c2.ENGLISHCOUNTRYNAME end, '"')), ''),
 												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', cea.email, '"')), ''),
 												IFNULL(CONCAT(',"isMyAddress": ', case when a2.ID IS NOT NULL then 'true' else 'false' end), ''),
@@ -207,13 +207,13 @@ SELECT
 -- "recipientAddress" is the same as "address"
 		',"recipientAddress": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
-												IFNULL(CONCAT(',"firstName": ', JSON_QUOTE(replace(replace(r.firstname, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"lastName": ', JSON_QUOTE(replace(replace(r.lastname, '\r\n', ' '),'\n', ' '))), ''),
+												IFNULL(CONCAT(',"firstName": ', '"', replace(replace(r.firstname, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"lastName": ', '"', replace(replace(r.lastname, '\r\n', ' '),'\n', ' '), '"'), ''),
 											--	',"title": null', 	
 											--	',"addressFirstLine": null', 	
-												IFNULL(CONCAT(',"houseNumber": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.streetnumber else a2.streetnumber end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"houseNumberExtension": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.streetnumberextension else a2.streetnumberextension end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"extraAddressLine": ', JSON_QUOTE(replace(replace(
+												IFNULL(CONCAT(',"houseNumber": ', '"', replace(replace(case when a.ID IS NOT NULL then a.streetnumber else a2.streetnumber end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"houseNumberExtension": ', '"', replace(replace(case when a.ID IS NOT NULL then a.streetnumberextension else a2.streetnumberextension end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"extraAddressLine": ', '"', replace(replace(
 												                                        case when a.ID IS NOT NULL then
 																								case when COALESCE(a.extraaddressline1, a.extraaddressline2, a.extraaddressline3) IS NULL
 																									then NULL
@@ -226,14 +226,14 @@ SELECT
 																								else
 																									trim(concat(nvl(a2.extraaddressline1, ''), ' ', nvl(a2.extraaddressline2, ''), ' ', nvl(a2.extraaddressline3, '')))
 																								end
-																						end, '\r\n', ' '),'\n', ' '))
+																						end, '\r\n', ' '),'\n', ' '), '"'
 															 )
 													, ''),												
 												
-												IFNULL(CONCAT(',"streetName": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.street else a2.street end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"city": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.city else a2.city end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"state": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.STATEPROVINCECOUNTY else a2.STATEPROVINCECOUNTY end, '\r\n', ' '),'\n', ' '))), ''),
-												IFNULL(CONCAT(',"postcode": ', JSON_QUOTE(replace(replace(case when a.ID IS NOT NULL then a.zippostalcode else a2.zippostalcode end, '\r\n', ' '),'\n', ' '))), ''),
+												IFNULL(CONCAT(',"streetName": ', '"', replace(replace(case when a.ID IS NOT NULL then a.street else a2.street end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"city": ', '"', replace(replace(case when a.ID IS NOT NULL then a.city else a2.city end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"state": ', '"', replace(replace(case when a.ID IS NOT NULL then a.STATEPROVINCECOUNTY else a2.STATEPROVINCECOUNTY end, '\r\n', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"postcode": ', '"', replace(replace(case when a.ID IS NOT NULL then a.zippostalcode else a2.zippostalcode end, '\r\n', ' '),'\n', ' '), '"'), ''),
 												IFNULL(CONCAT(',"country": ', CONCAT('"', case when a.ID IS NOT NULL then c.ENGLISHCOUNTRYNAME else c2.ENGLISHCOUNTRYNAME end, '"')), ''),   
 												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', cea.email, '"')), ''),
 												IFNULL(CONCAT(',"isMyAddress": ', case when a.ID IS NOT NULL then 'false' when a2.ID IS NOT NULL then 'true' end), ''),
