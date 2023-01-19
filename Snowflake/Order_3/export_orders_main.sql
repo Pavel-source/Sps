@@ -120,10 +120,10 @@ WHERE
 			'REPRINT'
 			)
 	and o.CONTRAFORORDERID IS NULL
-	-- and gpv.type != 'content'
-	-- and gpv.type != 'content'
-GROUP BY 
-		ol.id
+--	-- and gpv.type != 'content'
+--	-- and gpv.type != 'content'
+-- GROUP BY 
+--		ol.id
 ),
 
 cte_content AS
@@ -168,7 +168,7 @@ SELECT
 		IFNULL(CONCAT(',"deliveryType": ', CONCAT('"', 'POSTAL', '"')), ''),
 
 		',"address": ', 	IFNULL(CONCAT('{',
-												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
+												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
 												IFNULL(CONCAT(',"firstName": ', '"', replace(replace(r.firstname, '\r\n', ' '),'\n', ' '), '"'), ''),
 												IFNULL(CONCAT(',"lastName": ', '"', replace(replace(r.lastname, '\r\n', ' '),'\n', ' '), '"'), ''),
 											--	',"title": null',
@@ -206,7 +206,7 @@ SELECT
 
 -- "recipientAddress" is the same as "address"
 		',"recipientAddress": ', 	IFNULL(CONCAT('{',
-												CONCAT('"id": ', '"', CONCAT('fake-', UUID()), '"'),
+												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
 												IFNULL(CONCAT(',"firstName": ', '"', replace(replace(r.firstname, '\r\n', ' '),'\n', ' '), '"'), ''),
 												IFNULL(CONCAT(',"lastName": ', '"', replace(replace(r.lastname, '\r\n', ' '),'\n', ' '), '"'), ''),
 											--	',"title": null', 	
@@ -240,14 +240,14 @@ SELECT
 												CONCAT(',"isScrubbed": ', case when (a.ID IS NOT NULL AND a.street = 'SCRUBBED') OR (a.ID IS NULL AND a2.street = 'SCRUBBED') then 'true' else 'false' end),
 												'}'), 'null'),
 
-		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(IFNULL(sds.deliveredTime, dp.pickupDate + 1 /*INTERVAL 1 day*/) AS DATE) AS VARCHAR(50)), '"')), ''), 
+		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(IFNULL(sds.deliveredTime, dateadd(day, 1, dp.pickupDate) /*INTERVAL 1 day*/) AS DATE) AS VARCHAR(50)), '"')), ''), 
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
 		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(
-																	IFNULL(dp.deliveryDate, case when productcode like 'wallet%' then o.created + 1 /*+ INTERVAL 1 day*/ end) 
+																	IFNULL(dp.deliveryDate, case when productcode like 'wallet%' then dateadd(day, 1, o.created) /*+ INTERVAL 1 day*/ end) 
 																AS DATE) AS VARCHAR(50)), '"')), ''),
 		
 		',"orderItems": ',	replace(replace(concat('[',
-						group_concat(
+						LISTAGG(
 						
 							CASE
 							WHEN o.product_type NOT IN (
@@ -303,13 +303,13 @@ SELECT
 							ELSE
 								'{}'
 							END
-									
+							, ','	
 									
 							)
 							, ']'), '{},', ''), ',{}', ''),
 		 							
 		',"deliveryInformation": ', 	CONCAT('{',
-										IFNULL(CONCAT('"deliveryMethodId": ', CONCAT('"', IFNULL(ct.id, 'NONE') , '"')), ''),
+										IFNULL(CONCAT('"deliveryMethodId": ', CONCAT('"', IFNULL(cast(ct.id as varchar(50)), 'NONE') , '"')), ''),
 										IFNULL(CONCAT(',"deliveryMethodName": ', CONCAT('"', IFNULL(
 																					case ct.carrier 
 																					when 'TNT' then 'PostNL'
@@ -318,9 +318,9 @@ SELECT
 																					else ct.carrier 
 																					end, 
 																				'Standard'), '"')), ''),
-										IFNULL(CONCAT(',"trackingNumber": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > '20220901' - 2*365 /*- INTERVAL 2 YEAR*/ then sai.barcode end, '"')), ''),
-										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > '20220901' - 2*365 /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
-										IFNULL(CONCAT(',"fullTrackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > '20220901' - 2*365 /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
+										IFNULL(CONCAT(',"trackingNumber": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*- INTERVAL 2 YEAR*/ then sai.barcode end, '"')), ''),
+										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
+										IFNULL(CONCAT(',"fullTrackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
 										',"fulfilmentCentre" : {"id" : "NL-GRTZ-AMS", "countryCode": "NL"}',
 										'}'),
 								   --		'deliveryType', dp.type,
@@ -385,7 +385,55 @@ FROM
 GROUP BY
 		 o.customerId,
 		 o.id,
-		 o.individualshippingid
+		 o.individualshippingid,
+		 
+		o.ORDERCODE,
+		o.Created,
+		o.ORDERCODE, 
+		o.customerid,
+		o.email,
+		o.GRANDTOTALFORPAYMENT,
+		o.currencycode,
+        O.CURRENTORDERSTATE,
+        O.PRODUCTCODE,
+        ISP.CANCELLATIONTYPE,
+        ISP.TRACKANDTRACECODE,
+        SDS.CURRENTSTATE,
+        SDS.SHIPMENTNOTIFICATIONDATE,
+        R.FIRSTNAME,
+        R.LASTNAME,
+        A.ID,
+        A2.ID,
+        A.STREETNUMBER,
+        A2.STREETNUMBER,
+        A.STREETNUMBEREXTENSION,
+        A2.STREETNUMBEREXTENSION,
+        A.EXTRAADDRESSLINE1,
+        A.EXTRAADDRESSLINE2,
+        A.EXTRAADDRESSLINE3,
+        A2.EXTRAADDRESSLINE1,
+        A2.EXTRAADDRESSLINE2,
+        A2.EXTRAADDRESSLINE3,
+        A.STREET,
+        A2.STREET,
+        A.CITY,
+        A2.CITY,
+        A.STATEPROVINCECOUNTY,
+        A2.STATEPROVINCECOUNTY,
+        A.ZIPPOSTALCODE,
+        A2.ZIPPOSTALCODE,
+        C.ENGLISHCOUNTRYNAME,
+        C2.ENGLISHCOUNTRYNAME,
+        CEA.EMAIL,
+        SDS.DELIVEREDTIME,
+        DP.PICKUPDATE,
+        DP.DELIVERYDATE,
+        DP.HASTRACKANDTRACE,
+        CT.ID,
+        CT.CARRIER,
+        SAI.BARCODE,
+        MCT.MOBILE_PHONE,
+        MCM.MOBILE_PHONE
 ),
 
 /*cte_Prices
@@ -436,7 +484,7 @@ SELECT
    SUM(i.totalItems) AS totalItems,
    
 	concat('[',
-	LTRIM(group_concat(IFNULL(i.orderDelivery, '')), ',')
+	LTRIM(LISTAGG(IFNULL(i.orderDelivery, ''), ','), ',')
 			, ']')
 	AS deliveries,
 	
@@ -446,14 +494,24 @@ FROM cte_Individualshipping i
 	-- LEFT JOIN cte_Prices p ON i.id = p.id
 GROUP BY
 		 i.customerId,
-		 i.id
+		 i.id,
+		 
+	i.id_str,
+	i.createdAt,
+	i.orderReference, 
+	i.customerId,
+	i.customerEmail,
+	i.currencycode,
+	i.GRANDTOTALFORPAYMENT,
+	i.currentorderstate
+   
 )
 
 SELECT
 	   customerId AS entity_key,
 			CONCAT('[',
 				
-				group_concat(
+				LISTAGG(
 							CONCAT('{',
 										 '"id": "', id_str, '"',
 										  ',"state": ', '"', currentorderstate, '"',
@@ -479,7 +537,7 @@ SELECT
 										  ',"dataSource": "S3"', 
 										  '}'
 										 
-										))
+										), ',')
 								,']')
 
 		AS orders
