@@ -41,7 +41,7 @@ SELECT
    ol.WITHVAT,
    ol.individualshippingid,
    ol.PRODUCTITEMINBASKETID,
-   c.carddefinition,   
+   c.carddefinition  
  --  o.billingaddress,
 /*	CASE
         WHEN gpv.`TYPE` NOT IN ('standardGift', 'gift_addon', 'cardpackaging', 'gift_surcharge', 'content',
@@ -54,14 +54,14 @@ SELECT
 					  ) 
 				, '')  
 		   , ']')
-	END*/ NULL  as s3ImagePrefixes,
+	END NULL  as s3ImagePrefixes,*/
 	
 	/*CASE
 		WHEN gpv.`TYPE` = 'cardpackaging' THEN  CONCAT('["/images/static/opt/greetz3/images/products/2/', gpv.productcode, '/','ENVELOPE.jpg"]')  
 		WHEN gpv.`TYPE` IN ('gift_addon', 'standardGift') THEN CONCAT('["/images/static/opt/greetz3/images/products/2/', gpv.productcode, '/','greetz.detail.1_', im.HEIGHT,'_', im.WIDTH,EXTENSION, '"]') 
 	ELSE
 		'[]'
-    END*/ NULL  as s3ImagePrefixes_2
+    END NULL  as s3ImagePrefixes_2*/
 	
 	/*case when gpv.TYPE = 'productCardSingle'
 	then
@@ -243,7 +243,7 @@ SELECT
 		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(IFNULL(sds.deliveredTime, dateadd(day, 1, dp.pickupDate) /*INTERVAL 1 day*/) AS DATE) AS VARCHAR(50)), '"')), ''), 
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
 		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(
-																	IFNULL(dp.deliveryDate, case when productcode like 'wallet%' then dateadd(day, 1, o.created) /*+ INTERVAL 1 day*/ end) 
+																	IFNULL(dp.deliveryDate, dateadd(day, 1, o.created)) 
 																AS DATE) AS VARCHAR(50)), '"')), ''),
 		
 		',"orderItems": ',	replace(replace(concat('[',
@@ -262,8 +262,8 @@ SELECT
 						
 							CONCAT('{',
 							   '"id": ', o.ol_id,
-                                ',"previewImages": []',
-							    ',"s3ImagePrefixes": ', IFNULL(s3ImagePrefixes, s3ImagePrefixes_2), 
+                            --   ',"previewImages": []',
+							--    ',"s3ImagePrefixes": ', IFNULL(s3ImagePrefixes, s3ImagePrefixes_2), 
 							--	   '"lineItemId": ', o.ORDERLINEIDX,
 							    IFNULL(CONCAT(',"title": ', CONCAT('"', case 
 																		when o.productTypeKey = 'greetingcard' then 'Kaart' 
@@ -334,7 +334,16 @@ SELECT
 	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHVAT else 0 end) AS subTotalPrice,
 	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
 	abs(sum(case when o.productcode != 'shipment_generic' then o.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
-	sum(case when o.productcode != 'shipment_generic' then o.productamount else 0 end) AS totalItems,
+	sum(case when o.product_type NOT IN (
+										'content',
+										'shipment',
+										'outerCarton',
+										'sound',
+										'packetToSelfSurcharge',
+										'trimoption'
+										) 
+			 then o.productamount else 0 
+		end) AS totalItems,
 	sum(case when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 
 FROM
@@ -395,7 +404,7 @@ GROUP BY
 		o.GRANDTOTALFORPAYMENT,
 		o.currencycode,
         O.CURRENTORDERSTATE,
-        O.PRODUCTCODE,
+    --    O.PRODUCTCODE,
         ISP.CANCELLATIONTYPE,
         ISP.TRACKANDTRACECODE,
         SDS.CURRENTSTATE,
