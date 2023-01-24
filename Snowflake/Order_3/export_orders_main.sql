@@ -1,22 +1,5 @@
-WITH 
-/*cte_productimage_0
-AS
-(
-SELECT pi.PRODUCTID, pi.WIDTH, pi.HEIGHT, pi.EXTENSION,
-	   ROW_NUMBER() OVER(PARTITION BY pi.PRODUCTID ORDER BY pi.WIDTH DESC) AS RN
-FROM productimage pi
-	 JOIN product p ON pi.productid = p.ID
-WHERE `code` = 'greetz.detail.1' 
-	and p.`TYPE` NOT IN ('personalizedGift', 'cardpackaging', 'productCardSingle')
-),
-
-cte_productimage
-AS
-(
-SELECT * FROM cte_productimage_0 WHERE RN = 1
-),*/
-
-cte_previwImages AS (
+WITH cte_previwImages 
+AS (
 SELECT
    o.id,
    o.currentorderstate,
@@ -27,18 +10,11 @@ SELECT
    o.channelid,
    o.GRANDTOTALFORPAYMENT,
    cr.email,
-   
-  -- gpv.productKey,
-  -- gpv.productTypeKey,
-  -- gpv.sku_id,
-  -- gpv.PRODUCTCODE,
-  -- gpv.type AS product_type,
    IFNULL(pv.SKU, pv2.SKU)  AS productKey,
    IFNULL(pv.PRODUCT_KEY, pv2.PRODUCT_KEY)  AS productTypeKey,
    IFNULL(pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS sku_id,
    IFNULL(p.PRODUCTCODE, p2.PRODUCTCODE)  AS PRODUCTCODE,
-   IFNULL(p.type, p2.type)  AS product_type,
-   
+   IFNULL(p.type, p2.type)  AS product_type,   
    IFNULL(pv.PRODUCT_TITLE, pv2.PRODUCT_TITLE)  AS nl_product_name,   
    ol.id AS ol_id,
    ol.productamount,
@@ -49,38 +25,7 @@ SELECT
    ol.individualshippingid,
    ol.PRODUCTITEMINBASKETID,
    c.carddefinition  
- --  o.billingaddress,
-/*	CASE
-        WHEN gpv.`TYPE` NOT IN ('standardGift', 'gift_addon', 'cardpackaging', 'gift_surcharge', 'content',
-								'shipment',	'outerCarton', 'sound',	'packetToSelfSurcharge', 'trimoption') 
-		THEN 
-		   concat('[', 
-				IFNULL(
-					 group_concat(
-						concat(case when c.carddefinition IS NULL then '"/images/static' else '"/images/custom' end, cct.BASEPREVIEWFILENAME, '"')
-					  ) 
-				, '')  
-		   , ']')
-	END NULL  as s3ImagePrefixes,*/
-	
-	/*CASE
-		WHEN gpv.`TYPE` = 'cardpackaging' THEN  CONCAT('["/images/static/opt/greetz3/images/products/2/', gpv.productcode, '/','ENVELOPE.jpg"]')  
-		WHEN gpv.`TYPE` IN ('gift_addon', 'standardGift') THEN CONCAT('["/images/static/opt/greetz3/images/products/2/', gpv.productcode, '/','greetz.detail.1_', im.HEIGHT,'_', im.WIDTH,EXTENSION, '"]') 
-	ELSE
-		'[]'
-    END NULL  as s3ImagePrefixes_2*/
-	
-	/*case when gpv.TYPE = 'productCardSingle'
-	then
-	  SUM(case gpv.TYPE in ('productCardSingle', 'content') then ol.TOTALWITHVAT else 0 end) 
-	  OVER (PARTITION BY o.id 
-	  ORDER BY case gpv.TYPE  when 'productCardSingle' then 1  when 'content' then 2 else 3 end 
-	  ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) 
-	else
-		 ol.TOTALWITHVAT
-	end  AS TOTALWITHVAT*/
-	
-	
+
 FROM
 	--(SELECT * FROM orders /*WHERE id = 1337079006*/ ORDER BY id DESC LIMIT 10) o
 	 (SELECT * FROM orders WHERE ordercode in ('1-WLJVKG6BMT', '1-RLVTHHZH3V', '1-UVMT5RNXK5')) o
@@ -88,15 +33,7 @@ FROM
     JOIN orderline ol ON o.id = ol.orderid
     JOIN customerregistered cr ON o.customerid = cr.id
 	LEFT JOIN productiteminbasket pb ON pb.ID = ol.PRODUCTITEMINBASKETID
-	LEFT JOIN customercreatedcard c ON pb.CONTENTSELECTIONID = c.ID
-
-  /*  JOIN tmp_dm_gift_product_variants gpv 
-		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
-		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		-- "tmp_dm_gift_product_variants" has not unique product_id
-		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)
-	LEFT JOIN (SELECT DISTINCT product_id, nl_product_name FROM tmp_dm_gift_product_variants) pn
-		ON pn.product_id = ol.productid*/
-		
+	LEFT JOIN customercreatedcard c ON pb.CONTENTSELECTIONID = c.ID		
 	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv
 		ON pv.GREETZ_PRODUCT_ID = ol.productid 
 			AND pv.GREETZ_CARDDEFINITION_ID = c.carddefinition 
@@ -105,17 +42,11 @@ FROM
 			AND pv2.GREETZ_CARDDEFINITION_ID = 0	
 	LEFT JOIN product AS p ON pv.GREETZ_PRODUCT_ID = p.ID
 	LEFT JOIN product AS p2 ON pv2.GREETZ_PRODUCT_ID = p2.ID
-		
-	
+			
 WHERE
-   
-   /* ((o.customerid > :migrateFromId and o.customerid <= :migrateToId  and  concat(:keys) IS NULL)
-	OR o.customerid in (:keys))
-    and IFNULL(IFNULL(lastactivitydate, LASTLOGINDATE), REGISTRATIONDATE) > '2022-08-30' - INTERVAL 25 MONTH*/
 	 o.channelid = 2
-	and cr.channelid = 2
---    and cr.active = 'Y'
-	and o.currentorderstate not in (
+	AND cr.channelid = 2
+	AND o.currentorderstate not in (
 			'ADDED_BILLINGADDRES_INFORMATION',
 			'CREATED_FOR_SHOPPINGBASKET',
 			'CREATED_FOR_WALLETDEPOSIT',
@@ -129,13 +60,14 @@ WHERE
 			'CANCELLED',
 			'REPRINT'
 			)
-	and o.CONTRAFORORDERID IS NULL
---	-- and gpv.type != 'content'
---	-- and gpv.type != 'content'
+	AND o.CONTRAFORORDERID IS NULL
+--	-- AND gpv.type != 'content'
+--	-- AND gpv.type != 'content'
 -- GROUP BY 
 --		ol.id
 ),
 
+-- -------------- content ------------------------------
 cte_content_0
 AS
 (
@@ -252,6 +184,7 @@ FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" e
 	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid 
 WHERE pn.type = 'productCardSingle'  OR  pn.productcode LIKE 'card%'  
 ),
+-- --------------------------------------------------------
 
 cte_Individualshipping AS
 (
@@ -437,9 +370,9 @@ SELECT
 																					else ct.carrier 
 																					end, 
 																				'Standard'), '"')), ''),
-										IFNULL(CONCAT(',"trackingNumber": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*- INTERVAL 2 YEAR*/ then sai.barcode end, '"')), ''),
-										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
-										IFNULL(CONCAT(',"fullTrackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' and o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
+										IFNULL(CONCAT(',"trackingNumber": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' AND o.created > dateadd(year, -2, to_date('20220901')) /*- INTERVAL 2 YEAR*/ then sai.barcode end, '"')), ''),
+										IFNULL(CONCAT(',"trackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' AND o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
+										IFNULL(CONCAT(',"fullTrackingUrl": ', CONCAT('"', case when dp.hastrackandtrace = 'Y' AND o.created > dateadd(year, -2, to_date('20220901')) /*INTERVAL 2 YEAR*/ then isp.TRACKANDTRACECODE end, '"')), ''),
 										',"fulfilmentCentre" : {"id" : "NL-GRTZ-AMS", "countryCode": "NL"}',
 										'}'),
 								   --		'deliveryType', dp.type,
@@ -450,9 +383,9 @@ SELECT
 	AS orderDelivery,
 	o.currentorderstate,
 	
-	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHVAT else 0 end) AS subTotalPrice,
-	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
-	abs(sum(case when o.productcode != 'shipment_generic' then o.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
+	sum(case when o.product_type != 'shipment' then o.TOTALWITHVAT else 0 end) AS subTotalPrice,
+	sum(case when o.product_type != 'shipment' then o.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
+	abs(sum(case when o.product_type != 'shipment' then o.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
 	sum(case when o.product_type NOT IN (
 										'content',
 										'shipment',
@@ -463,7 +396,7 @@ SELECT
 										) 
 			 then o.productamount else 0 
 		end) AS totalItems,
-	sum(case when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
+	sum(case when o.product_type = 'shipment' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 
 FROM
    cte_previwImages o
@@ -483,13 +416,13 @@ FROM
        ON a.countrycode = c.TWOLETTERCOUNTRYCODE
    LEFT JOIN contactemailaddress cea
 	   ON r.contactid = cea.contactid
-		  and cea.emailidx = 0
+		  AND cea.emailidx = 0
    LEFT JOIN paazlshipmentinformation psi
 	   ON si.id = psi.id
    LEFT JOIN carriertype ct
-       ON psi.type = ct.type and psi.carrier = ct.carrier
+       ON psi.type = ct.type AND psi.carrier = ct.carrier
    LEFT JOIN address a2
-      ON o.customerid = a2.customerid and a2.DEFAULTADDRESS = 'Y'
+      ON o.customerid = a2.customerid AND a2.DEFAULTADDRESS = 'Y'
    LEFT JOIN country c2
        ON a2.countrycode = c2.TWOLETTERCOUNTRYCODE
    LEFT JOIN channel ch
@@ -506,8 +439,8 @@ FROM
 		ON env.code = o.PRODUCTCODE
   /* LEFT JOIN cte_content co
 		ON co.id = o.id
-		   and o.product_type = 'productCardSingle'
-		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID	*/
+		   AND o.product_type = 'productCardSingle'
+		   AND o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID	*/
 	LEFT JOIN cte_content co
 		ON co.orderid = o.id
 		   AND (o.product_type = 'productCardSingle'  OR  o.productcode LIKE 'card%')
@@ -533,7 +466,6 @@ GROUP BY
 		o.GRANDTOTALFORPAYMENT,
 		o.currencycode,
         O.CURRENTORDERSTATE,
-    --    O.PRODUCTCODE,
         ISP.CANCELLATIONTYPE,
         ISP.TRACKANDTRACECODE,
         SDS.CURRENTSTATE,
