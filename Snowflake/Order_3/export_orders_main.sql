@@ -27,12 +27,19 @@ SELECT
    o.channelid,
    o.GRANDTOTALFORPAYMENT,
    cr.email,
-   gpv.productKey,
-   gpv.productTypeKey,
-   gpv.sku_id,
-   gpv.PRODUCTCODE,
-   gpv.type AS product_type,
-   pn.nl_product_name,
+   
+  -- gpv.productKey,
+  -- gpv.productTypeKey,
+  -- gpv.sku_id,
+  -- gpv.PRODUCTCODE,
+  -- gpv.type AS product_type,
+   IFNULL(pv.SKU, pv2.SKU)  AS productKey,
+   IFNULL(pv.PRODUCT_KEY, pv2.PRODUCT_KEY)  AS productTypeKey,
+   IFNULL(pv.SKU_VARIANT, pv2.SKU_VARIANT)  AS sku_id,
+   IFNULL(p.PRODUCTCODE, p2.PRODUCTCODE)  AS PRODUCTCODE,
+   IFNULL(p.type, p2.type)  AS product_type,
+   
+   IFNULL(pv.PRODUCT_TITLE, pv2.PRODUCT_TITLE)  AS nl_product_name,   
    ol.id AS ol_id,
    ol.productamount,
    ol.totalwithvat,
@@ -75,27 +82,30 @@ SELECT
 	
 	
 FROM
-	(SELECT * FROM orders /*WHERE id = 1337079006*/ ORDER BY id DESC LIMIT 10) o
+	--(SELECT * FROM orders /*WHERE id = 1337079006*/ ORDER BY id DESC LIMIT 10) o
+	 (SELECT * FROM orders WHERE ordercode in ('1-WLJVKG6BMT', '1-RLVTHHZH3V', '1-UVMT5RNXK5')) o
  --   orders o
     JOIN orderline ol ON o.id = ol.orderid
     JOIN customerregistered cr ON o.customerid = cr.id
-	LEFT JOIN productiteminbasket p ON p.ID = ol.PRODUCTITEMINBASKETID
-	LEFT JOIN customercreatedcard c on p.CONTENTSELECTIONID = c.ID
-	/*LEFT JOIN customercreatedcardtemplate cct  ON c.ID = cct.CUSTOMERCREATEDCARD
-	LEFT JOIN cardtemplate ct on ct.ID = cct.CARDSIDETEMPLATE*/
-    JOIN tmp_dm_gift_product_variants gpv 
+	LEFT JOIN productiteminbasket pb ON pb.ID = ol.PRODUCTITEMINBASKETID
+	LEFT JOIN customercreatedcard c ON pb.CONTENTSELECTIONID = c.ID
+
+  /*  JOIN tmp_dm_gift_product_variants gpv 
 		ON (gpv.designId = c.carddefinition AND gpv.product_id = ol.productid AND gpv.type = 'personalizedGift')
 		   OR (gpv.product_id = ol.productid AND c.carddefinition  IS NULL)		-- "tmp_dm_gift_product_variants" has not unique product_id
 		   OR (gpv.product_id = ol.productid AND c.carddefinition IS NOT NULL  AND gpv.designId  IS NULL)
 	LEFT JOIN (SELECT DISTINCT product_id, nl_product_name FROM tmp_dm_gift_product_variants) pn
-		ON pn.product_id = ol.productid
-/*	LEFT JOIN cte_productimage im 
-		ON gpv.product_id = im.PRODUCTID*/
+		ON pn.product_id = ol.productid*/
 		
-	/*LEFT JOIN orderline ol_2 
-	JOIN tmp_dm_gift_product_variants gpv_2
-		ON gpv_2.product_id = ol_2.PRODUCTID AND gpv_2.type = 'content'
-		ON ol.orderid = ol_2.orderid AND gpv.type = 'productCardSingle' AND ol.PRODUCTITEMINBASKETID = ol_2.PRODUCTITEMINBASKETID*/
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv
+		ON pv.GREETZ_PRODUCT_ID = ol.productid 
+			AND pv.GREETZ_CARDDEFINITION_ID = c.carddefinition 
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."PRODUCT_VARIANTS_DETAILED" AS pv2
+		ON pv2.GREETZ_PRODUCT_ID = ol.productid 
+			AND pv2.GREETZ_CARDDEFINITION_ID = 0	
+	LEFT JOIN product AS p ON pv.GREETZ_PRODUCT_ID = p.ID
+	LEFT JOIN product AS p2 ON pv2.GREETZ_PRODUCT_ID = p2.ID
+		
 	
 WHERE
    
@@ -104,7 +114,7 @@ WHERE
     and IFNULL(IFNULL(lastactivitydate, LASTLOGINDATE), REGISTRATIONDATE) > '2022-08-30' - INTERVAL 25 MONTH*/
 	 o.channelid = 2
 	and cr.channelid = 2
-    and cr.active = 'Y'
+--    and cr.active = 'Y'
 	and o.currentorderstate not in (
 			'ADDED_BILLINGADDRES_INFORMATION',
 			'CREATED_FOR_SHOPPINGBASKET',
@@ -126,12 +136,121 @@ WHERE
 --		ol.id
 ),
 
-cte_content AS
+cte_content_0
+AS
 (
-SELECT id, PRODUCTITEMINBASKETID, sum(totalwithvat) AS totalwithvat
-FROM cte_previwImages o
-WHERE o.product_type = 'content'
-GROUP BY id, PRODUCTITEMINBASKETID
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 AVG(ol.totalwithvat) AS totalwithvat,
+	 AVG(ol.totalwithoutvat) AS totalwithoutvat,
+	 AVG(ol.withvat) AS withvat,
+	 AVG(ol.withoutvat) AS withoutvat
+FROM "RAW_GREETZ"."GREETZ3".orders o
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV" t  ON ol.orderid = t.order_id
+WHERE o.channelid = 2
+	  /* AND o.currentorderstate IN
+		  ('EXPIRED_AFTER_PRINTED',
+		   'PAID_ADYEN',
+		   'PAID_ADYEN_PENDING',
+		   'PAID_AFTERPAY',
+		   'PAID_BIBIT',
+		   'PAID_CS',
+		   'PAID_GREETZ_INVOICE',
+		   'PAID_INVOICE',
+		   'PAID_RABOBANK_IDEAL',
+		   'PAID_SHAREWIRE',
+		   'PAID_VOUCHER',
+		   'PAID_WALLET',
+		   'PAYMENT_FAILED_AFTER_PRINTING',
+		   'REFUNDED_CANCELLEDCARD_VOUCHER',
+		   'REFUNDED_CANCELLEDCARD_WALLET')  */
+     AND pn.type = 'content'  
+--	 AND ol.PRODUCTITEMINBASKETID IS NOT NULL
+	 AND t.order_id IS NULL
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
+
+UNION ALL
+
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 sum(ol.totalwithvat) AS totalwithvat,
+	 sum(ol.totalwithoutvat) AS totalwithoutvat,
+	 sum(ol.withvat) AS withvat,
+	 sum(ol.withoutvat) AS withoutvat
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o ON e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" t  ON ol.orderid = t.order_id
+WHERE pn.type = 'content'  
+	  AND t.order_id IS NULL
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID, ol.productId
+
+UNION ALL
+
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+	 ol.productId,
+	 avg(ol.totalwithvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS totalwithvat,
+	 avg(ol.totalwithoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS totalwithoutvat,
+	 avg(ol.withvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withvat,
+	 avg(ol.withoutvat) * IFF(ol.PRODUCTITEMINBASKETID IN (1168224549, 1174617016, 1176217375, 1176218740), 1, 2)  AS withoutvat
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_3" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o ON e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+WHERE pn.type = 'content'  
+      AND pn.ChannelID = 2
+GROUP BY ol.orderid, ol.PRODUCTITEMINBASKETID , ol.productId
+), 
+ 
+ cte_content AS
+(
+SELECT  orderid, 
+		PRODUCTITEMINBASKETID, 
+		sum(totalwithvat) AS totalwithvat,
+		sum(totalwithoutvat) AS totalwithoutvat,
+		sum(withvat) AS withvat,
+		sum(withoutvat) AS withoutvat
+FROM cte_content_0
+GROUP BY orderid, 
+		 PRODUCTITEMINBASKETID
+),
+
+cte_content_2
+AS
+(
+SELECT ol.orderid, 
+	 ol.PRODUCTITEMINBASKETID,
+--	 ol.productId,
+	 totalwithvat,
+	 totalwithoutvat,
+	 withvat,
+	 withoutvat,
+     ROW_NUMBER() OVER (PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID)  AS RN
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o ON e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid
+	LEFT JOIN "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_3" t  ON ol.orderid = t.order_id
+WHERE pn.type = 'content'  
+	  AND t.order_id IS NULL
+), 
+
+cte_content_2_Cards AS
+(   
+
+SELECT  ol.ID, 
+		ROW_NUMBER() OVER(PARTITION BY ol.orderid, ol.PRODUCTITEMINBASKETID ORDER BY ol.ID) AS RN
+FROM "PROD"."WORKSPACE_GREETZ_HISTORY_MIGRATION"."TMP_DIFF_ESIV_2" e
+    JOIN "RAW_GREETZ"."GREETZ3".orders o ON e.order_id = o.id
+	JOIN "RAW_GREETZ"."GREETZ3".orderline ol ON o.id = ol.orderid
+	JOIN "RAW_GREETZ"."GREETZ3".product pn ON pn.id = ol.productid 
+WHERE pn.type = 'productCardSingle'  OR  pn.productcode LIKE 'card%'  
 ),
 
 cte_Individualshipping AS
@@ -243,7 +362,7 @@ SELECT
 		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(IFNULL(sds.deliveredTime, dateadd(day, 1, dp.pickupDate) /*INTERVAL 1 day*/) AS DATE) AS VARCHAR(50)), '"')), ''), 
 		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(dp.pickupDate AS DATE) AS VARCHAR(50)), '"')), ''),  
 		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(
-																	IFNULL(dp.deliveryDate, dateadd(day, 1, o.created)) 
+																	IFNULL(dp.deliveryDate, case when MAX(productcode) like 'wallet%' then dateadd(day, 1, o.created) end) 
 																AS DATE) AS VARCHAR(50)), '"')), ''),
 		
 		',"orderItems": ',	replace(replace(concat('[',
@@ -348,49 +467,59 @@ SELECT
 
 FROM
    cte_previwImages o
-   left join individualshipping isp
-       on o.individualshippingid = isp.id
-   left join shipmentdeliverystatus sds
-	   on isp.id = sds.individualshippingid
-   left join shipmentinformation si
-	   on isp.SHIPMENTINFORMATIONID = si.id
-   left join deliverypromise dp
-	   on si.deliverypromise_id = dp.id
-   left join recipient r
-       on isp.recipientid = r.id
-   left join address a
-       on r.addressid = a.id
-   left join country c
-       on a.countrycode = c.TWOLETTERCOUNTRYCODE
-   left join contactemailaddress cea
-	   on r.contactid = cea.contactid
+   LEFT JOIN individualshipping isp
+       ON o.individualshippingid = isp.id
+   LEFT JOIN shipmentdeliverystatus sds
+	   ON isp.id = sds.individualshippingid
+   LEFT JOIN shipmentinformation si
+	   ON isp.SHIPMENTINFORMATIONID = si.id
+   LEFT JOIN deliverypromise dp
+	   ON si.deliverypromise_id = dp.id
+   LEFT JOIN recipient r
+       ON isp.recipientid = r.id
+   LEFT JOIN address a
+       ON r.addressid = a.id
+   LEFT JOIN country c
+       ON a.countrycode = c.TWOLETTERCOUNTRYCODE
+   LEFT JOIN contactemailaddress cea
+	   ON r.contactid = cea.contactid
 		  and cea.emailidx = 0
-   left join paazlshipmentinformation psi
-	   on si.id = psi.id
-   left join carriertype ct
-       on psi.type = ct.type and psi.carrier = ct.carrier
-   left join address a2
-      on o.customerid = a2.customerid and a2.DEFAULTADDRESS = 'Y'
-   left join country c2
-       on a2.countrycode = c2.TWOLETTERCOUNTRYCODE
-   left join channel ch
-	  on o.channelid = ch.id
-  /* left join shoppingbasketprice sbp
-	  on isp.INDIVIDUALSHIPPINGPRICEID = sbp.id
-   left join vat v
-		on sbp.vatId = v.id*/
-   left join "tmp_dm_mobileByContact" mct
-		on mct.contactid = r.contactid
-   left join "tmp_dm_mobileByCustomer" mcm
-		on mcm.customerid = o.customerid
-   left join "tmp_dm_envelope_names" env
-		on env.code = o.PRODUCTCODE
-   left join cte_content co
-		on co.id = o.id
+   LEFT JOIN paazlshipmentinformation psi
+	   ON si.id = psi.id
+   LEFT JOIN carriertype ct
+       ON psi.type = ct.type and psi.carrier = ct.carrier
+   LEFT JOIN address a2
+      ON o.customerid = a2.customerid and a2.DEFAULTADDRESS = 'Y'
+   LEFT JOIN country c2
+       ON a2.countrycode = c2.TWOLETTERCOUNTRYCODE
+   LEFT JOIN channel ch
+	  ON o.channelid = ch.id
+  /* LEFT JOIN shoppingbasketprice sbp
+	  ON isp.INDIVIDUALSHIPPINGPRICEID = sbp.id
+   LEFT JOIN vat v
+		ON sbp.vatId = v.id*/
+   LEFT JOIN "tmp_dm_mobileByContact" mct
+		ON mct.contactid = r.contactid
+   LEFT JOIN "tmp_dm_mobileByCustomer" mcm
+		ON mcm.customerid = o.customerid
+   LEFT JOIN "tmp_dm_envelope_names" env
+		ON env.code = o.PRODUCTCODE
+  /* LEFT JOIN cte_content co
+		ON co.id = o.id
 		   and o.product_type = 'productCardSingle'
-		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID		
-   left join shipmentadditionalinformation sai
-		on sai.individualshippingid = isp.id
+		   and o.PRODUCTITEMINBASKETID = co.PRODUCTITEMINBASKETID	*/
+	LEFT JOIN cte_content co
+		ON co.orderid = o.id
+		   AND (o.product_type = 'productCardSingle'  OR  o.productcode LIKE 'card%')
+		   AND IFNULL(o.PRODUCTITEMINBASKETID, 0) = IFNULL(co.PRODUCTITEMINBASKETID, 0)
+    LEFT JOIN cte_content_2_Cards AS cc
+        ON cc.ID = o.ol_ID
+    LEFT JOIN cte_content_2 AS co2
+        ON co2.orderid = o.id
+            AND IFNULL(co2.PRODUCTITEMINBASKETID, 0) = IFNULL(o.PRODUCTITEMINBASKETID, 0)
+            AND co2.RN = cc.RN					
+   LEFT JOIN shipmentadditionalinformation sai
+		ON sai.individualshippingid = isp.id
 GROUP BY
 		 o.customerId,
 		 o.id,
