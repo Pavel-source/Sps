@@ -8,8 +8,8 @@ SELECT
 	o.ORDER_ID AS orderReference,
 	o.customer_id AS customerid,
 	'customerEmail' AS customerEmail,
-	
 	o.ORDER_CURRENCYCODE AS currencycode,
+	o.ORDER_STORE,
 	
 	-- TOTALWITHVAT = (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX (?))
 	-- GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX) ?
@@ -105,8 +105,8 @@ SELECT
 							   '"id": "', i.ORDER_LINE_ITEM_ID, '"',
 							    IFNULL(CONCAT(',"title": "', i.PRODUCT_TITLE, '"'), ''),  
 							   ',"quantity": ', i.QUANTITY,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', 'o.totalwithvat', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')),  
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', 'o.totalwithvat/o.productamount', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')), 
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', '555', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')),  
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', '555', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')), 
 							   ',"productType": "', i.PRODUCT_TYPE_NAME, '"',						   
 							   ',"sku": "',  i.SKU_VARIANT, '"',
 							--   ',"productSlug": ""',  
@@ -155,10 +155,13 @@ SELECT
 	SUM(i.POSTAGE_SUBTOTAL)  AS totalShippingPrice,
 	
 --	GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX + POSTAGE_SUBTOTAL) ?
-	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + i.POSTAGE_SUBTOTAL) AS GRANDTOTALFORPAYMENT
+	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + i.POSTAGE_SUBTOTAL) AS GRANDTOTALFORPAYMENT,
+	-- CreditsUsed = PREPAY + BONUS ?
+	SUM(PREPAY + BONUS) AS CreditsUsed
 		
 FROM 
-	(select * from orders where order_id = '4898caa4-01eb-49de-8284-c23079b84436' order by ORDER_DATE desc limit 30) AS o
+	-- (select * from orders where order_id IN ('1289250158', '1188099208', '482779521')) AS o
+	(select * from orders limit 3) AS o
 	-- orders o
 	JOIN order_items i ON o.ORDER_ID = i.ORDER_ID
 GROUP BY 
@@ -171,6 +174,7 @@ GROUP BY
 	o.ORDER_STATE,
 	o.customer_id,
 	o.ORDER_CURRENCYCODE,
+	o.ORDER_STORE,
 	i.ADDRESS_TYPE,
 	i.DELIVERY_CITY, 
 	i.DELIVERY_US_STATE,
@@ -182,16 +186,18 @@ GROUP BY
 	i.PROPOSED_DELIVERY_DATE, 
 	i.ACTUAL_DESPATCH_DATE,  
 	i.ESTIMATED_DESPATCH_DATE
-	
--- LIMIT 10	
-)
+),
 
+cte_order 
+AS
+(
 SELECT
    i.id,
    i.createdAt,
    i.orderReference, 
    i.customerId,
    i.customerEmail,
+   i.ORDER_STORE,
    -- subTotalPrice
    CONCAT('{"centAmount": ', cast(SUM(i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
    -- totalPrice = subTotalPrice + totalShippingAmount
@@ -210,7 +216,7 @@ SELECT
    -- totalDiscount
    CONCAT('{"centAmount": ', cast(SUM(i.totalDiscount) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
    -- creditsUsed (const)
-   CONCAT('{"centAmount": 0, "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
+   CONCAT('{"centAmount": ', cast(SUM(i.CreditsUsed) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
    SUM(i.totalItems) AS totalItems,
    
 	concat('[',
@@ -231,4 +237,44 @@ GROUP BY
 		 i.createdAt,
 		 i.orderReference, 
 		 i.customerId,
-		 i.customerEmail
+		 i.customerEmail,
+		 i.ORDER_STORE
+)
+
+SELECT
+	   customerId AS entity_key,
+			CONCAT('[',
+				
+				LISTAGG(
+							CONCAT('{',
+										 '"id": "', id, '"',
+										  ',"state": ', '"', currentorderstate, '"',
+										 ',"version": 0', 
+										 ',"createdAt": ', '"', createdAt, '"',
+										 ',"orderReference": ', '"', orderReference, '"',
+										 ',"customerId": "', customerId, '"',
+										  IFNULL(CONCAT(',"customerEmail": ', CONCAT('"', customerEmail, '"')), ''),
+										  IFNULL(CONCAT(',"store": "', ORDER_STORE, '"'), ''),
+										  IFNULL(CONCAT(',"subTotalPrice": ', subTotalPrice), ''),
+										  IFNULL(CONCAT(',"totalItemPrice": ', totalItemPrice), ''),
+										  IFNULL(CONCAT(',"totalShippingPrice": ', totalShippingPrice), ''),
+										  IFNULL(CONCAT(',"postagePrice": ', totalShippingPrice), ''),			 -- postagePrice = totalShippingPrice
+										  IFNULL(CONCAT(',"subTotalIncTax": ', subTotalIncTax), ''),
+										  IFNULL(CONCAT(',"totalTaxExclusive": ', totalTaxExclusive), ''),
+										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
+										  IFNULL(CONCAT(',"totalPriceGross": ', totalPrice), ''),			 	 -- totalPriceGross = totalPrice
+										  IFNULL(CONCAT(',"totalDiscount": ', totalDiscount), ''),
+										  ',"creditsUsed": ', creditsUsed, 
+										  IFNULL(CONCAT(',"totalPaid": ', totalPrice), ''),						 -- totalPaid = totalPriceGross = totalPrice
+										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
+										  ',"deliveries": ', deliveries,
+										  ',"dataSource": "S3"', 
+										  '}'
+										 
+										), ',')
+								,']')
+
+		AS orders
+FROM cte_order
+GROUP BY customerId
+-- LIMIT :limit		 
