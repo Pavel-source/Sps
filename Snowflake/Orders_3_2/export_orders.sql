@@ -1,10 +1,15 @@
+WITH cte_Individualshipping 
+AS
+(
 SELECT 
 	o.ORDER_ID AS id, 
-	o.ORDER_DATE_TIME AS Created,
-	o.ORDER_STATE,
+	o.ORDER_DATE_TIME AS createdAt,
+	o.ORDER_STATE AS CURRENTORDERSTATE,
 	o.ORDER_ID AS orderReference,
 	o.customer_id AS customerid,
---	i.REPORTING_CURRENCY AS currencycode,
+	'customerEmail' AS customerEmail,
+	
+	o.ORDER_CURRENCYCODE AS currencycode,
 	
 	-- TOTALWITHVAT = (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX (?))
 	-- GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX) ?
@@ -127,9 +132,31 @@ SELECT
 		IFNULL(CONCAT(',"mobileNumber": "', 'mct.mobile_phone', '"'), ''),  
 		'}'				
 		)
-	AS orderDelivery
+	AS orderDelivery,
 	
+	/*
+	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHVAT else 0 end) AS subTotalPrice,
+	sum(case when o.productcode != 'shipment_generic' then o.TOTALWITHOUTVAT else 0 end) AS totalTaxExclusive,
+	abs(sum(case when o.productcode != 'shipment_generic' then o.DISCOUNTWITHVAT else 0 end)) AS totalDiscount,
+	sum(case when o.productcode != 'shipment_generic' then o.productamount else 0 end) AS totalItems,
+	sum(case when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 	
+	TOTALWITHVAT (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX (?)), 
+	TOTALWITHOUTVAT (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_EX_TAX ?),
+	DISCOUNTWITHVAT (PRODUCT_DISCOUNT_INC_TAX)
+	i.QUANTITY
+	WITHVAT + DISCOUNTWITHVAT (POSTAGE_SUBTOTAL (?) +(?) POSTAGE_DISCOUNT_INC_TAX)
+	*/
+	
+	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX) AS subTotalPrice,
+	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_EX_TAX) AS totalTaxExclusive,
+	SUM(i.PRODUCT_DISCOUNT_INC_TAX) AS totalDiscount,
+	SUM(i.QUANTITY) AS totalItems,
+	SUM(i.POSTAGE_SUBTOTAL)  AS totalShippingPrice,
+	
+--	GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX + POSTAGE_SUBTOTAL) ?
+	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + i.POSTAGE_SUBTOTAL) AS GRANDTOTALFORPAYMENT
+		
 FROM 
 	(select * from orders where order_id = '4898caa4-01eb-49de-8284-c23079b84436' order by ORDER_DATE desc limit 30) AS o
 	-- orders o
@@ -143,6 +170,7 @@ GROUP BY
 	o.ORDER_DATE_TIME,
 	o.ORDER_STATE,
 	o.customer_id,
+	o.ORDER_CURRENCYCODE,
 	i.ADDRESS_TYPE,
 	i.DELIVERY_CITY, 
 	i.DELIVERY_US_STATE,
@@ -156,3 +184,51 @@ GROUP BY
 	i.ESTIMATED_DESPATCH_DATE
 	
 -- LIMIT 10	
+)
+
+SELECT
+   i.id,
+   i.createdAt,
+   i.orderReference, 
+   i.customerId,
+   i.customerEmail,
+   -- subTotalPrice
+   CONCAT('{"centAmount": ', cast(SUM(i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
+   -- totalPrice = subTotalPrice + totalShippingAmount
+  -- CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+   CONCAT('{"centAmount": ', cast(i.GRANDTOTALFORPAYMENT * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+
+  -- totalItemPrice = totalPrice + totalDiscount - totalShippingAmount
+   CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) - SUM(i.totalShippingPrice)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   -- subTotalIncTax = totalItemPrice + totalShippingPrice
+   CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   -- totalShippingPrice
+   CONCAT('{"centAmount": ', cast(SUM(i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
+   -- totalTaxExclusive
+   CONCAT('{"centAmount": ', cast(SUM(i.totalTaxExclusive) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
+  -- CONCAT('{"centAmount": ', cast(i.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
+   -- totalDiscount
+   CONCAT('{"centAmount": ', cast(SUM(i.totalDiscount) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
+   -- creditsUsed (const)
+   CONCAT('{"centAmount": 0, "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
+   SUM(i.totalItems) AS totalItems,
+   
+	concat('[',
+	LTRIM(LISTAGG(IFNULL(i.orderDelivery, ''), ','), ',')
+		  , ']')
+	AS deliveries,
+	
+   i.currentorderstate
+		
+FROM cte_Individualshipping i
+GROUP BY
+		 i.customerId,
+		 i.id,
+		 
+		 i.currencycode,
+		 i.currentorderstate,
+		 i.GRANDTOTALFORPAYMENT,
+		 i.createdAt,
+		 i.orderReference, 
+		 i.customerId,
+		 i.customerEmail
