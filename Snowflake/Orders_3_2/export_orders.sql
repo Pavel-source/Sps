@@ -50,13 +50,13 @@ SELECT
 			case 
 				 when i.SHIPMENT_STATE = 'Ready' then 'Ready'
                  when i.SHIPMENT_STATE = 'Pending' then 'Pending'
-				 when i.SHIPMENT_STATE IS NULL then ''
+				 when i.SHIPMENT_STATE IS NULL then 'null'
 			end
 		, '"')), ''), 
 		
 		IFNULL(CONCAT(',"firstName": "', replace(replace('r.firstname', '\r\n', ' '),'\n', ' '), '"'), ''),
 		IFNULL(CONCAT(',"lastName": "', replace(replace('r.lastname', '\r\n', ' '),'\n', ' '),'"'), ''),
-		IFNULL(CONCAT(',"deliveryType": "', 'POSTAL', '"'), ''),
+		IFF(DELIVERY_METHOD = 'Email', ',"deliveryType": "EMAIL"', ',"deliveryType": "POSTAL"'),
 
 		',"address": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
@@ -105,8 +105,8 @@ SELECT
 							   '"id": "', i.ORDER_LINE_ITEM_ID, '"',
 							    IFNULL(CONCAT(',"title": "', i.PRODUCT_TITLE, '"'), ''),  
 							   ',"quantity": ', i.QUANTITY,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', '555', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')),  
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', '555', ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')), 
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * (i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX) AS INT), ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')),  
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * (i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX) / i.QUANTITY AS INT)), ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')), 
 							   ',"productType": "', i.PRODUCT_TYPE_NAME, '"',						   
 							   ',"sku": "',  i.SKU_VARIANT, '"',
 							--   ',"productSlug": ""',  
@@ -157,7 +157,7 @@ SELECT
 --	GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX + POSTAGE_SUBTOTAL) ?
 	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + i.POSTAGE_SUBTOTAL) AS GRANDTOTALFORPAYMENT,
 	-- CreditsUsed = PREPAY + BONUS ?
-	SUM(PREPAY + BONUS) AS CreditsUsed
+	SUM(IFNULL(PREPAY, 0) + IFNULL(BONUS, 0)) AS CreditsUsed
 		
 FROM 
 	-- (select * from orders where order_id IN ('1289250158', '1188099208', '482779521')) AS o
@@ -204,10 +204,16 @@ SELECT
   -- CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
    CONCAT('{"centAmount": ', cast(i.GRANDTOTALFORPAYMENT * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
 
-  -- totalItemPrice = totalPrice + totalDiscount - totalShippingAmount
-   CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) - SUM(i.totalShippingPrice)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+  -- totalItemPrice = totalPrice + totalDiscount(?) - totalShippingAmount
+   -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT /*+ SUM(i.totalDiscount)*/ - SUM(i.totalShippingPrice)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   -- new: totalItemPrice = subTotalPrice = subTotalIncTax ?
+   CONCAT('{"centAmount": ', cast(SUM(i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   
    -- subTotalIncTax = totalItemPrice + totalShippingPrice
-   CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+      -- new: totalItemPrice = subTotalPrice = subTotalIncTax ?
+   CONCAT('{"centAmount": ', cast(SUM(i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
+   
    -- totalShippingPrice
    CONCAT('{"centAmount": ', cast(SUM(i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
    -- totalTaxExclusive
