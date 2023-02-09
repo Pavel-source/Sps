@@ -107,10 +107,10 @@ SELECT
 							   ',"quantity": ', i.QUANTITY,
 							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * (i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX) AS INT), ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')),  
 							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * (i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX) / i.QUANTITY AS INT)), ', "currencyCode": "', i.REPORTING_CURRENCY, '"}')), 
-							   ',"productType": "', i.PRODUCT_TYPE_NAME, '"',						   
-							   ',"sku": "',  i.SKU_VARIANT, '"',
+							   IFNULL(CONCAT(',"productType": "', i.PRODUCT_TYPE_NAME, '"'), ''),
+							   IFNULL(CONCAT(',"sku": "', i.SKU_VARIANT, '"'), ''),
 							--   ',"productSlug": ""',  
-							   ',"productKey": "', i.SKU, '"',
+							   IFNULL(CONCAT(',"productKey": "', i.SKU, '"'), ''),
 										'}'
 									)
 									
@@ -152,10 +152,10 @@ SELECT
 	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_EX_TAX) AS totalTaxExclusive,
 	SUM(i.PRODUCT_DISCOUNT_INC_TAX) AS totalDiscount,
 	SUM(i.QUANTITY) AS totalItems,
-	SUM(i.POSTAGE_SUBTOTAL)  AS totalShippingPrice,
+	SUM(IFNULL(i.POSTAGE_SUBTOTAL, 0))  AS totalShippingPrice,
 	
 --	GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX + POSTAGE_SUBTOTAL) ?
-	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + i.POSTAGE_SUBTOTAL) AS GRANDTOTALFORPAYMENT,
+	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + IFNULL(i.POSTAGE_SUBTOTAL, 0)) AS GRANDTOTALFORPAYMENT,
 	-- CreditsUsed = PREPAY + BONUS ?
 	SUM(IFNULL(PREPAY, 0) + IFNULL(BONUS, 0)) AS CreditsUsed
 		
@@ -164,6 +164,11 @@ FROM
 	(select * from orders limit 3) AS o
 	-- orders o
 	JOIN order_items i ON o.ORDER_ID = i.ORDER_ID
+	
+WHERE 
+	  o.BRAND = 'mnpg'	
+	  AND i.BRAND = 'mnpg'
+	  
 GROUP BY 
 	o.ORDER_ID,
 	i.ADDRESS_ID,
