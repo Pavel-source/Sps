@@ -161,7 +161,7 @@ SELECT
 		
 FROM 
 	-- (select * from orders where order_id IN ('1289250158', '1188099208', '482779521')) AS o
-	(select * from orders limit 3) AS o
+	(select * from orders where BRAND = 'mnpg' and ORDER_DATE_TIME > dateadd(month, -26, current_date()) limit 3) AS o
 	-- orders o
 	JOIN order_items i ON o.ORDER_ID = i.ORDER_ID
 	
@@ -288,4 +288,6 @@ SELECT
 		AS orders
 FROM cte_order
 GROUP BY customerId
+HAVING MIN(createdAt) > dateadd(month, -26, current_date())
+ORDER BY customerId
 -- LIMIT :limit		 
