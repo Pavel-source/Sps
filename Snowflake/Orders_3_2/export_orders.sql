@@ -3,46 +3,17 @@ AS
 (
 SELECT 
 	o.ORDER_ID AS id, 
+	o.MCD_ORDER_ID,
+	o.ORDER_NUMBER AS ORDER_NUMBER_CT,	-- "The customer-facing order reference number for CT orders"
 	o.ORDER_DATE_TIME AS createdAt,
 	o.ORDER_STATE AS CURRENTORDERSTATE,
 	o.ORDER_ID AS orderReference,
 	o.customer_id AS customerid,
+	o.MCD_CUSTOMER_ID,
 	'customerEmail' AS customerEmail,
 	o.ORDER_CURRENCYCODE AS currencycode,
 	o.ORDER_STORE,
-	
-	-- TOTALWITHVAT = (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX (?))
-	-- GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX) ?
-	-- DISCOUNTWITHVAT = PRODUCT_DISCOUNT_INC_TAX
-	-- totalPrice = (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX (?))
---	i.PRODUCT_UNIT_PRICE, 
---	i.PRODUCT_DISCOUNT_INC_TAX, 
---	i.PRODUCT_TOTAL_TAX,
-	
-	-- TOTALWITHOUTVAT = (PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_EX_TAX ?)
---	i.PRODUCT_DISCOUNT_EX_TAX,
-	-- totalShippingPrice: when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT
---	i.POSTAGE_SUBTOTAL, -- ?
-	-- POSTAGE_DISCOUNT_INC_TAX,  -- POSTAGE_SUBTOTAL includes DISCOUNT
-	
-	-- deliveryDate (=PROPOSED_DELIVERY_DATE ?)
---	i.PROPOSED_DELIVERY_DATE,
-	
---	i.ACTUAL_DESPATCH_DATE,
---	i.ESTIMATED_DESPATCH_DATE,
---	i.TRACKING_CODE,
-	
---	i.SKU AS productKey,
---	i.PRODUCT_TYPE_NAME,	-- productTypeKey, product_type
---	i.SKU_VARIANT,		-- sku_id
---	i.PRODUCT_TITLE,		-- nl_product_name
---	i.ORDER_LINE_ITEM_ID,		-- ol_id
---	i.QUANTITY,		--  productamount
-	
-	
--- ?  email	
---	channelid
-	
+		
 	CONCAT('{',
 		'"id": ', CONCAT('"delivery_', o.ORDER_ID, '_', IFNULL(i.ADDRESS_ID, '0'), '"'),
 		
@@ -157,7 +128,8 @@ SELECT
 --	GRANDTOTALFORPAYMENT = SUM(PRODUCT_UNIT_PRICE + PRODUCT_DISCOUNT_INC_TAX + PRODUCT_TOTAL_TAX + POSTAGE_SUBTOTAL) ?
 	SUM(i.PRODUCT_UNIT_PRICE + i.PRODUCT_DISCOUNT_INC_TAX + i.PRODUCT_TOTAL_TAX + IFNULL(i.POSTAGE_SUBTOTAL, 0)) AS GRANDTOTALFORPAYMENT,
 	-- CreditsUsed = PREPAY + BONUS ?
-	SUM(IFNULL(PREPAY, 0) + IFNULL(BONUS, 0)) AS CreditsUsed
+	SUM(IFNULL(PREPAY, 0) + IFNULL(BONUS, 0)) AS CreditsUsed,
+	COUNT(*) AS orders_count
 		
 FROM 
 	-- (select * from orders where order_id IN ('1289250158', '1188099208', '482779521')) AS o
@@ -168,6 +140,9 @@ FROM
 WHERE 
 	  o.BRAND = 'mnpg'	
 	  AND i.BRAND = 'mnpg'
+	  AND o.MCD_CUSTOMER_ID IS NOT NULL
+	  AND o.MCD_ORDER_ID IS NOT NULL
+	  
 	  
 GROUP BY 
 	o.ORDER_ID,
@@ -190,7 +165,10 @@ GROUP BY
 	i.FULFILMENT_CENTRE_COUNTRY_CODE,
 	i.PROPOSED_DELIVERY_DATE, 
 	i.ACTUAL_DESPATCH_DATE,  
-	i.ESTIMATED_DESPATCH_DATE
+	i.ESTIMATED_DESPATCH_DATE,
+	o.MCD_ORDER_ID,
+	o.MCD_CUSTOMER_ID,
+	o.ORDER_NUMBER
 ),
 
 cte_order 
@@ -198,11 +176,14 @@ AS
 (
 SELECT
    i.id,
+   i.MCD_ORDER_ID,
+   i.ORDER_NUMBER_CT,
    i.createdAt,
    i.orderReference, 
    i.customerId,
    i.customerEmail,
    i.ORDER_STORE,
+   i.MCD_CUSTOMER_ID,
    -- subTotalPrice
    CONCAT('{"centAmount": ', cast(SUM(i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
    -- totalPrice = subTotalPrice + totalShippingAmount
@@ -235,7 +216,8 @@ SELECT
 		  , ']')
 	AS deliveries,
 	
-   i.currentorderstate
+   i.currentorderstate,
+   SUM(orders_count) AS orders_count
 		
 FROM cte_Individualshipping i
 GROUP BY
@@ -249,21 +231,29 @@ GROUP BY
 		 i.orderReference, 
 		 i.customerId,
 		 i.customerEmail,
-		 i.ORDER_STORE
+		 i.ORDER_STORE,
+		 i.MCD_ORDER_ID,
+		 i.MCD_CUSTOMER_ID,
+		 i.ORDER_NUMBER_CT
 )
 
 SELECT
-	   customerId AS entity_key,
+	   MCD_CUSTOMER_ID AS entity_key,
+	   SUM(orders_count) AS orders_count,
+	   
 			CONCAT('[',
 				
 				LISTAGG(
 							CONCAT('{',
 										 '"id": "', id, '"',
-										  ',"state": ', '"', currentorderstate, '"',
+										 ',"mcd_order_id": ', MCD_ORDER_ID, 	
+										 ',"ct_order_number": "', ORDER_NUMBER_CT, '"',	
+										 ',"customerId": "', customerId, '"',
+										 ',"mcd_customer_id": ', MCD_CUSTOMER_ID, 
+										 ',"state": ', '"', currentorderstate, '"',
 										 ',"version": 0', 
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
-										 ',"customerId": "', customerId, '"',
 										  IFNULL(CONCAT(',"customerEmail": ', CONCAT('"', customerEmail, '"')), ''),
 										  IFNULL(CONCAT(',"store": "', ORDER_STORE, '"'), ''),
 										  IFNULL(CONCAT(',"subTotalPrice": ', subTotalPrice), ''),
@@ -287,7 +277,7 @@ SELECT
 
 		AS orders
 FROM cte_order
-GROUP BY customerId
-HAVING MIN(createdAt) > dateadd(month, -26, current_date())
-ORDER BY customerId
--- LIMIT :limit		 
+GROUP BY MCD_CUSTOMER_ID
+HAVING MAX(createdAt) > dateadd(month, -26, current_date())
+ORDER BY MCD_CUSTOMER_ID
+--LIMIT :limit		 
