@@ -44,80 +44,8 @@ SELECT
 	cte.EMAILADDRESS AS customerEmail,
 	o.ORDER_CURRENCYCODE AS currencycode,
 	o.ORDER_STORE,
-
-	CONCAT('{',
-		'"id": ', CONCAT('"delivery_', o.ORDER_ID, '_', IFNULL(i.ADDRESS_ID, '0'), '_',
-						 case i.ITEM_STATE when 'Cancelled' then '2' else '1' end,
-						 '"'),
-
-		CONCAT(',"status": ', case i.ITEM_STATE when 'Cancelled' then 300 else 202 end),
-		IFNULL(CONCAT(',"firstName": "', ab.firstname, '"'), ''),
-		IFNULL(CONCAT(',"lastName": "', ab.lastname,'"'), ''),
-		IFF(i.DELIVERY_METHOD = 'Email', ',"deliveryType": 1', ',"deliveryType": 0'),
-
-		',"address": ', 	IFNULL(CONCAT('{',
-												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
-												IFNULL(CONCAT(',"firstName": "', ab.firstname, '"'), ''),
-												IFNULL(CONCAT(',"lastName": "', ab.lastname, '"'), ''),
-                                            --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
-											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
-											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
-											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
-												IFNULL(CONCAT(',"addressFirstLine": "', replace(replace(ab.ADDRESS, '\r\n', ' '),'\n', ' '), '"'), ''),
-                                                IFNULL(CONCAT(',"city": "', ab.TOWN, '"'), ''),
-												IFNULL(CONCAT(',"state": "', ab.COUNTY, '"'), ''),
-                                                IFNULL(CONCAT(',"postcode": "', ab.POSTCODE, '"'), ''),
-												IFNULL(CONCAT(',"country": ', CONCAT('"', cn.COUNTRY, '"')), ''),
-												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', ab.EMAILADDRESS, '"')), ''),
-												IFNULL(CONCAT(',"isMyAddress": ',  IFF(i.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
-											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
-												'}'), 'null'),
-
--- "recipientAddress" is the same as "address"
-		',"recipientAddress": ', 	IFNULL(CONCAT('{',
-												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
-												IFNULL(CONCAT(',"firstName": "', ab.firstname, '"'), ''),
-												IFNULL(CONCAT(',"lastName": "', ab.lastname, '"'), ''),
-                                            --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
-											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
-											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
-											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
-												IFNULL(CONCAT(',"addressFirstLine": "', replace(replace(ab.ADDRESS, '\r\n', ' '),'\n', ' '), '"'), ''),
-                                                IFNULL(CONCAT(',"city": "', ab.TOWN, '"'), ''),
-												IFNULL(CONCAT(',"state": "', ab.COUNTY, '"'), ''),
-                                                IFNULL(CONCAT(',"postcode": "', ab.POSTCODE, '"'), ''),
-												IFNULL(CONCAT(',"country": ', CONCAT('"', cn.COUNTRY, '"')), ''),
-												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', ab.EMAILADDRESS, '"')), ''),
-												IFNULL(CONCAT(',"isMyAddress": ',  IFF(i.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
-											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
-												'}'), 'null'),
-
-		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(i.PROPOSED_DELIVERY_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
-		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(i.ACTUAL_DESPATCH_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
-		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(i.ESTIMATED_DESPATCH_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
-
-		',"orderItems": ',	replace(replace(concat('[',
-						LISTAGG(
-							CONCAT('{',
-							   '"id": "', i.ORDER_LINE_ITEM_ID, '"',
-							    IFNULL(CONCAT(',"title": "', replace(replace(i.PRODUCT_TITLE, '''', '''' ), '"', ''''), '"'), ''),
-							   ',"quantity": ', i.QUANTITY,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * i.ITEM_ESIV AS INT), ', "currencyCode": "', o.ORDER_CURRENCYCODE, '"}')),
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * i.ITEM_ESIV / i.QUANTITY AS INT)), ', "currencyCode": "', o.ORDER_CURRENCYCODE, '"}')),
-							   IFNULL(CONCAT(',"productType": "', i.PRODUCT_TYPE_NAME, '"'), ''),
-							   IFNULL(CONCAT(',"sku": "', i.SKU_VARIANT, '"'), ''),
-							--   ',"productSlug": ""',
-							   IFNULL(CONCAT(',"productKey": "', i.SKU, '"'), ''),
-										'}'
-									)
-
-							, ',')
-							, ']'), '{},', ''), ',{}', ''),
-
-		',"deliveryInformation": ', 	CONCAT('{',
-		
-		CONCAT('"postageType": ', 
-			case i.DELIVERY_METHOD
+	
+	case i.DELIVERY_METHOD
 				when 'Aus Post - Express' then 35
 				when 'Aus Post - Standard' then 36
 				when 'Australia Post Standard' then 36
@@ -147,22 +75,100 @@ SELECT
 				when 'Telegram' then 17
 				when 'Valentine''s Day Delivery' then 32
 				when 'Yodel Courier' then 27 
+				when 'Christmas Eve Delivery' then 47
+				when 'Father''s Day Delivery' then 46
+				when 'Father''s Day Delivery - Sunday 19th June' then 46
+				when 'Royal Mail T24 Letterboxable' then 59
+				when 'Royal Mail Tracked 24' then 44
 				else 5	-- 'None'
-			end		
-		),
+			end	
+	AS DELIVERY_METHOD_ID,
+
+	CONCAT('{',
+		'"id": ', CONCAT('"delivery_', o.ORDER_ID, '_', IFNULL(i.ADDRESS_ID, '0'), '_',
+						 case i.ITEM_STATE when 'Cancelled' then '2' else '1' end,
+						 '"'),
+
+		CONCAT(',"status": ', case i.ITEM_STATE when 'Cancelled' then 300 else 202 end),
+		IFNULL(CONCAT(',"firstName": "', replace(replace(ab.firstname, '\r', ' '),'\n', ' '), '"'), ''),
+		IFNULL(CONCAT(',"lastName": "', replace(replace(ab.lastname, '\r', ' '),'\n', ' '),'"'), ''),
+		IFF(i.DELIVERY_METHOD = 'Email', ',"deliveryType": 1', ',"deliveryType": 0'),
+
+		',"address": ', 	IFNULL(CONCAT('{',
+												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
+												IFNULL(CONCAT(',"firstName": "', replace(replace(ab.firstname, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"lastName": "', replace(replace(ab.lastname, '\r', ' '),'\n', ' '), '"'), ''),
+                                            --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
+											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
+											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
+											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
+												IFNULL(CONCAT(',"addressFirstLine": "',  replace(replace(replace(replace(ab.ADDRESS, '\r', ' '),'\n', ' '), '"',''''), '	', ' '),    '"'), ''),
+                                                IFNULL(CONCAT(',"city": "', replace(replace(ab.TOWN, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"state": "', replace(replace(ab.COUNTY, '\r', ' '),'\n', ' '), '"'), ''),
+                                                IFNULL(CONCAT(',"postcode": "', replace(replace(ab.POSTCODE, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"country": ', CONCAT('"', replace(replace(cn.COUNTRY, '\r', ' '),'\n', ' '), '"')), ''),
+												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', replace(replace(ab.EMAILADDRESS, '\r', ' '),'\n', ' '), '"')), ''),
+												IFNULL(CONCAT(',"isMyAddress": ',  IFF(i.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
+											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
+												'}'), 'null'),
+
+-- "recipientAddress" is the same as "address"
+		',"recipientAddress": ', 	IFNULL(CONCAT('{',
+												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
+												IFNULL(CONCAT(',"firstName": "', replace(replace(ab.firstname, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"lastName": "', replace(replace(ab.lastname, '\r', ' '),'\n', ' '), '"'), ''),
+                                            --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
+											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
+											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
+											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
+												IFNULL(CONCAT(',"addressFirstLine": "',  replace(replace(replace(replace(ab.ADDRESS, '\r', ' '),'\n', ' '), '"',''''), '	', ' '),    '"'), ''),
+                                                IFNULL(CONCAT(',"city": "', replace(replace(ab.TOWN, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"state": "', replace(replace(ab.COUNTY, '\r', ' '),'\n', ' '), '"'), ''),
+                                                IFNULL(CONCAT(',"postcode": "', replace(replace(ab.POSTCODE, '\r', ' '),'\n', ' '), '"'), ''),
+												IFNULL(CONCAT(',"country": ', CONCAT('"', replace(replace(cn.COUNTRY, '\r', ' '),'\n', ' '), '"')), ''),
+												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', replace(replace(ab.EMAILADDRESS, '\r', ' '),'\n', ' '), '"')), ''),
+												IFNULL(CONCAT(',"isMyAddress": ',  IFF(i.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
+											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
+												'}'), 'null'),
+
+		IFNULL(CONCAT(',"deliveryDate": ', CONCAT('"', cast(cast(i.PROPOSED_DELIVERY_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
+		IFNULL(CONCAT(',"actualDispatchDate": ', CONCAT('"', cast(cast(i.ACTUAL_DESPATCH_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
+		IFNULL(CONCAT(',"estimatedDispatchDate": ', CONCAT('"', cast(cast(i.ESTIMATED_DESPATCH_DATE AS DATE) AS VARCHAR(50)), '"')), ''),
+
+		',"orderItems": ',	replace(replace(concat('[',
+						LISTAGG(
+							CONCAT('{',
+							   '"id": "', i.ORDER_LINE_ITEM_ID, '"',
+							    IFNULL(CONCAT(',"title": "', replace(replace(replace(i.PRODUCT_TITLE, '"', ''''), '\r', ' '),'\n', ' ')  , '"'), ''),
+							   ',"quantity": ', i.QUANTITY,
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * i.ITEM_ESIV AS INT), ', "currencyCode": "', o.ORDER_CURRENCYCODE, '"}')),
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * i.ITEM_ESIV / i.QUANTITY AS INT)), ', "currencyCode": "', o.ORDER_CURRENCYCODE, '"}')),
+							   IFNULL(CONCAT(',"productType": "', i.PRODUCT_TYPE_NAME, '"'), ''),
+							   IFNULL(CONCAT(',"sku": "', i.SKU_VARIANT, '"'), ''),
+							--   ',"productSlug": ""',
+							   IFNULL(CONCAT(',"productKey": "', i.SKU, '"'), ''),
+										'}'
+									)
+
+							, ',')
+							, ']'), '{},', ''), ',{}', ''),
+
+		',"deliveryInformation": ', 	CONCAT('{',
 		
-										IFNULL(CONCAT(',"deliveryMethodId": "', IFNULL(i.DELIVERY_METHOD, 'NONE') , '"'), ''),
-										IFNULL(CONCAT(',"deliveryMethodName": "', IFNULL(i.DELIVERY_METHOD, 'Standard') , '"'), ''),
-										IFNULL(CONCAT(',"trackingNumber": "', i.TRACKING_CODE, '"'), ''),
+		CONCAT('"postageType": ', DELIVERY_METHOD_ID),
+		
+										IFNULL(CONCAT(',"deliveryMethodId": "', DELIVERY_METHOD_ID , '"'), ''),
+										IFNULL(CONCAT(',"deliveryMethodName": "', IFF(DELIVERY_METHOD_ID = 5, 'None', i.DELIVERY_METHOD) , '"'), ''),
+										IFNULL(CONCAT(',"trackingNumber": "', replace(replace(i.TRACKING_CODE, '\r', ' '),'\n', ' '), '"'), ''),
 									--	IFNULL(CONCAT(',"trackingUrl": ""'), ''),
 									--	IFNULL(CONCAT(',"fullTrackingUrl": ""'), ''),
 										',"fulfilmentCentre" : {',
-										IFNULL(CONCAT('"id": "', i.FULFILMENT_CENTRE_ID, '"'), ''),
-										IFNULL(CONCAT(',"countryCode": "', i.FULFILMENT_CENTRE_COUNTRY_CODE, '"'), ''),
+										IFNULL(CONCAT('"id": "', oia.PRINTSITEID, '"'), ''),
+										IFNULL(CONCAT(',"countryCode": "', case when oia.PRINTSITEID = 2 then 'AU' when oia.PRINTSITEID = 4 then 'US' when oia.PRINTSITEID IS NOT NULL then 'GB' end, '"'), ''),
 										'}', '}'),
 								   --		'deliveryType', dp.type,
 
-		IFNULL(CONCAT(',"mobileNumber": "', ab.TELEPHONENO, '"'), ''),
+		IFNULL(CONCAT(',"mobileNumber": "', replace(replace(ab.TELEPHONENO, '\r', ' '),'\n', ' '), '"'), ''),
 		'}'
 		)
 	AS orderDelivery,
@@ -204,7 +210,8 @@ FROM
 	LEFT JOIN (
 				SELECT ORDERNO,
 					  ITEMNO,
-					  DELIVERYADDRESSBOOKID
+					  DELIVERYADDRESSBOOKID,
+					  PRINTSITEID
 				FROM PROD.RAW_MOONPIG_MCD.ORDERITEMADDRESS 
 				QUALIFY ROW_NUMBER() OVER (PARTITION BY ORDERNO, ITEMNO ORDER BY EXTRACT_DATE DESC) = 1
 			  ) oia
@@ -226,11 +233,15 @@ FROM
 				) ab
 				ON oia.DELIVERYADDRESSBOOKID = ab.ADDRESSBOOKID
 	LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."COUNTRY" cn ON ab.COUNTRYID = cn.COUNTRYID
-
+	LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON cs.ORDER_ID = o.ORDER_ID
 WHERE 
       o.brand = 'mnpg'
 	  AND i.BRAND = 'mnpg'
---	  AND o.mcd_order_id::STRING = o.order_id
+	  AND o.mcd_order_id IS NOT NULL
+	  AND (
+			o.mcd_order_id::STRING = o.order_id
+			OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE < '2023-02-21')
+		  )
 
 GROUP BY
 	o.ORDER_ID,
@@ -246,8 +257,6 @@ GROUP BY
 	i.ADDRESS_TYPE,
 	i.DELIVERY_METHOD,
 	i.TRACKING_CODE,
-	i.FULFILMENT_CENTRE_ID,
-	i.FULFILMENT_CENTRE_COUNTRY_CODE,
 	i.PROPOSED_DELIVERY_DATE,
 	i.ACTUAL_DESPATCH_DATE,
 	i.ESTIMATED_DESPATCH_DATE,
@@ -271,7 +280,8 @@ GROUP BY
 	AB.POSTCODE,
 	CN.COUNTRY,
 	AB.EMAILADDRESS,
-	AB.TELEPHONENO	
+	AB.TELEPHONENO,
+	oia.PRINTSITEID	
 ),
 
 cte_CT_order_cnt
@@ -359,7 +369,7 @@ SELECT mcd_customer_id                       AS entity_key,
 										 '"id": "', id, '"',
 										 ',"customerId": "', o.customerId, '"',
 										 ',"state": ', '"', currentorderstate, '"',
-										 ',"version": 0',
+										 ',"version": ', IFF(id like 'LEGO%', '0', '5'),
 										 ',"createdAt": ', '"', createdAt, '"',
 										 ',"orderReference": ', '"', orderReference, '"',
 										  IFNULL(CONCAT(',"customerEmail": ', CONCAT('"', customerEmail, '"')), ''),
