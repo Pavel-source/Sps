@@ -189,20 +189,75 @@ SELECT
 	sum(case when o.productcode = 'shipment_generic' then o.WITHVAT + o.DISCOUNTWITHVAT else 0 end)  AS totalShippingPrice
 	*/
 
-	o.ORDER_ESIV AS subTotalPrice,
-	o.ORDER_ESEV AS totalTaxExclusive,
+	-- o.ORDER_ESIV AS subTotalPrice,
+	-- o.ORDER_ESEV AS totalTaxExclusive,
+	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) - o.POSTAGE_SUBTOTAL  AS subTotalPrice,
+	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) AS totalTaxExclusive,
+	
 	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
 	SUM(i.QUANTITY) AS totalItems,
 	o.POSTAGE_SUBTOTAL AS totalShippingPrice,
-	o.ORDER_CASH_PAID  AS GRANDTOTALFORPAYMENT,
-	SUM(IFNULL(PREPAY, 0) + IFNULL(BONUS, 0)) AS CreditsUsed,
+	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0))  AS GRANDTOTALFORPAYMENT,
+	SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) AS CreditsUsed,
 	IFF(o.mcd_order_id::STRING = o.order_id, 1, 0) AS NewOrder
 		
 FROM
 	-- (select * from orders where order_id IN ('52a49175-60c6-439d-b7cf-6339b7ae3854', '44ecebf0-e208-4736-b850-c170aa1309ea') or order_number = 'YYHRYCE') AS o
 	cte_customers cte
-	JOIN orders o ON cte.customer_id = o.customer_id
-	JOIN order_items i ON o.ORDER_ID = i.ORDER_ID
+	JOIN 
+	(
+	SELECT  mcd_order_id, order_id, ORDER_NUMBER, ORDER_DATE_TIME, customer_id, MCD_CUSTOMER_ID,  ORDER_CURRENCYCODE, ORDER_STORE, 
+			ORDER_STATE, ORDER_CASH_PAID, ORDER_ESIV, ORDER_ESEV, PRODUCT_DISCOUNT_INC_TAX, POSTAGE_SUBTOTAL, BRAND
+	FROM orders
+	UNION ALL
+	SELECT ORDER_ID, commerce_tools_id, ENCRYPTED_ORDER_ID, ORDER_DATE, c.customer_id, r.CUSTOMER_ID, CURRENCY_ID,
+		CASE
+			WHEN r.cardshop = 'Moonpig' THEN 'UK'
+			WHEN r.cardshop = 'Moonpig Australia' THEN 'AU'
+			WHEN r.cardshop = 'Moonpig USA' THEN 'US'
+		END AS order_store,
+		ORDER_STATUS, CASH_PAID, ORDER_ESIV, ORDER_ESEV, DISCOUNTGIVEN, r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL,
+		'mnpg' as BRAND
+	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
+		  JOIN customers c ON r.customer_id = c.mcd_customer_id
+	WHERE commerce_tools_id is null 
+		  OR commerce_tools_id not in (SELECT order_id FROM orders)
+	)
+	o ON cte.customer_id = o.customer_id
+	JOIN 
+	(
+	SELECT  ORDER_ID, ORDER_LINE_ITEM_ID, MCD_ORDER_ID, MCD_ITEM_ID, DELIVERY_METHOD, ITEM_STATE, ADDRESS_TYPE, PROPOSED_DELIVERY_DATE, 
+			ACTUAL_DESPATCH_DATE, ESTIMATED_DESPATCH_DATE, PRODUCT_TITLE, QUANTITY, ITEM_ESIV, PRODUCT_TYPE_NAME, SKU_VARIANT, 
+			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS
+	FROM "PROD".events_lookup.ct_order_items_detailed 
+	UNION ALL
+	SELECT  
+	commerce_tools_id,
+COMMERCETOOLS_LINE_ITEM_ID,
+ORDER_ID,
+ITEM_ID,
+POSTAGE_TYPE,
+ITEM_STATUS,
+ADDRESS_TYPE_NAME,
+NULL AS PROPOSED_DELIVERY_DATE, -- from events_lookup.ct_order_items_detailed
+DISPATCH_DATE,
+DISPATCH_DATE,
+PRODUCT_TITLE,
+QUANTITY,
+ITEM_ESIV,
+PRODUCTCATEGORY,
+NULL AS SKU_VARIANT,
+SKU,
+COURIER_TRACKING_CODE,
+'mnpg' as BRAND,
+PREPAY, 
+BONUS
+	
+	FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
+	WHERE commerce_tools_id is null 
+		  OR commerce_tools_id not in (SELECT order_id FROM orders)
+	) i
+	ON o.ORDER_ID = i.ORDER_ID
 	LEFT JOIN (
 				SELECT ORDERNO,
 					  ITEMNO,
@@ -236,7 +291,7 @@ WHERE
 	  AND o.mcd_order_id IS NOT NULL
 	  AND (
 			o.mcd_order_id::STRING = o.order_id
-			OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE < '2023-02-21')
+			OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE_TIME < '2023-02-21')
 		  )
 
 GROUP BY
