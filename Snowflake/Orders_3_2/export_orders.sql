@@ -3,8 +3,8 @@ AS
 (
 SELECT o.customer_id, 
 	   IFNULL(c.MCD_CUSTOMER_ID, MAX(o.MCD_CUSTOMER_ID)) AS MCD_CUSTOMERID
-FROM orders o
-	 LEFT JOIN customers c ON o.customer_id = c.customer_id			-- 4568 customers from orders table don't exist in customers table; and they have orders for migration.
+FROM "PROD"."DW_CORE".orders o
+	 LEFT JOIN "PROD"."DW_CORE".customers c ON o.customer_id = c.customer_id			-- 4568 customers from orders table don't exist in customers table; and they have orders for migration.
 WHERE o.brand = 'mnpg'
 	-- AND o.customer_id = 'b9278087-07ce-4c05-8d4d-a9a05c559782'
 	/* AND o.customer_id  IN (
@@ -208,20 +208,35 @@ FROM
 	(
 	SELECT  mcd_order_id, order_id, ORDER_NUMBER, ORDER_DATE_TIME, customer_id, MCD_CUSTOMER_ID,  ORDER_CURRENCYCODE, ORDER_STORE, 
 			ORDER_STATE, ORDER_CASH_PAID, ORDER_ESIV, ORDER_ESEV, PRODUCT_DISCOUNT_INC_TAX, POSTAGE_SUBTOTAL, BRAND
-	FROM orders
+	FROM "PROD"."DW_CORE".orders
 	UNION ALL
-	SELECT ORDER_ID, commerce_tools_id, ENCRYPTED_ORDER_ID, ORDER_DATE, c.customer_id, r.CUSTOMER_ID, CURRENCY_ID,
+	SELECT 
+		ORDER_ID 			AS mcd_order_id, 
+		commerce_tools_id 	AS order_id, 
+		ENCRYPTED_ORDER_ID 	AS ORDER_NUMBER, 
+		ORDER_DATE 			AS ORDER_DATE_TIME, 
+		c.customer_id 		AS customer_id, 
+		r.CUSTOMER_ID 		AS MCD_CUSTOMER_ID, 
+		cr.ISO4217CURRENCY	AS ORDER_CURRENCYCODE,
+		
 		CASE
 			WHEN r.cardshop = 'Moonpig' THEN 'UK'
 			WHEN r.cardshop = 'Moonpig Australia' THEN 'AU'
 			WHEN r.cardshop = 'Moonpig USA' THEN 'US'
-		END AS order_store,
-		ORDER_STATUS, CASH_PAID, ORDER_ESIV, ORDER_ESEV, DISCOUNTGIVEN, r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL,
-		'mnpg' as BRAND
+		END 				AS ORDER_STORE,
+		
+		ORDER_STATUS		AS ORDER_STATE, 
+		CASH_PAID			AS ORDER_CASH_PAID, 
+		ORDER_ESIV			AS ORDER_ESIV, 
+		ORDER_ESEV			AS ORDER_ESEV, 
+		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
+		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
+		'mnpg' 				AS BRAND
 	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
-		  JOIN customers c ON r.customer_id = c.mcd_customer_id
-	WHERE commerce_tools_id is null 
-		  OR commerce_tools_id not in (SELECT order_id FROM orders)
+		  JOIN "PROD"."DW_CORE".customers c ON r.customer_id = c.mcd_customer_id
+		  LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
+	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
+		  OR commerce_tools_id is null 
 	)
 	o ON cte.customer_id = o.customer_id
 	JOIN 
@@ -229,33 +244,33 @@ FROM
 	SELECT  ORDER_ID, ORDER_LINE_ITEM_ID, MCD_ORDER_ID, MCD_ITEM_ID, DELIVERY_METHOD, ITEM_STATE, ADDRESS_TYPE, PROPOSED_DELIVERY_DATE, 
 			ACTUAL_DESPATCH_DATE, ESTIMATED_DESPATCH_DATE, PRODUCT_TITLE, QUANTITY, ITEM_ESIV, PRODUCT_TYPE_NAME, SKU_VARIANT, 
 			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS
-	FROM "PROD".events_lookup.ct_order_items_detailed 
+	FROM "PROD"."DW_CORE".order_items
 	UNION ALL
 	SELECT  
-	commerce_tools_id,
-COMMERCETOOLS_LINE_ITEM_ID,
-ORDER_ID,
-ITEM_ID,
-POSTAGE_TYPE,
-ITEM_STATUS,
-ADDRESS_TYPE_NAME,
-NULL AS PROPOSED_DELIVERY_DATE, -- from events_lookup.ct_order_items_detailed
-DISPATCH_DATE,
-DISPATCH_DATE,
-PRODUCT_TITLE,
-QUANTITY,
-ITEM_ESIV,
-PRODUCTCATEGORY,
-NULL AS SKU_VARIANT,
-SKU,
-COURIER_TRACKING_CODE,
-'mnpg' as BRAND,
-PREPAY, 
-BONUS
+		commerce_tools_id				AS ORDER_ID,
+		COMMERCETOOLS_LINE_ITEM_ID		AS ORDER_LINE_ITEM_ID,
+		ORDER_ID						AS MCD_ORDER_ID,
+		ITEM_ID							AS MCD_ITEM_ID,
+		POSTAGE_TYPE					AS DELIVERY_METHOD,
+		ITEM_STATUS						AS ITEM_STATE,
+		ADDRESS_TYPE_NAME				AS ADDRESS_TYPE,
+		NULL 							AS PROPOSED_DELIVERY_DATE, -- from events_lookup.ct_order_items_detailed
+		DISPATCH_DATE					AS ACTUAL_DESPATCH_DATE,
+		DISPATCH_DATE					AS ESTIMATED_DESPATCH_DATE,
+		PRODUCT_TITLE					AS PRODUCT_TITLE,
+		QUANTITY						AS QUANTITY,
+		ITEM_ESIV						AS ITEM_ESIV,
+		PRODUCTCATEGORY					AS PRODUCT_TYPE_NAME,
+		NULL 							AS SKU_VARIANT,
+		SKU								AS SKU,
+		COURIER_TRACKING_CODE			AS TRACKING_CODE,
+		'mnpg' 							AS BRAND,
+		PREPAY							AS PREPAY, 
+		BONUS							AS BONUS
 	
 	FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
-	WHERE commerce_tools_id is null 
-		  OR commerce_tools_id not in (SELECT order_id FROM orders)
+	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
+		  OR commerce_tools_id is null 
 	) i
 	ON o.ORDER_ID = i.ORDER_ID
 	LEFT JOIN (
