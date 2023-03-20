@@ -36,6 +36,17 @@ FROM cte_customers_0 c
 QUALIFY ROW_NUMBER() OVER (PARTITION BY pc.CUSTOMERID ORDER BY pc.EXTRACT_DATE DESC) = 1		
 ),
 
+cte_GiftCards_Prices
+AS
+(
+SELECT order_id, order_line_item_id, 
+    product_unit_price - product_discount_ex_tax AS ITEM_ESEV_NEW, 
+    product_unit_price - product_discount_ex_tax + PRODUCT_TOTAL_TAX AS ITEM_ESIV_NEW 
+FROM events_lookup.ct_order_items_detailed  
+WHERE brand = 'mnpg' 
+     AND (PRODUCT_TYPE_NAME IN ('Gift Cards', 'Gift Experience')
+),
+
 cte_Individualshipping
 AS
 (
@@ -191,9 +202,16 @@ SELECT
 
 	-- o.ORDER_ESIV AS subTotalPrice,
 	-- o.ORDER_ESEV AS totalTaxExclusive,
+
 	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) - o.POSTAGE_SUBTOTAL  AS subTotalPrice,
-	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) AS totalTaxExclusive,
-	
+		
+	IFF(
+		gc.order_id IS NULL, 
+		IFF(o.non_reportable = FALSE, SUM(i.item_esev), SUM(i.item_esev_face_value)),  
+		SUM(gc.ORDER_ESEV_NEW)
+		)
+	 AS totalTaxExclusive,
+			
 	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
 	SUM(i.QUANTITY) AS totalItems,
 	o.POSTAGE_SUBTOTAL AS totalShippingPrice,
@@ -207,8 +225,9 @@ FROM
 	JOIN 
 	(
 	SELECT  mcd_order_id, order_id, ORDER_NUMBER, ORDER_DATE_TIME, customer_id, MCD_CUSTOMER_ID,  ORDER_CURRENCYCODE, ORDER_STORE, 
-			ORDER_STATE, ORDER_CASH_PAID, ORDER_ESIV, ORDER_ESEV, PRODUCT_DISCOUNT_INC_TAX, POSTAGE_SUBTOTAL, BRAND
-	FROM "PROD"."DW_CORE".orders
+			ORDER_STATE, ORDER_CASH_PAID, ORDER_ESIV, ORDER_ESEV, PRODUCT_DISCOUNT_INC_TAX, POSTAGE_SUBTOTAL, BRAND, FALSE AS non_reportable
+	FROM "PROD"."DW_CORE".orders o
+	--	  JOIN cte_customers c ON 
 	UNION ALL
 	SELECT 
 		ORDER_ID 			AS mcd_order_id, 
@@ -231,19 +250,20 @@ FROM
 		ORDER_ESEV			AS ORDER_ESEV, 
 		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
 		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
-		'mnpg' 				AS BRAND
+		'mnpg' 				AS BRAND,
+		TRUE				AS non_reportable
 	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
 		  JOIN "PROD"."DW_CORE".customers c ON r.customer_id = c.mcd_customer_id
 		  LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
 	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
 		  OR commerce_tools_id is null 
 	)
-	o ON cte.customer_id = o.customer_id
+	AS o ON cte.customer_id = o.customer_id
 	JOIN 
 	(
 	SELECT  ORDER_ID, ORDER_LINE_ITEM_ID, MCD_ORDER_ID, MCD_ITEM_ID, DELIVERY_METHOD, ITEM_STATE, ADDRESS_TYPE, PROPOSED_DELIVERY_DATE, 
 			ACTUAL_DESPATCH_DATE, ESTIMATED_DESPATCH_DATE, PRODUCT_TITLE, QUANTITY, ITEM_ESIV, PRODUCT_TYPE_NAME, SKU_VARIANT, 
-			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS
+			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS, NULL AS item_esev_face_value
 	FROM "PROD"."DW_CORE".order_items
 	UNION ALL
 	SELECT  
@@ -254,7 +274,7 @@ FROM
 		POSTAGE_TYPE					AS DELIVERY_METHOD,
 		ITEM_STATUS						AS ITEM_STATE,
 		ADDRESS_TYPE_NAME				AS ADDRESS_TYPE,
-		NULL 							AS PROPOSED_DELIVERY_DATE, -- from events_lookup.ct_order_items_detailed
+		NULL 							AS PROPOSED_DELIVERY_DATE, 
 		DISPATCH_DATE					AS ACTUAL_DESPATCH_DATE,
 		DISPATCH_DATE					AS ESTIMATED_DESPATCH_DATE,
 		PRODUCT_TITLE					AS PRODUCT_TITLE,
@@ -267,12 +287,12 @@ FROM
 		'mnpg' 							AS BRAND,
 		PREPAY							AS PREPAY, 
 		BONUS							AS BONUS
-	
+		item_esev_face_value			AS item_esev_face_value
 	FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
 	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
 		  OR commerce_tools_id is null 
-	) i
-	ON o.ORDER_ID = i.ORDER_ID
+	) 
+	AS i ON o.ORDER_ID = i.ORDER_ID
 	LEFT JOIN (
 				SELECT ORDERNO,
 					  ITEMNO,
@@ -300,6 +320,7 @@ FROM
 				ON oia.DELIVERYADDRESSBOOKID = ab.ADDRESSBOOKID
 	LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."COUNTRY" cn ON ab.COUNTRYID = cn.COUNTRYID
 	LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID
+	LEFT JOIN cte_GiftCards_Prices gc ON i.order_id = gc.order_id AND i.order_line_item_id = gc.order_line_item_id
 WHERE 
       o.brand = 'mnpg'
 	  AND i.BRAND = 'mnpg'
@@ -346,7 +367,8 @@ GROUP BY
 	CN.COUNTRY,
 	AB.EMAILADDRESS,
 	AB.TELEPHONENO,
-	oia.PRINTSITEID	
+	oia.PRINTSITEID,
+	gc.order_id
 ),
 
 cte_order
