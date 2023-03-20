@@ -50,7 +50,7 @@ HAVING (
 			AND CUSTOMER_ID <= :migrateToId)
          OR CUSTOMER_ID IN (:keys)
 	   )
-	   AND MAX(ORDER_DATE) > dateadd(month, -26, current_date())
+	--   AND MAX(ORDER_DATE) > dateadd(month, -26, current_date())
 ),
 
 cte_customers_non_reportable_1
