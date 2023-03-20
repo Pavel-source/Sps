@@ -36,15 +36,100 @@ FROM cte_customers_0 c
 QUALIFY ROW_NUMBER() OVER (PARTITION BY pc.CUSTOMERID ORDER BY pc.EXTRACT_DATE DESC) = 1		
 ),
 
+cte_customers_non_reportable_0
+AS
+(
+SELECT o.CUSTOMER_ID
+FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable o
+WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
+	  OR commerce_tools_id is null 
+GROUP BY o.CUSTOMER_ID
+HAVING (
+		(CONCAT(:keys) IS NULL
+			AND o.CUSTOMER_ID > :migrateFromId
+			AND o.CUSTOMER_ID <= :migrateToId)
+         OR o.CUSTOMER_ID IN (:keys)
+	   )
+	   AND MAX(o.ORDER_DATE) > dateadd(month, -26, current_date())
+),
+
+cte_customers_non_reportable_1
+AS
+(
+SELECT 	c.customer_id  AS mcd_customer_id, 
+		IFNULL(p.CT_CUSTOMER_ID, c.customer_id::string) AS CUSTOMER_ID
+FROM cte_customers_non_reportable_0 c
+    LEFT JOIN events_lookup.mcd_ct_customer_profile_details p 
+        ON c.customer_id = p.mcd_customer_id	
+           AND p.CT_CUSTOMER_ID is not null  
+ QUALIFY ROW_NUMBER() OVER (PARTITION BY c.customer_id ORDER BY p.CT_MESSAGE_TIMESTAMP DESC) = 1
+),
+
+cte_customers_non_reportable
+AS
+(
+SELECT c.customer_id, MCD_CUSTOMER_ID, pc.EMAILADDRESS
+FROM cte_customers_non_reportable_1 c
+	LEFT JOIN PROD.RAW_MOONPIG_MCD_PERSONAL.customer pc 
+		ON pc.customerid = c.mcd_customer_id
+QUALIFY ROW_NUMBER() OVER (PARTITION BY pc.CUSTOMERID ORDER BY pc.EXTRACT_DATE DESC) = 1		
+),
+
 cte_GiftCards_Prices
 AS
 (
 SELECT order_id, order_line_item_id, 
-    product_unit_price - product_discount_ex_tax AS ITEM_ESEV_NEW, 
-    product_unit_price - product_discount_ex_tax + PRODUCT_TOTAL_TAX AS ITEM_ESIV_NEW 
+    product_unit_price - product_discount_ex_tax AS ITEM_ESEV_NEW
 FROM events_lookup.ct_order_items_detailed  
 WHERE brand = 'mnpg' 
-     AND (PRODUCT_TYPE_NAME IN ('Gift Cards', 'Gift Experience')
+     AND PRODUCT_TYPE_NAME IN ('Gift Cards', 'Gift Experience')
+),
+
+cte_Orders
+AS
+(
+	SELECT  o.mcd_order_id, o.order_id, o.ORDER_NUMBER, o.ORDER_DATE_TIME, o.customer_id, 
+			c.MCD_CUSTOMER_ID, c.EMAILADDRESS, 
+			o.ORDER_CURRENCYCODE, o.ORDER_STORE, o.ORDER_STATE, o.ORDER_CASH_PAID, o.ORDER_ESIV, o.ORDER_ESEV, 
+			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL, FALSE AS non_reportable
+	FROM "PROD"."DW_CORE".orders o
+		  JOIN cte_customers c ON c.customer_id = o.customer_id
+		  LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID
+	WHERE o.brand = 'mnpg'
+		  AND o.mcd_order_id IS NOT NULL
+		  AND (
+				o.mcd_order_id::STRING = o.order_id
+				OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE_TIME < '2023-02-21')
+			  ) 
+	UNION ALL
+	SELECT 
+		ORDER_ID 			AS mcd_order_id, 
+		commerce_tools_id 	AS order_id, 
+		ENCRYPTED_ORDER_ID 	AS ORDER_NUMBER, 
+		ORDER_DATE 			AS ORDER_DATE_TIME, 
+		c.customer_id 		AS customer_id, 
+		r.CUSTOMER_ID 		AS MCD_CUSTOMER_ID, 
+		c.EMAILADDRESS		AS EMAILADDRESS,		
+		cr.ISO4217CURRENCY	AS ORDER_CURRENCYCODE,
+		
+		CASE
+			WHEN r.cardshop = 'Moonpig' THEN 'UK'
+			WHEN r.cardshop = 'Moonpig Australia' THEN 'AU'
+			WHEN r.cardshop = 'Moonpig USA' THEN 'US'
+		END 				AS ORDER_STORE,
+		
+		ORDER_STATUS		AS ORDER_STATE, 
+		CASH_PAID			AS ORDER_CASH_PAID, 
+		ORDER_ESIV			AS ORDER_ESIV, 
+		ORDER_ESEV			AS ORDER_ESEV, 
+		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
+		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
+		TRUE				AS non_reportable
+	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
+		  JOIN cte_customers_non_reportable c ON r.customer_id = c.mcd_customer_id
+		  LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
+	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
+		  OR commerce_tools_id is null 
 ),
 
 cte_Individualshipping
@@ -56,8 +141,8 @@ SELECT
 	o.ORDER_STATE AS CURRENTORDERSTATE,
 	o.ORDER_NUMBER AS orderReference,	-- ORDER_NUMBER: "The customer-facing order reference number for CT orders"
 	o.customer_id AS customerid,
-	cte.MCD_CUSTOMER_ID,
-	replace(replace(replace(replace(cte.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/') AS customerEmail,
+	o.MCD_CUSTOMER_ID,
+	replace(replace(replace(replace(o.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/') AS customerEmail,
 	o.ORDER_CURRENCYCODE AS currencycode,
 	o.ORDER_STORE,
 	
@@ -208,7 +293,7 @@ SELECT
 	IFF(
 		gc.order_id IS NULL, 
 		IFF(o.non_reportable = FALSE, SUM(i.item_esev), SUM(i.item_esev_face_value)),  
-		SUM(gc.ORDER_ESEV_NEW)
+		SUM(gc.ITEM_ESEV_NEW)
 		)
 	 AS totalTaxExclusive,
 			
@@ -221,50 +306,14 @@ SELECT
 		
 FROM
 	-- (select * from orders where order_id IN ('52a49175-60c6-439d-b7cf-6339b7ae3854', '44ecebf0-e208-4736-b850-c170aa1309ea') or order_number = 'YYHRYCE') AS o
-	cte_customers cte
-	JOIN 
-	(
-	SELECT  mcd_order_id, order_id, ORDER_NUMBER, ORDER_DATE_TIME, customer_id, MCD_CUSTOMER_ID,  ORDER_CURRENCYCODE, ORDER_STORE, 
-			ORDER_STATE, ORDER_CASH_PAID, ORDER_ESIV, ORDER_ESEV, PRODUCT_DISCOUNT_INC_TAX, POSTAGE_SUBTOTAL, BRAND, FALSE AS non_reportable
-	FROM "PROD"."DW_CORE".orders o
-	--	  JOIN cte_customers c ON 
-	UNION ALL
-	SELECT 
-		ORDER_ID 			AS mcd_order_id, 
-		commerce_tools_id 	AS order_id, 
-		ENCRYPTED_ORDER_ID 	AS ORDER_NUMBER, 
-		ORDER_DATE 			AS ORDER_DATE_TIME, 
-		c.customer_id 		AS customer_id, 
-		r.CUSTOMER_ID 		AS MCD_CUSTOMER_ID, 
-		cr.ISO4217CURRENCY	AS ORDER_CURRENCYCODE,
-		
-		CASE
-			WHEN r.cardshop = 'Moonpig' THEN 'UK'
-			WHEN r.cardshop = 'Moonpig Australia' THEN 'AU'
-			WHEN r.cardshop = 'Moonpig USA' THEN 'US'
-		END 				AS ORDER_STORE,
-		
-		ORDER_STATUS		AS ORDER_STATE, 
-		CASH_PAID			AS ORDER_CASH_PAID, 
-		ORDER_ESIV			AS ORDER_ESIV, 
-		ORDER_ESEV			AS ORDER_ESEV, 
-		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
-		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
-		'mnpg' 				AS BRAND,
-		TRUE				AS non_reportable
-	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
-		  JOIN "PROD"."DW_CORE".customers c ON r.customer_id = c.mcd_customer_id
-		  LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
-	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
-		  OR commerce_tools_id is null 
-	)
-	AS o ON cte.customer_id = o.customer_id
+	cte_Orders o
 	JOIN 
 	(
 	SELECT  ORDER_ID, ORDER_LINE_ITEM_ID, MCD_ORDER_ID, MCD_ITEM_ID, DELIVERY_METHOD, ITEM_STATE, ADDRESS_TYPE, PROPOSED_DELIVERY_DATE, 
 			ACTUAL_DESPATCH_DATE, ESTIMATED_DESPATCH_DATE, PRODUCT_TITLE, QUANTITY, ITEM_ESIV, PRODUCT_TYPE_NAME, SKU_VARIANT, 
-			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS, NULL AS item_esev_face_value
+			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS, NULL AS item_esev_face_value, item_esev
 	FROM "PROD"."DW_CORE".order_items
+	WHERE BRAND = 'mnpg'
 	UNION ALL
 	SELECT  
 		commerce_tools_id				AS ORDER_ID,
@@ -286,8 +335,9 @@ FROM
 		COURIER_TRACKING_CODE			AS TRACKING_CODE,
 		'mnpg' 							AS BRAND,
 		PREPAY							AS PREPAY, 
-		BONUS							AS BONUS
-		item_esev_face_value			AS item_esev_face_value
+		BONUS							AS BONUS,
+		item_esev_face_value			AS item_esev_face_value,
+		NULL							AS item_esev
 	FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
 	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
 		  OR commerce_tools_id is null 
@@ -319,16 +369,7 @@ FROM
 				) ab
 				ON oia.DELIVERYADDRESSBOOKID = ab.ADDRESSBOOKID
 	LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."COUNTRY" cn ON ab.COUNTRYID = cn.COUNTRYID
-	LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID
 	LEFT JOIN cte_GiftCards_Prices gc ON i.order_id = gc.order_id AND i.order_line_item_id = gc.order_line_item_id
-WHERE 
-      o.brand = 'mnpg'
-	  AND i.BRAND = 'mnpg'
-	  AND o.mcd_order_id IS NOT NULL
-	  AND (
-			o.mcd_order_id::STRING = o.order_id
-			OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE_TIME < '2023-02-21')
-		  )
 
 GROUP BY
 	o.ORDER_ID,
@@ -347,7 +388,7 @@ GROUP BY
 	i.PROPOSED_DELIVERY_DATE,
 	i.ACTUAL_DESPATCH_DATE,
 	i.ESTIMATED_DESPATCH_DATE,
-	cte.mcd_customer_id,
+	o.mcd_customer_id,
 	o.ORDER_NUMBER,
 	o.mcd_order_id,
 	o.postage_subtotal,
@@ -357,7 +398,7 @@ GROUP BY
 	o.ORDER_ESEV,
 	o.PRODUCT_DISCOUNT_INC_TAX,
 	o.POSTAGE_SUBTOTAL,
-	cte.EMAILADDRESS,
+	o.EMAILADDRESS,
 	AB.FIRSTNAME,
 	AB.LASTNAME,
 	AB.ADDRESS,
@@ -368,7 +409,8 @@ GROUP BY
 	AB.EMAILADDRESS,
 	AB.TELEPHONENO,
 	oia.PRINTSITEID,
-	gc.order_id
+	gc.order_id,
+	o.non_reportable
 ),
 
 cte_order
