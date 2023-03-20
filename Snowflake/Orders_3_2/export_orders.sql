@@ -39,18 +39,18 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY pc.CUSTOMERID ORDER BY pc.EXTRACT_DATE D
 cte_customers_non_reportable_0
 AS
 (
-SELECT o.CUSTOMER_ID
-FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable o
-WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
-	  OR commerce_tools_id is null 
-GROUP BY o.CUSTOMER_ID
+SELECT CUSTOMER_ID
+FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable 
+WHERE commerce_tools_id NOT IN (SELECT order_id FROM "PROD"."DW_CORE".orders)
+	  OR commerce_tools_id IS NULL 
+GROUP BY CUSTOMER_ID
 HAVING (
 		(CONCAT(:keys) IS NULL
-			AND o.CUSTOMER_ID > :migrateFromId
-			AND o.CUSTOMER_ID <= :migrateToId)
-         OR o.CUSTOMER_ID IN (:keys)
+			AND CUSTOMER_ID > :migrateFromId
+			AND CUSTOMER_ID <= :migrateToId)
+         OR CUSTOMER_ID IN (:keys)
 	   )
-	   AND MAX(o.ORDER_DATE) > dateadd(month, -26, current_date())
+	   AND MAX(ORDER_DATE) > dateadd(month, -26, current_date())
 ),
 
 cte_customers_non_reportable_1
@@ -91,9 +91,9 @@ AS
 	SELECT  o.mcd_order_id, o.order_id, o.ORDER_NUMBER, o.ORDER_DATE_TIME, o.customer_id, 
 			c.MCD_CUSTOMER_ID, c.EMAILADDRESS, 
 			o.ORDER_CURRENCYCODE, o.ORDER_STORE, o.ORDER_STATE, o.ORDER_CASH_PAID, o.ORDER_ESIV, o.ORDER_ESEV, 
-			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL, FALSE AS non_reportable
-	FROM "PROD"."DW_CORE".orders o
-		  JOIN cte_customers c ON c.customer_id = o.customer_id
+			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL
+	FROM  cte_customers c
+		  JOIN "PROD"."DW_CORE".orders o  ON c.customer_id = o.customer_id
 		  LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID
 	WHERE o.brand = 'mnpg'
 		  AND o.mcd_order_id IS NOT NULL
@@ -118,18 +118,17 @@ AS
 			WHEN r.cardshop = 'Moonpig USA' THEN 'US'
 		END 				AS ORDER_STORE,
 		
-		ORDER_STATUS		AS ORDER_STATE, 
+		IFF(ORDER_STATUS = 'Cancelled', 'Cancelled', 'Confirmed')  AS ORDER_STATE, 
 		CASH_PAID			AS ORDER_CASH_PAID, 
 		ORDER_ESIV			AS ORDER_ESIV, 
 		ORDER_ESEV			AS ORDER_ESEV, 
 		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
-		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
-		TRUE				AS non_reportable
-	FROM "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r
-		  JOIN cte_customers_non_reportable c ON r.customer_id = c.mcd_customer_id
-		  LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
-	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
-		  OR commerce_tools_id is null 
+		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL
+	FROM cte_customers_non_reportable c
+		 JOIN "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r ON r.customer_id = c.mcd_customer_id
+		 LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
+	WHERE r.commerce_tools_id NOT IN (SELECT order_id FROM "PROD"."DW_CORE".orders)
+		  OR r.commerce_tools_id IS NULL 
 ),
 
 cte_Individualshipping
@@ -289,14 +288,7 @@ SELECT
 	-- o.ORDER_ESEV AS totalTaxExclusive,
 
 	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) - o.POSTAGE_SUBTOTAL  AS subTotalPrice,
-		
-	IFF(
-		gc.order_id IS NULL, 
-		IFF(o.non_reportable = FALSE, SUM(i.item_esev), SUM(i.item_esev_face_value)),  
-		SUM(gc.ITEM_ESEV_NEW)
-		)
-	 AS totalTaxExclusive,
-			
+	IFF(gc.order_id IS NULL, SUM(i.item_esev), SUM(gc.ITEM_ESEV_NEW)) AS totalTaxExclusive,
 	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
 	SUM(i.QUANTITY) AS totalItems,
 	o.POSTAGE_SUBTOTAL AS totalShippingPrice,
@@ -311,7 +303,7 @@ FROM
 	(
 	SELECT  ORDER_ID, ORDER_LINE_ITEM_ID, MCD_ORDER_ID, MCD_ITEM_ID, DELIVERY_METHOD, ITEM_STATE, ADDRESS_TYPE, PROPOSED_DELIVERY_DATE, 
 			ACTUAL_DESPATCH_DATE, ESTIMATED_DESPATCH_DATE, PRODUCT_TITLE, QUANTITY, ITEM_ESIV, PRODUCT_TYPE_NAME, SKU_VARIANT, 
-			SKU, TRACKING_CODE, BRAND, PREPAY, BONUS, NULL AS item_esev_face_value, item_esev
+			SKU, TRACKING_CODE, PREPAY, BONUS, item_esev
 	FROM "PROD"."DW_CORE".order_items
 	WHERE BRAND = 'mnpg'
 	UNION ALL
@@ -333,14 +325,12 @@ FROM
 		NULL 							AS SKU_VARIANT,
 		SKU								AS SKU,
 		COURIER_TRACKING_CODE			AS TRACKING_CODE,
-		'mnpg' 							AS BRAND,
 		PREPAY							AS PREPAY, 
 		BONUS							AS BONUS,
-		item_esev_face_value			AS item_esev_face_value,
-		NULL							AS item_esev
+		item_esev_face_value			AS item_esev
 	FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
-	WHERE commerce_tools_id not in (SELECT order_id FROM "PROD"."DW_CORE".orders)
-		  OR commerce_tools_id is null 
+	WHERE commerce_tools_id NOT IN (SELECT order_id FROM "PROD"."DW_CORE".orders)
+		  OR commerce_tools_id IS NULL 
 	) 
 	AS i ON o.ORDER_ID = i.ORDER_ID
 	LEFT JOIN (
@@ -409,8 +399,7 @@ GROUP BY
 	AB.EMAILADDRESS,
 	AB.TELEPHONENO,
 	oia.PRINTSITEID,
-	gc.order_id,
-	o.non_reportable
+	gc.order_id
 ),
 
 cte_order
@@ -426,7 +415,7 @@ SELECT
    i.MCD_CUSTOMER_ID,
    i.NewOrder,
    -- subTotalPrice
-   CONCAT('{"centAmount": ', cast(i.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
+   CONCAT('{"centAmount": ', cast(IFF(i.subTotalPrice < 0, 0, i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
    -- totalPrice = subTotalPrice + totalShippingAmount
   -- CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
    CONCAT('{"centAmount": ', cast(i.GRANDTOTALFORPAYMENT * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
@@ -434,7 +423,7 @@ SELECT
   -- totalItemPrice = totalPrice + totalDiscount(?) - totalShippingAmount
    -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT /*+ SUM(i.totalDiscount)*/ - SUM(i.totalShippingPrice)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
    -- new: totalItemPrice = subTotalPrice = subTotalIncTax ?
-   CONCAT('{"centAmount": ', cast(i.subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   CONCAT('{"centAmount": ', cast(IFF(i.subTotalPrice < 0, 0, i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
 
    -- subTotalIncTax = totalItemPrice + totalShippingPrice
    -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
