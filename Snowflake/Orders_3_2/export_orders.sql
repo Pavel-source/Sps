@@ -79,7 +79,8 @@ cte_GiftCards_Prices
 AS
 (
 SELECT order_id, order_line_item_id, 
-    product_unit_price - product_discount_ex_tax AS ITEM_ESEV_NEW
+    product_unit_price - product_discount_ex_tax  AS ITEM_ESEV_NEW,
+    product_unit_price - product_discount_ex_tax + PRODUCT_TOTAL_TAX  AS ITEM_ESIV_NEW
 FROM events_lookup.ct_order_items_detailed  
 WHERE brand = 'mnpg' 
      AND PRODUCT_TYPE_NAME IN ('Gift Cards', 'Gift Experience')
@@ -243,8 +244,8 @@ SELECT
 							   '"id": "', i.ORDER_LINE_ITEM_ID, '"',
 							    IFNULL(CONCAT(',"title": "', replace(replace(replace(i.PRODUCT_TITLE, '"', ''''), '\r', ''),'\n', ' ')  , '"'), ''),
 							   ',"quantity": ', i.QUANTITY,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * i.ITEM_ESIV AS INT), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * i.ITEM_ESIV / i.QUANTITY AS INT)), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * IFNULL(gc.ITEM_ESIV_NEW, i.item_esiv) AS INT), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(i.QUANTITY = 0, 0, CAST(100 * IFNULL(gc.ITEM_ESIV_NEW, i.item_esiv) / i.QUANTITY AS INT)), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
 							   IFNULL(CONCAT(',"productType": "', i.PRODUCT_TYPE_NAME, '"'), ''),
 							   IFNULL(CONCAT(',"sku": "', i.SKU_VARIANT, '"'), ''),
 							--   ',"productSlug": ""',
@@ -288,7 +289,7 @@ SELECT
 	-- o.ORDER_ESEV AS totalTaxExclusive,
 
 	o.ORDER_CASH_PAID + SUM(IFNULL(i.PREPAY, 0) + IFNULL(i.BONUS, 0)) - o.POSTAGE_SUBTOTAL  AS subTotalPrice,
-	IFF(gc.order_id IS NULL, SUM(i.item_esev), SUM(gc.ITEM_ESEV_NEW)) AS totalTaxExclusive,
+	SUM(IFNULL(gc.ITEM_ESEV_NEW, i.item_esev))  AS totalTaxExclusive,
 	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
 	SUM(i.QUANTITY) AS totalItems,
 	o.POSTAGE_SUBTOTAL AS totalShippingPrice,
@@ -320,7 +321,7 @@ FROM
 		DISPATCH_DATE					AS ESTIMATED_DESPATCH_DATE,
 		PRODUCT_TITLE					AS PRODUCT_TITLE,
 		QUANTITY						AS QUANTITY,
-		ITEM_ESIV						AS ITEM_ESIV,
+		item_esiv_face_value			AS ITEM_ESIV,
 		PRODUCTCATEGORY					AS PRODUCT_TYPE_NAME,
 		NULL 							AS SKU_VARIANT,
 		SKU								AS SKU,
@@ -398,8 +399,7 @@ GROUP BY
 	CN.COUNTRY,
 	AB.EMAILADDRESS,
 	AB.TELEPHONENO,
-	oia.PRINTSITEID,
-	gc.order_id
+	oia.PRINTSITEID
 ),
 
 cte_order
