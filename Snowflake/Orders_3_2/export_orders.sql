@@ -92,7 +92,8 @@ AS
 	SELECT  o.mcd_order_id, o.order_id, o.ORDER_NUMBER, o.ORDER_DATE_TIME, o.customer_id, 
 			c.MCD_CUSTOMER_ID, c.EMAILADDRESS, 
 			o.ORDER_CURRENCYCODE, o.ORDER_STORE, o.ORDER_STATE, o.ORDER_CASH_PAID, o.ORDER_ESIV, o.ORDER_ESEV, 
-			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL
+			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL, 
+			o.MCD_CUSTOMER_ID AS MCD_CUSTOMER_ID_in_Order
 	FROM  cte_customers c
 		  JOIN "PROD"."DW_CORE".orders o  ON c.customer_id = o.customer_id
 		  LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID
@@ -124,7 +125,8 @@ AS
 		ORDER_ESIV			AS ORDER_ESIV, 
 		ORDER_ESEV			AS ORDER_ESEV, 
 		DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
-		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL
+		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
+		r.customer_id		AS MCD_CUSTOMER_ID_in_Order
 	FROM cte_customers_non_reportable c
 		 JOIN "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r ON r.customer_id = c.mcd_customer_id
 		 LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
@@ -141,7 +143,8 @@ SELECT
 	o.ORDER_STATE AS CURRENTORDERSTATE,
 	o.ORDER_NUMBER AS orderReference,	-- ORDER_NUMBER: "The customer-facing order reference number for CT orders"
 	o.customer_id AS customerid,
-	o.MCD_CUSTOMER_ID,
+	MAX(o.MCD_CUSTOMER_ID) AS MCD_CUSTOMER_ID,
+	o.MCD_CUSTOMER_ID_in_Order,
 	replace(replace(replace(replace(o.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/') AS customerEmail,
 	o.ORDER_CURRENCYCODE AS currencycode,
 	o.ORDER_STORE,
@@ -379,7 +382,8 @@ GROUP BY
 	i.PROPOSED_DELIVERY_DATE,
 	i.ACTUAL_DESPATCH_DATE,
 	i.ESTIMATED_DESPATCH_DATE,
-	o.mcd_customer_id,
+--	o.mcd_customer_id,
+	o.MCD_CUSTOMER_ID_in_Order,
 	o.ORDER_NUMBER,
 	o.mcd_order_id,
 	o.postage_subtotal,
@@ -412,7 +416,8 @@ SELECT
    i.customerId,
    i.customerEmail,
    i.ORDER_STORE,
-   i.MCD_CUSTOMER_ID,
+   MAX(i.MCD_CUSTOMER_ID) AS MCD_CUSTOMER_ID,
+   i.MCD_CUSTOMER_ID_in_Order,
    i.NewOrder,
    -- subTotalPrice
    CONCAT('{"centAmount": ', cast(IFF(i.subTotalPrice < 0, 0, i.subTotalPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
@@ -460,7 +465,7 @@ GROUP BY
 		 i.customerId,
 		 i.customerEmail,
 		 i.ORDER_STORE,
-		 i.MCD_CUSTOMER_ID,
+		 i.MCD_CUSTOMER_ID_in_Order,
 		 i.NewOrder,
 		 i.subTotalPrice,
 		 i.totalShippingPrice,
@@ -478,6 +483,7 @@ SELECT mcd_customer_id                       AS entity_key,
 							CONCAT('{',
 										 '"id": "', id, '"',
 										 ',"customerId": "', o.customerId, '"',
+										  IFNULL(CONCAT(',"mcd_customer_id": ', '"', MCD_CUSTOMER_ID_in_Order, '"'), ''),
 										  IFNULL(CONCAT(',"state": ', '"', currentorderstate, '"'), ''),
 										 ',"version": ', IFF(id like 'LEGO%', '0', '5'),
 										 ',"createdAt": ', '"', createdAt, '"',
