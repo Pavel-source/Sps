@@ -6,14 +6,7 @@ SELECT o.customer_id,
 FROM "PROD"."DW_CORE".orders o
 	 LEFT JOIN "PROD"."DW_CORE".customers c ON o.customer_id = c.customer_id			-- 4568 customers from orders table don't exist in customers table; and they have orders for migration.
 WHERE o.brand = 'mnpg'
-	  AND o.ORDER_DATE < '2023-04-01'
-	-- AND o.customer_id = 'b9278087-07ce-4c05-8d4d-a9a05c559782'
-	/* AND o.customer_id  IN (
-		'30683c84-d9f8-4195-85a3-a42d2ec7efb0',
-		'5922e3e6-f9a7-46ec-8999-37584db07eb0',
-		'b9278087-07ce-4c05-8d4d-a9a05c559782',
-		'505606f7-1c26-4744-a89a-a8c02eeb7969',
-		'9df7d77c-7100-499e-aee8-c46f449948b6')*/
+	  AND o.ORDER_DATE < '2023-04-01'	
 GROUP BY o.customer_id, 
 		 c.MCD_CUSTOMER_ID
 HAVING MCD_CUSTOMERID IS NOT NULL
@@ -74,7 +67,13 @@ WHERE
 	  AND IFNULL(c2.MCD_CUSTOMERID, c1.MCD_CUSTOMER_ID) > :migrateFromId
 	  AND IFNULL(c2.MCD_CUSTOMERID, c1.MCD_CUSTOMER_ID) <= :migrateToId
 	)
-	 OR IFNULL(c2.MCD_CUSTOMERID, c1.MCD_CUSTOMER_ID) IN (:keys)	  
+	 OR IFNULL(c2.MCD_CUSTOMERID, c1.MCD_CUSTOMER_ID) IN (:keys)
+	/*  c1.customer_id  IN (
+		'30683c84-d9f8-4195-85a3-a42d2ec7efb0',
+		'5922e3e6-f9a7-46ec-8999-37584db07eb0',
+		'b9278087-07ce-4c05-8d4d-a9a05c559782',
+		'505606f7-1c26-4744-a89a-a8c02eeb7969',
+		'9df7d77c-7100-499e-aee8-c46f449948b6')*/	 
 ),
 
 cte_customers_non_reportable
@@ -100,34 +99,30 @@ WHERE (
 			AND MCD_CUSTOMERID <= :migrateToId)
          OR MCD_CUSTOMERID IN (:keys)
 	   ) 
+	   /*  c.customer_id  IN (
+		'30683c84-d9f8-4195-85a3-a42d2ec7efb0',
+		'5922e3e6-f9a7-46ec-8999-37584db07eb0',
+		'b9278087-07ce-4c05-8d4d-a9a05c559782',
+		'505606f7-1c26-4744-a89a-a8c02eeb7969',
+		'9df7d77c-7100-499e-aee8-c46f449948b6')*/	 
 QUALIFY ROW_NUMBER() OVER (PARTITION BY c.customer_id, pc.CUSTOMERID ORDER BY pc.EXTRACT_DATE DESC) = 1		
 ),
-
-/*
-cte_GiftCards_Prices
-AS
-(
-SELECT order_id, 
-	order_line_item_id, 
-    product_unit_price - product_discount_ex_tax  AS ITEM_ESEV_NEW,
-    product_unit_price - product_discount_ex_tax + PRODUCT_TOTAL_TAX  AS ITEM_ESIV_NEW
-FROM events_lookup.ct_order_items_detailed  
-WHERE brand = 'mnpg' 
-     AND PRODUCT_TYPE_NAME IN ('Gift Cards', 'Gift Experience')
-),
-*/
 
 cte_GiftCards_Prices
 AS
 (
 SELECT t1.order_id, 
 	t1.order_line_item_id, 
-    t1.product_unit_price - t1.product_discount_ex_tax  AS ITEM_ESEV_NEW,
-    t1.product_unit_price - t1.product_discount_ex_tax + t2.O_ITEM_TAX_TOTAL AS ITEM_ESIV_NEW
+  --  t1.product_unit_price - t1.product_discount_ex_tax  AS ITEM_ESEV,
+	t2.item_esev_face_value  AS ITEM_ESEV,
+  --  t1.product_unit_price - t1.product_discount_ex_tax + t2.O_ITEM_TAX_TOTAL AS ITEM_ESIV_NEW
+	t2.item_esiv_face_value  AS ITEM_ESIV,
+	t2.ITEM_DISCOUNT
+	
 FROM events_lookup.ct_order_items_detailed t1 
 	JOIN order_items i ON t1.order_id = i.order_id AND i.order_line_item_id = t1.order_line_item_id
 	JOIN orders o ON o.order_id = i.order_id
-    JOIN mcd_dw_core.mcd_order_items t2 ON t1.mcd_order_id = t2.order_id AND t1.MCD_ITEM_ID = t2.item_id
+    JOIN mcd_dw_core.mcd_order_items t2 ON t1.mcd_order_id = t2.order_id AND t1.MCD_ITEM_ID = t2.item_id  AND t1.sku = t2.sku
     LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON o.ORDER_ID = cs.ORDER_ID  
 WHERE t1.brand = 'mnpg'  
 	 AND o.brand = 'mnpg'
@@ -138,16 +133,6 @@ WHERE t1.brand = 'mnpg'
 				o.mcd_order_id::STRING = o.order_id
 				OR (cs.ORDER_ID IS NULL  AND o.ORDER_DATE < '2023-02-21')
 			  ) 
- QUALIFY ROW_NUMBER() OVER (PARTITION BY t1.order_id, t1.order_line_item_id ORDER BY t2.EXTRACT_DATE DESC) = 1
-),
-
-cte_paidSum_nonreportable
-AS
-(
-SELECT  order_id, 
-		SUM(item_isiv_face_value) AS sum_item_isiv_face_value
-FROM "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable
-GROUP BY order_id
 ),
 
 cte_Order_Items
@@ -156,13 +141,17 @@ AS
 	SELECT  -- Orders:
 			o.mcd_order_id, o.order_id, o.ORDER_NUMBER, o.ORDER_DATE_TIME, o.customer_id, 
 			c.MCD_CUSTOMER_ID, c.EMAILADDRESS, 
-			o.ORDER_CURRENCYCODE, o.ORDER_STORE, o.ORDER_STATE, o.ORDER_CASH_PAID, o.ORDER_ESIV, o.ORDER_ESEV, 
-			o.PRODUCT_DISCOUNT_INC_TAX, o.POSTAGE_SUBTOTAL, 
-			o.MCD_CUSTOMER_ID AS MCD_CUSTOMER_ID_In_Order,
+			o.ORDER_CURRENCYCODE, o.ORDER_STORE, o.ORDER_STATE, 
+			o.POSTAGE_SUBTOTAL + o.POSTAGE_DISCOUNT_INC_TAX AS POSTAGE_PRICE, 
+			o.MCD_CUSTOMER_ID AS MCD_CUSTOMER_ID_In_Order, 
 			-- Order_Items:
 			i.ORDER_LINE_ITEM_ID, i.MCD_ITEM_ID, i.DELIVERY_METHOD, i.ITEM_STATE, i.ADDRESS_TYPE, i.PROPOSED_DELIVERY_DATE, 
-			i.ACTUAL_DESPATCH_DATE, i.ESTIMATED_DESPATCH_DATE, i.PRODUCT_TITLE, i.QUANTITY, i.ITEM_ESIV, i.PRODUCT_TYPE_NAME, 
-			i.SKU_VARIANT, i.SKU, i.TRACKING_CODE, i.PREPAY, i.BONUS, i.item_esev
+			i.ACTUAL_DESPATCH_DATE, i.ESTIMATED_DESPATCH_DATE, i.PRODUCT_TITLE, i.QUANTITY, 
+			i.ITEM_ESIV AS ITEM_ESIV, 
+			i.PRODUCT_TYPE_NAME, 
+			i.SKU_VARIANT, i.SKU, i.TRACKING_CODE, i.PREPAY, i.BONUS, 
+			i.item_esev AS item_esev,
+			i.PRODUCT_DISCOUNT_INC_TAX AS ITEM_DISCOUNT
 	FROM  cte_customers c
 		  JOIN "PROD"."DW_CORE".orders o  ON c.customer_id = o.customer_id
 		  JOIN "PROD"."DW_CORE".order_items i ON o.ORDER_ID = i.ORDER_ID
@@ -193,11 +182,8 @@ AS
 		END 				AS ORDER_STORE,
 		
 		IFF(r.ORDER_STATUS = 'Cancelled', 'Cancelled', 'Confirmed')  AS ORDER_STATE, 
-		IFNULL(ps.sum_item_isiv_face_value, 0)	AS ORDER_CASH_PAID, 
-		r.ORDER_ESIV		AS ORDER_ESIV, 
-		r.ORDER_ESEV		AS ORDER_ESEV, 
-		r.DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
-		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_SUBTOTAL,
+	--	r.DISCOUNTGIVEN		AS PRODUCT_DISCOUNT_INC_TAX, 
+		r.POSTAGE_EX_TAX_TOTAL + r.POSTAGE_TAX_TOTAL  AS POSTAGE_PRICE,
 		r.customer_id		AS MCD_CUSTOMER_ID_In_Order,
 		
 		-- Order_Items:
@@ -211,21 +197,22 @@ AS
 		i.DISPATCH_DATE					AS ESTIMATED_DESPATCH_DATE,
 		i.PRODUCT_TITLE					AS PRODUCT_TITLE,
 		i.QUANTITY						AS QUANTITY,
-		i.item_esiv_face_value			AS ITEM_ESIV,
+		i.item_esiv_face_value 			AS ITEM_ESIV,
 		i.PRODUCTCATEGORY				AS PRODUCT_TYPE_NAME,
 		NULL 							AS SKU_VARIANT,
 		i.SKU							AS SKU,
 		i.COURIER_TRACKING_CODE			AS TRACKING_CODE,
 		i.PREPAY						AS PREPAY, 
 		i.BONUS							AS BONUS,
-		i.item_esev_face_value			AS item_esev
+		i.item_esev_face_value 			AS item_esev,
+		i.ITEM_DISCOUNT					AS ITEM_DISCOUNT
 	FROM cte_customers_non_reportable c
 		 JOIN cte_customers_non_reportable_1 c2 ON c.customer_id = c2.customer_id
 		 JOIN "PROD"."MCD_DW_CORE".mcd_orders_non_reportable r ON r.customer_id = c2.mcd_customer_id
 		 JOIN "PROD"."MCD_DW_CORE".mcd_order_items_non_reportable i ON r.ORDER_ID = i.ORDER_ID
 		 LEFT JOIN "PROD"."RAW_CONSIGNMENT_SNAPSHOT"."MNPG_CONSIGNMENTS_API_PARSED" cs ON r.commerce_tools_id = cs.ORDER_ID
 		 LEFT JOIN "PROD"."RAW_MOONPIG_MCD"."CURRENCY" cr ON r.CURRENCY_ID = cr.CURRENCYID
-		 LEFT JOIN cte_paidSum_nonreportable ps ON r.ORDER_ID = ps.ORDER_ID
+		-- LEFT JOIN cte_paidSum_nonreportable ps ON r.ORDER_ID = ps.ORDER_ID
 	WHERE (
 			r.commerce_tools_id NOT IN (SELECT order_id FROM "PROD"."DW_CORE".orders WHERE ORDER_DATE < '2023-04-01')
 			OR r.commerce_tools_id IS NULL 
@@ -245,8 +232,7 @@ SELECT
 	o.customer_id AS customerid,
 	o.MCD_CUSTOMER_ID,
 	o.MCD_CUSTOMER_ID_In_Order,
-	-- TO_JSON(TO_VARIANT(replace(replace(replace(replace(o.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/'))) AS customerEmail,
-	replace(replace(replace(replace(o.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/') AS customerEmail,
+	TO_JSON(TO_VARIANT(replace(replace(replace(replace(o.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/'))) AS customerEmail,
 	o.ORDER_CURRENCYCODE AS currencycode,
 	o.ORDER_STORE,
 	
@@ -297,24 +283,24 @@ SELECT
 						 '"'),
 
 		CONCAT(',"status": ', case o.ITEM_STATE when 'Cancelled' then 300 else 202 end),
-		IFNULL(CONCAT(',"firstName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
-		IFNULL(CONCAT(',"lastName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
+		IFNULL(CONCAT(',"firstName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
+		IFNULL(CONCAT(',"lastName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
 		IFF(o.DELIVERY_METHOD = 'Email', ',"deliveryType": 1', ',"deliveryType": 0'),
 
 		',"address": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
-												IFNULL(CONCAT(',"firstName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
-												IFNULL(CONCAT(',"lastName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
+												IFNULL(CONCAT(',"firstName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
+												IFNULL(CONCAT(',"lastName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
                                             --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
 											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
 											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
 											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
-												IFNULL(CONCAT(',"addressFirstLine": "',  TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.ADDRESS, '\r', ''),'\n', ' '), '"',''''), '	', ' '), '\\','/'))),    '"'), ''),
+												IFNULL(CONCAT(',"addressFirstLine": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.ADDRESS, '\r', ''),'\n', ' '), '"',''''), '	', ' '), '\\','/')))    ), ''),
                                                 IFNULL(CONCAT(',"city": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.TOWN, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))), ''),
 												IFNULL(CONCAT(',"state": ',  TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.COUNTY, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))), ''),
-                                                IFNULL(CONCAT(',"postcode": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.POSTCODE, '\r', ''),'\n', ' '), '"', ''''), '\\', '/'))),  '"'), ''),
+                                                IFNULL(CONCAT(',"postcode": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.POSTCODE, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))  ), ''),
 												IFNULL(CONCAT(',"country": ', CONCAT('"', replace(replace(trim(cn.COUNTRY), '\r', ''),'\n', ' '), '"')), ''),
-												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/'))),  '"')), ''),
+												IFNULL(CONCAT(',"emailAddress": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/')))), ''),
 												IFNULL(CONCAT(',"isMyAddress": ',  IFF(o.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
 											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
 												'}'), 'null'),
@@ -322,18 +308,18 @@ SELECT
 -- "recipientAddress" is the same as "address"
 		',"recipientAddress": ', 	IFNULL(CONCAT('{',
 												CONCAT('"id": ', '"', CONCAT('fake-', UUID_STRING()), '"'),
-												IFNULL(CONCAT(',"firstName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
-												IFNULL(CONCAT(',"lastName": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/'))),  '"'), ''),
+												IFNULL(CONCAT(',"firstName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.firstname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
+												IFNULL(CONCAT(',"lastName": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.lastname, '\r', ''),'\n', ' '), '""',''''), '"',''''), '\\', '/')))  ), ''),
                                             --  IFNULL(CONCAT(',"houseNumber": "', 'streetnumber', '"'), ''),
 											--	IFNULL(CONCAT(',"houseNumberExtension": "', 'streetnumberextension', '"'), ''),
 											--	IFNULL(CONCAT(',"extraAddressLine": "', 'extraaddressline', '"'), ''),
 											--	IFNULL(CONCAT(',"streetName": "', ab.ADDRESS, '"'), ''),
-												IFNULL(CONCAT(',"addressFirstLine": "',  TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.ADDRESS, '\r', ''),'\n', ' '), '"',''''), '	', ' '), '\\','/'))),    '"'), ''),
+												IFNULL(CONCAT(',"addressFirstLine": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(replace(ab.ADDRESS, '\r', ''),'\n', ' '), '"',''''), '	', ' '), '\\','/')))    ), ''),
                                                 IFNULL(CONCAT(',"city": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.TOWN, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))), ''),
 												IFNULL(CONCAT(',"state": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.COUNTY, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))), ''),
-                                                IFNULL(CONCAT(',"postcode": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.POSTCODE, '\r', ''),'\n', ' '), '"', ''''), '\\', '/'))),  '"'), ''),
+                                                IFNULL(CONCAT(',"postcode": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.POSTCODE, '\r', ''),'\n', ' '), '"', ''''), '\\', '/')))  ), ''),
 												IFNULL(CONCAT(',"country": ', CONCAT('"', replace(replace(trim(cn.COUNTRY), '\r', ''),'\n', ' '), '"')), ''),
-												IFNULL(CONCAT(',"emailAddress": ', CONCAT('"', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/'))),  '"')), ''),
+												IFNULL(CONCAT(',"emailAddress": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(ab.EMAILADDRESS, '\r', ''),'\n', ' '), '"', ''), '\\', '/')))), ''),
 												IFNULL(CONCAT(',"isMyAddress": ',  IFF(o.ADDRESS_TYPE = 'Customer Address', 'true', 'false') ), ''),
 											--	CONCAT(',"isScrubbed": ', case when 'a.ID' IS NOT NULL AND 'a.street' = 'SCRUBBED' then 'true' else 'false' end),
 												'}'), 'null'),
@@ -349,8 +335,11 @@ SELECT
 							    '"id": "', CONCAT('fake-', UUID_STRING()), '"',
 							    IFNULL(CONCAT(',"title": ', TO_JSON(TO_VARIANT(replace(replace(replace(o.PRODUCT_TITLE, '"', ''''), '\r', ''),'\n', ' ')))), ''),
 							   ',"quantity": ', o.QUANTITY,
-							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * IFNULL(gc.ITEM_ESIV_NEW, o.item_esiv) AS INT), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
-							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(o.QUANTITY = 0, 0, CAST(100 * IFNULL(gc.ITEM_ESIV_NEW, o.item_esiv) / o.QUANTITY AS INT)), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
+							   CONCAT(',"totalPrice": ', CONCAT('{"centAmount": ', CAST(100 * 
+											IFF(IFNULL(gc.ITEM_ESIV + IFNULL(gc.ITEM_DISCOUNT, 0), o.item_esiv + IFNULL(o.ITEM_DISCOUNT, 0)) 
+												< 0, 0, IFNULL(gc.ITEM_ESIV + IFNULL(gc.ITEM_DISCOUNT, 0), o.item_esiv + IFNULL(o.ITEM_DISCOUNT, 0))) AS INT)
+									, ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
+							   CONCAT(',"unitPrice": ', CONCAT('{"centAmount": ', IFF(o.QUANTITY = 0, 0, CAST(100 * IFF(IFNULL(gc.ITEM_ESIV + IFNULL(gc.ITEM_DISCOUNT, 0), o.item_esiv + IFNULL(o.ITEM_DISCOUNT, 0)) < 0, 0, IFNULL(gc.ITEM_ESIV + IFNULL(gc.ITEM_DISCOUNT, 0), o.item_esiv + IFNULL(o.ITEM_DISCOUNT, 0))) / o.QUANTITY AS INT)), ', "currencyCode": "', IFNULL(o.ORDER_CURRENCYCODE, ''), '"}')),
 							   IFNULL(CONCAT(',"productType": "', o.PRODUCT_TYPE_NAME, '"'), ''),
 							   IFNULL(CONCAT(',"sku": "', o.SKU_VARIANT, '"'), ''),
 							--   ',"productSlug": ""',
@@ -367,7 +356,7 @@ SELECT
 		
 										IFNULL(CONCAT(',"deliveryMethodId": "', DELIVERY_METHOD_ID , '"'), ''),
 										IFNULL(CONCAT(',"deliveryMethodName": "', IFF(DELIVERY_METHOD_ID = 5, 'None', o.DELIVERY_METHOD) , '"'), ''),
-										IFNULL(CONCAT(',"trackingNumber": "', TO_JSON(TO_VARIANT(replace(replace(replace(replace(o.TRACKING_CODE, '\r', ''),'\n', ' '), '\\', '/'), '"', ''''))),  '"'), ''),
+										IFNULL(CONCAT(',"trackingNumber": ', TO_JSON(TO_VARIANT(replace(replace(replace(replace(o.TRACKING_CODE, '\r', ''),'\n', ' '), '\\', '/'), '"', '''')))  ), ''),
 									--	IFNULL(CONCAT(',"trackingUrl": ""'), ''),
 									--	IFNULL(CONCAT(',"fullTrackingUrl": ""'), ''),
 										',"fulfilmentCentre" : {',
@@ -376,7 +365,7 @@ SELECT
 										'}', '}'),
 								   --		'deliveryType', dp.type,
 
-		IFNULL(CONCAT(',"mobileNumber": "', TO_JSON(TO_VARIANT(replace(replace(replace(ab.TELEPHONENO, '\r', ''),'\n', ' '), '"', ''))),  '"'), ''),
+		IFNULL(CONCAT(',"mobileNumber": ', TO_JSON(TO_VARIANT(replace(replace(replace(ab.TELEPHONENO, '\r', ''),'\n', ' '), '"', '')))  ), ''),
 		'}'
 		)
 	AS orderDelivery,
@@ -393,13 +382,14 @@ SELECT
 	SUM(IFNULL(o.PREPAY, 0) + IFNULL(o.BONUS, 0)) AS CreditsUsed,
 --	o.ORDER_CASH_PAID AS GRANDTOTALFORPAYMENT,							-- will need + sum(CreditsUsed) in the next "group by"
 --	GRANDTOTALFORPAYMENT - o.POSTAGE_SUBTOTAL	AS subTotalPrice,		-- will need + sum(CreditsUsed) in the next "group by"
-	SUM(IFNULL(gc.ITEM_ESEV_NEW, o.item_esev))  AS totalTaxExclusive,
-	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
+	SUM(IFNULL(gc.ITEM_ESEV, o.item_esev))  AS totalTaxExclusive,
+--	o.PRODUCT_DISCOUNT_INC_TAX AS totalDiscount,
+	SUM(IFNULL(o.ITEM_DISCOUNT, 0)) AS totalDiscount,
 	SUM(o.QUANTITY) AS totalItems,
-	o.POSTAGE_SUBTOTAL AS totalShippingPrice,
+	o.POSTAGE_PRICE AS totalShippingPrice,
 	IFF(o.mcd_order_id::STRING = o.order_id, 1, 0) AS NewOrder,
 	
-	SUM(IFNULL(gc.ITEM_ESIV_NEW, o.item_esiv))  AS sum_Item_ESIV
+	SUM(IFNULL(gc.ITEM_ESIV, o.item_esiv))  AS sum_Item_ESIV
 		
 FROM
 	cte_Order_Items o	
@@ -453,10 +443,8 @@ GROUP BY
 	o.ORDER_NUMBER,
 	o.mcd_order_id,
 --	o.ORDER_CASH_PAID,
-	o.POSTAGE_SUBTOTAL,
-	o.ORDER_ESIV,
-	o.ORDER_ESEV,
-	o.PRODUCT_DISCOUNT_INC_TAX,
+	o.POSTAGE_PRICE,
+	--o.PRODUCT_DISCOUNT_INC_TAX,
 	o.EMAILADDRESS,
 	AB.FIRSTNAME,
 	AB.LASTNAME,
@@ -484,39 +472,36 @@ SELECT
    i.MCD_CUSTOMER_ID_In_Order,
    i.NewOrder,
    
-   SUM(sum_Item_ESIV) AS sum_subTotalPrice,
-   sum_subTotalPrice + i.totalShippingPrice AS GRANDTOTALFORPAYMENT,
+   CONCAT('{"centAmount": ', cast((SUM(i.sum_Item_ESIV) + SUM(i.totalDiscount)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS totalItemPrice,
    
-   -- subTotalPrice
-   -- CONCAT('{"centAmount": ', cast(IFF((i.subTotalPrice + SUM(CreditsUsed)) < 0, 0, (i.subTotalPrice + SUM(CreditsUsed))) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
-   CONCAT('{"centAmount": ', cast(sum_subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalPrice,
+-- subTotalPrice = totalItemPrice + ShippingPrice
+   CONCAT('{"centAmount": ', cast((SUM(i.sum_Item_ESIV) + SUM(i.totalDiscount) + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS subTotalPrice,
    
-   -- totalPrice = subTotalPrice + totalShippingAmount
-  -- CONCAT('{"centAmount": ', cast((i.subTotalPrice + i.totalShippingPrice) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
-  -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(CreditsUsed)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
-   CONCAT('{"centAmount": ', cast(GRANDTOTALFORPAYMENT * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPrice,
+ /*  CONCAT('{"centAmount": ', cast(
+								IFF(
+									SUM(i.sum_Item_ESIV) - SUM(i.CreditsUsed) + i.totalShippingPrice < 0, 
+									0,
+									SUM(i.sum_Item_ESIV) - SUM(i.CreditsUsed) + i.totalShippingPrice
+									)
+								* 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS totalPaid,*/
 
-  -- totalItemPrice = totalPrice + totalDiscount(?) - totalShippingAmount
-   -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT /*+ SUM(i.totalDiscount)*/ - SUM(i.totalShippingPrice)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
-   -- new: totalItemPrice = subTotalPrice = subTotalIncTax ?
-   -- CONCAT('{"centAmount": ', cast(IFF((i.subTotalPrice + SUM(CreditsUsed)) < 0, 0, (i.subTotalPrice + SUM(CreditsUsed))) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
-   CONCAT('{"centAmount": ', cast(sum_subTotalPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalItemPrice,
+   CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS totalShippingPrice,
 
-   -- subTotalIncTax = totalItemPrice + totalShippingPrice
-   -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(i.totalDiscount) /* - i.totalShippingPrice + i.totalShippingPrice*/) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
-   -- CONCAT('{"centAmount": ', cast((i.GRANDTOTALFORPAYMENT + SUM(CreditsUsed)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
-   CONCAT('{"centAmount": ', cast(GRANDTOTALFORPAYMENT * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS subTotalIncTax,
-
-   -- totalShippingPrice
-   CONCAT('{"centAmount": ', cast(i.totalShippingPrice * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalShippingPrice,
-   -- totalTaxExclusive
-   CONCAT('{"centAmount": ', cast(SUM(i.totalTaxExclusive) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalTaxExclusive,
-  -- CONCAT('{"centAmount": ', cast(i.totalPriceGross * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalPriceGross,
-   -- totalDiscount
-   CONCAT('{"centAmount": ', cast(i.totalDiscount * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS totalDiscount,
-   -- creditsUsed (const)
-   CONCAT('{"centAmount": ', cast(SUM(i.CreditsUsed) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') AS creditsUsed,
-   SUM(i.totalItems) AS totalItems,
+   CONCAT('{"centAmount": ', cast((SUM(i.totalTaxExclusive) + SUM(i.totalDiscount)) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS totalTaxExclusive,
+   
+   CONCAT('{"centAmount": ', cast(SUM(i.totalDiscount) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS totalDiscount,
+   
+   CONCAT('{"centAmount": ', cast(SUM(i.CreditsUsed) * 100 AS INT), ', "currencyCode": "', i.currencycode, '"}') 
+   AS creditsUsed,
+   
+   SUM(i.totalItems) 
+   AS totalItems,
 
 	concat('[',
 	LTRIM(LISTAGG(IFNULL(i.orderDelivery, ''), ','), ',')
@@ -542,8 +527,8 @@ GROUP BY
 		 i.MCD_CUSTOMER_ID_In_Order,
 		 i.NewOrder,
 	--	 i.subTotalPrice,
-		 i.totalShippingPrice,
-		 i.totalDiscount
+		 i.totalShippingPrice
+	--	 i.totalDiscount
 )
 
 SELECT mcd_customer_id                       AS entity_key,
@@ -561,19 +546,19 @@ SELECT mcd_customer_id                       AS entity_key,
 										 ',"version": ', IFF(id like 'LEGO%', '0', '5'),
 										 ',"createdAt": ', '"', createdAt, '"',
 										  IFNULL(CONCAT(',"orderReference": ', '"', orderReference, '"'), ''),
-										  IFNULL(CONCAT(',"customerEmail": "', customerEmail, '"'), ''),
+										  IFNULL(CONCAT(',"customerEmail":', customerEmail), ''),
 										  IFNULL(CONCAT(',"store": "', ORDER_STORE, '"'), ''),
 										  IFNULL(CONCAT(',"subTotalPrice": ', subTotalPrice), ''),
 										  IFNULL(CONCAT(',"totalItemPrice": ', totalItemPrice), ''),
 										  IFNULL(CONCAT(',"totalShippingPrice": ', totalShippingPrice), ''),
 										  IFNULL(CONCAT(',"postagePrice": ', totalShippingPrice), ''),			 -- postagePrice = totalShippingPrice
-										  IFNULL(CONCAT(',"subTotalIncTax": ', subTotalIncTax), ''),
+										  IFNULL(CONCAT(',"subTotalIncTax": ', subTotalPrice), ''),
 										  IFNULL(CONCAT(',"totalTaxExclusive": ', totalTaxExclusive), ''),
-										  IFNULL(CONCAT(',"totalPrice": ', totalPrice), ''),
-										  IFNULL(CONCAT(',"totalPriceGross": ', totalPrice), ''),			 	 -- totalPriceGross = totalPrice
+										  IFNULL(CONCAT(',"totalPrice": ', subTotalPrice), ''),
+										  IFNULL(CONCAT(',"totalPriceGross": ', subTotalPrice), ''),			 	 -- totalPriceGross = totalPrice
 										  IFNULL(CONCAT(',"totalDiscount": ', totalDiscount), ''),
 										  ',"creditsUsed": ', creditsUsed,
-										  IFNULL(CONCAT(',"totalPaid": ', totalPrice), ''),						 -- totalPaid = totalPriceGross = totalPrice
+										  IFNULL(CONCAT(',"totalPaid": ', subTotalPrice), ''),						 -- totalPaid = totalPriceGross = totalPrice
 										  IFNULL(CONCAT(',"totalItems": ', totalItems), ''),
 										  ',"deliveries": ', deliveries,
 										  ',"dataSource": "S3"',
