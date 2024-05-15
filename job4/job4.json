@@ -1,0 +1,44 @@
+{
+  "name" : "job4",
+  "jobMode" : "VISUAL",
+  "description" : "",
+  "role" : "arn:aws:iam::799965545242:role/service-role/AWSGlueServiceRole",
+  "executionProperty" : {
+    "maxConcurrentRuns" : 1
+  },
+  "command" : {
+    "name" : "glueetl",
+    "scriptLocation" : "s3://aws-glue-assets-799965545242-us-east-1/scripts/job4.py",
+    "pythonVersion" : "3"
+  },
+  "defaultArguments" : {
+    "--enable-metrics" : "true",
+    "--enable-spark-ui" : "true",
+    "--spark-event-logs-path" : "s3://aws-glue-assets-799965545242-us-east-1/sparkHistoryLogs/",
+    "--enable-job-insights" : "false",
+    "--enable-observability-metrics" : "true",
+    "--enable-glue-datacatalog" : "true",
+    "--enable-continuous-cloudwatch-log" : "true",
+    "--job-bookmark-option" : "job-bookmark-disable",
+    "--job-language" : "python",
+    "--TempDir" : "s3://aws-glue-assets-799965545242-us-east-1/temporary/"
+  },
+  "connections" : {
+    "connections" : [ "NewPostgresql_2" ]
+  },
+  "maxRetries" : 0,
+  "allocatedCapacity" : 10,
+  "timeout" : 2880,
+  "maxCapacity" : 10.0,
+  "glueVersion" : "4.0",
+  "numberOfWorkers" : 10,
+  "workerType" : "G.1X",
+  "executionClass" : "STANDARD",
+  "codeGenConfigurationNodes" : "{\"node-1715612411702\":{\"S3DirectTarget\":{\"AutoDataQuality\":{\"IsEnabled\":false},\"Compression\":\"none\",\"Format\":\"csv\",\"Inputs\":[\"node-1715612319582\"],\"Name\":\"Amazon S3\",\"PartitionKeys\":[],\"Path\":\"s3://b11-siftandpick/qw/\",\"SchemaChangePolicy\":{\"EnableUpdateCatalog\":false}}},\"node-1715612319582\":{\"DirectJDBCSource\":{\"ConnectionName\":\"NewPostgresql_2\",\"ConnectionType\":\"postgresql\",\"Database\":\"mydb\",\"Name\":\"PostgreSQL\",\"OutputSchemas\":[{\"Columns\":[{\"Name\":\"id\",\"Type\":\"bigint\"},{\"Name\":\"s\",\"Type\":\"string\"}]}],\"RedshiftTmpDir\":\"\",\"Table\":\"public.my_table\"}}}",
+  "sourceControlDetails" : {
+    "provider" : "GITHUB",
+    "repository" : "Sps",
+    "branch" : "main",
+    "folder" : "job4"
+  }
+}
