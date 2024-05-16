@@ -34,7 +34,7 @@
   "numberOfWorkers" : 10,
   "workerType" : "G.1X",
   "executionClass" : "STANDARD",
-  "codeGenConfigurationNodes" : "{\"node-1715612411702\":{\"S3DirectTarget\":{\"AutoDataQuality\":{\"IsEnabled\":false},\"Compression\":\"none\",\"Format\":\"csv\",\"Inputs\":[\"node-1715612319582\"],\"Name\":\"Amazon S3\",\"PartitionKeys\":[],\"Path\":\"s3://b11-siftandpick/qw/\",\"SchemaChangePolicy\":{\"EnableUpdateCatalog\":false}}},\"node-1715612319582\":{\"DirectJDBCSource\":{\"ConnectionName\":\"NewPostgresql_2\",\"ConnectionType\":\"postgresql\",\"Database\":\"mydb\",\"Name\":\"PostgreSQL\",\"OutputSchemas\":[{\"Columns\":[{\"Name\":\"id\",\"Type\":\"bigint\"},{\"Name\":\"s\",\"Type\":\"string\"}]}],\"RedshiftTmpDir\":\"\",\"Table\":\"public.my_table\"}}}",
+  "codeGenConfigurationNodes" : "{\"node-1715612411702\":{\"S3DirectTarget\":{\"AutoDataQuality\":{\"IsEnabled\":false},\"Compression\":\"none\",\"Format\":\"csv\",\"Inputs\":[\"node-1715612319582\"],\"Name\":\"MyAmazon S3\",\"PartitionKeys\":[],\"Path\":\"s3://b11-siftandpick/qw/\",\"SchemaChangePolicy\":{\"EnableUpdateCatalog\":false}}},\"node-1715612319582\":{\"DirectJDBCSource\":{\"ConnectionName\":\"NewPostgresql_2\",\"ConnectionType\":\"postgresql\",\"Database\":\"mydb\",\"Name\":\"PostgreSQL\",\"OutputSchemas\":[{\"Columns\":[{\"Name\":\"id\",\"Type\":\"bigint\"},{\"Name\":\"s\",\"Type\":\"string\"}]}],\"RedshiftTmpDir\":\"\",\"Table\":\"public.my_table\"}}}",
   "sourceControlDetails" : {
     "provider" : "GITHUB",
     "repository" : "Sps",
